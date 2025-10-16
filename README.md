@@ -1,10 +1,10 @@
-# petfit: PET BIDS App Powered by petfit
+# PETFit: PET BIDS App Powered by kinfitr
 
-An R Shiny web application suite for creating customized petfit BIDS App configuration files for PET imaging analysis. The toolkit provides an intuitive user interface for configuring kinetic modeling parameters for Time Activity Curves (TACs) while delegating kinetic modelling to the underlying petfit package. It supports both interactive GUI-based configuration and automated batch processing.
+An R Shiny web application suite for creating customised PETFit BIDS App configuration files for PET imaging analysis. The toolkit provides an intuitive user interface for configuring kinetic modelling parameters for time–activity curves (TACs) while delegating kinetic modelling to the underlying kinfitr package. It supports both interactive GUI-based configuration and automated batch processing.
 
 ## Overview
 
-The petfit package consists of three complementary Shiny applications that work together to provide a complete workflow for PET kinetic modeling analysis:
+PETFit consists of three complementary Shiny applications that work together to provide a complete workflow for PET kinetic modelling analysis:
 
 1. **Region Definition App**: Creates brain region definitions and combined TACs from segmentation data
 2. **Modelling App with Plasma Input**: Configures invasive kinetic models (1TCM, 2TCM, Logan, MA1) requiring blood input data
@@ -241,7 +241,7 @@ docker run --rm \
 
 ### System Architecture
 
-The petfit system uses a standardized directory structure that follows BIDS conventions:
+The PETFit system uses a standardised directory structure that follows BIDS conventions:
 
 ```
 
@@ -255,7 +255,7 @@ The petfit system uses a standardized directory structure that follows BIDS conv
      └── ses-*/
          └── pet/
  derivatives/                       # Processed outputs
- └── petfit/                       # petfit outputs
+ └── petfit/                       # PETFit outputs
      ├── desc-combinedregions_tacs.tsv  # Combined TACs
      └── Analysis_Name/             # Analysis-specific folder
          ├── desc-petfitoptions_config.json
@@ -491,7 +491,7 @@ your_analysis/
 **Symptoms**: Modelling app shows no data available
 **Solutions**:
 1. Run region definition app first to generate combined TACs
-2. Check that `desc-combinedregions_tacs.tsv` exists in petfit directory
+2. Check that `desc-combinedregions_tacs.tsv` exists in `derivatives/petfit`
 3. Verify region matching between segmentation and TACs data
 
 #### Docker Container Won't Start
@@ -543,7 +543,7 @@ region_definition_app(bids_dir = "/path/to/bids")
 - **Input Data**: Original BIDS datasets (varies by study)
 - **Processed Data**: Combined TACs and analysis files (~10-50MB per analysis)
 - **Reports**: HTML reports with embedded plots (~5-20MB each)
-- **Docker Images**: Base image ~2-3GB, petfit image ~3-4GB
+- **Docker Images**: Base image ~2-3GB, PETFit image ~3-4GB
 
 ## Contributing
 
@@ -608,7 +608,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Citation
 
-If you use petfit in your research, please cite *kinfitr* for now:
+If you use PETFit in your research, please cite *kinfitr* for now:
 
 An introduction to the package:
 

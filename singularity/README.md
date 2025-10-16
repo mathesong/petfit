@@ -1,6 +1,6 @@
-# Singularity Implementation for petfit Apps
+# Singularity Implementation for PETFit Apps
 
-This directory contains Singularity implementation files for running the petfit region definition and modelling apps in containerized environments, particularly suited for HPC clusters and shared computing resources.
+This directory contains Singularity implementation files for running the PETFit region definition and modelling apps in containerized environments, particularly suited for HPC clusters and shared computing resources.
 
 ## Quick Start
 

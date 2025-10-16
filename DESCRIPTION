@@ -1,14 +1,14 @@
 Package: petfit
-Title: Petfit BIDS App Configuration Interface
+Title: PETFit BIDS App Configuration Interface
 Version: 0.0.0.9000
 Authors@R: 
     c(person("Granville", "Matheson", , "granville.matheson@ki.se", role = c("aut", "cre")),
     person("Alessio", "Giacomel", , "alessio.giacomel@kcl.ac.uk", role = c("ctb")),
     person("Martin", "Noergaard", , "martin.noergaard@di.ku.dk", role = c("ctb")),
     person("Anthony", "Galassi", , "anthony.galassi@nih.gov", role = c("ctb")))
-Description: Petfit is a BIDS app and Shiny UI for performing PET kinetic
-     modelling using kinfitr. It provides a user interface for configuring kinetic 
-     modeling parameters for Time Activity Curves (TACs).
+Description: PETFit is a BIDS app and Shiny UI for performing PET kinetic
+     modelling using kinfitr. It provides a user interface for configuring kinetic
+     modelling parameters for time–activity curves (TACs).
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

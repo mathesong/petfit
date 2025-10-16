@@ -1,6 +1,6 @@
-# Docker Implementation for petfit Apps
+# Docker Implementation for PETFit Apps
 
-This directory contains Docker implementation files for running the petfit region definition and modelling apps in containerized environments.
+This directory contains Docker implementation files for running the PETFit region definition and modelling apps in containerized environments.
 
 ## Quick Start
 
