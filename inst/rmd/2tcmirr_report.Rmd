@@ -1,0 +1,861 @@
+---
+title: "Irreversible 2TCM Model Fitting Report"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  model_number: "Model 1"
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
+
+<!-- ```{r} -->
+<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/ds004869/derivatives/petfit/Primary_Analysis/" -->
+<!-- blood_dir <-"/home/granville/Repositories/OpenNeuro/ds004869/derivatives/bloodstream" -->
+<!-- model_number <- "Model 1" -->
+<!-- ``` -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(glue)
+library(DT)
+theme_set(theme_light())
+
+theme_set(theme_light())
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder %||% analysis_folder
+model_number <- params$model_number %||% model_number
+bids_dir <- params$bids_dir %||% bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    # cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+```{r, include=FALSE}
+# Remove old files from previous runs
+desc <- str_remove(str_to_lower(model_number), " ")
+
+oldfiles <- list.files(analysis_folder, pattern=desc, 
+                       recursive = T, full.names = T)
+
+file.remove(oldfiles)
+```
+
+
+
+This report summarises the 2TCM model fitting step in the petfit analysis pipeline (powered by kinfitr).
+
+# Analysis Configuration
+
+**Model:** `r params$model_number` - 2TCM (Two Tissue Compartment Model)
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Model Configuration and Parameters
+
+```{r model-config}
+# Extract model configuration for this specific model
+model_config <- NULL
+if (!is.null(config$Models)) {
+  if (params$model_number == "Model 1") {
+    model_config <- config$Models$Model1
+  } else if (params$model_number == "Model 2") {
+    model_config <- config$Models$Model2
+  } else if (params$model_number == "Model 3") {
+    model_config <- config$Models$Model3
+  }
+}
+
+if (!is.null(model_config) && model_config$type == "2TCM") {
+  # Create configuration table
+  config_items <- list(
+    "Model Type" = "2TCM (Two Tissue Compartment Model)",
+    "K1 Start Value" = model_config$K1$start %||% "Default",
+    "K1 Lower Bound" = model_config$K1$lower %||% "Default", 
+    "K1 Upper Bound" = model_config$K1$upper %||% "Default",
+    "k2 Start Value" = model_config$k2$start %||% "Default",
+    "k2 Lower Bound" = model_config$k2$lower %||% "Default",
+    "k2 Upper Bound" = model_config$k2$upper %||% "Default",
+    "k3 Start Value" = model_config$k3$start %||% "Default",
+    "k3 Lower Bound" = model_config$k3$lower %||% "Default",
+    "k3 Upper Bound" = model_config$k3$upper %||% "Default",
+    "vB Start Value" = model_config$vB$start %||% "Default",
+    "vB Lower Bound" = model_config$vB$lower %||% "Default",
+    "vB Upper Bound" = model_config$vB$upper %||% "Default"
+  )
+  
+  # Handle vB parameter configuration display
+  if (!is.null(model_config$vB_source)) {
+    # Inheritance system (Models 2 and 3)
+    vB_source <- model_config$vB_source
+    fit_vB_display <- if (vB_source == "fit") "Yes" else "No"
+    
+    if (vB_source == "fit") {
+      vB_source_display <- "Fit vB parameter"
+    } else if (vB_source == "set") {
+      vB_source_display <- "Set to fixed value"
+    } else if (str_detect(vB_source, "inherit_model1")) {
+      inherit_method <- str_split(vB_source, "_")[[1]][3]
+      vB_source_display <- paste0("Inherited from Model 1 (", str_to_title(inherit_method), ")")
+    } else if (str_detect(vB_source, "inherit_model2")) {
+      inherit_method <- str_split(vB_source, "_")[[1]][3]
+      vB_source_display <- paste0("Inherited from Model 2 (", str_to_title(inherit_method), ")")
+    } else {
+      vB_source_display <- vB_source
+    }
+    
+    config_items[["Fit vB Parameter"]] <- fit_vB_display
+    config_items[["vB Parameter Source"]] <- vB_source_display
+  } else {
+    # Model 1 system - use vB.fit boolean
+    fit_vB <- model_config$vB$fit %||% TRUE
+    vB_source <- if (fit_vB) "fit" else "set"
+    
+    config_items[["Fit vB Parameter"]] <- if (fit_vB) "Yes" else "No"
+    config_items[["vB Parameter Source"]] <- if (fit_vB) "Fit vB parameter" else "Set to fixed value"
+  }
+  
+  # Add common parameters
+  config_items[["Multstart Iterations"]] <- model_config$multstart_iter %||% 1
+  
+  # Add subset information if configured
+  if (!is.null(model_config$subset)) {
+    subset_info <- paste0(
+      "Type: ", model_config$subset$type %||% "time",
+      ", Start: ", model_config$subset$start %||% "Not set",
+      ", End: ", model_config$subset$end %||% "Not set"
+    )
+    config_items[["TAC Subset"]] <- subset_info
+  } else {
+    config_items[["TAC Subset"]] <- "Use all frames"
+  }
+  
+  config_df <- tibble(
+    Parameter = names(config_items),
+    Value = map_chr(config_items, as.character)
+  )
+  
+  kable(config_df, caption = "2TCM Model Configuration")
+  
+} else {
+  cat("2TCM model configuration not found or incomplete.")
+}
+```
+
+```{r setup-conditions, echo=FALSE}
+# Verify we have a valid 2TCM configuration
+has_2tcm_config <- !is.null(model_config) && model_config$type == "2TCM"
+
+# Exit early if not a 2TCM configuration
+if (!has_2tcm_config) {
+  cat("Invalid or missing 2TCM configuration. This report should not have been generated.")
+  knitr::knit_exit()
+}
+```
+
+# Loading Data
+
+## Loading TAC Data
+
+```{r load-tacs}
+weights_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+weightsdata <- tibble(
+  filename = weights_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>% 
+  unnest(tacs) %>% 
+  select(-filename, -basename, -measurement, -desc, -TAC)
+  
+
+tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+tac_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>% 
+  unnest(tacs) %>% 
+  select(-basename, -measurement, -desc) %>% 
+  inner_join(weightsdata)
+```
+
+Because we are now working with kinetic modelling, we need to use minutes instead of seconds. Hence, we will henceforth use minutes for time.
+
+```{r}
+tac_data <- tac_data %>% 
+  mutate(frame_start = frame_start/60,
+         frame_end = frame_end/60,
+         frame_dur = frame_dur/60,
+         frame_mid = frame_mid/60)
+```
+
+
+## Loading Blood Data
+
+```{r blood-loading-setup, echo=FALSE}
+# Determine which blood loading approach to use
+if (!is.null(blood_dir)) {
+  use_blood_dir <- TRUE
+  use_analysis_folder <- FALSE
+  use_bids_raw <- FALSE
+} else {
+  use_blood_dir <- FALSE
+  blood_source <- determine_blood_source(analysis_folder, bids_dir)
+  use_analysis_folder <- blood_source == "analysis_folder"
+  use_bids_raw <- blood_source == "bids_dir"
+}
+```
+
+```{r load-from-blood-dir, eval=use_blood_dir, echo=use_blood_dir}
+# Load blood data from specified blood_dir
+inputfunction_files <- list.files(blood_dir, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in blood_dir: ", blood_dir)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(blood_dir) %>% 
+  select(-measurement)
+```
+
+```{r load-from-analysis-folder, eval=use_analysis_folder, echo=use_analysis_folder}
+# Load processed inputfunction files from analysis folder
+inputfunction_files <- list.files(analysis_folder, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in analysis_folder: ", analysis_folder)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+  select(-measurement, -desc)
+```
+
+```{r create-analysis-inputfunctions, eval=use_bids_raw, echo=use_bids_raw, results='asis'}
+str_glue("Because we are loading blood data from the raw BIDS folder, we will first generate 
+         an arterial input function using linear interpolation of the measured curves,
+         and then create *_inputfunction.tsv files in the petfit analysis folder.")
+```
+
+```{r load-from-bids-raw, eval=use_bids_raw}
+# Load blood files from bids_dir
+blood_files <- list.files(bids_dir, pattern = "*_blood\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(blood_files) == 0) {
+  stop("No _blood.tsv files found in bids_dir")
+}
+
+# Generate blood data from raw BIDS data
+raw_data <- kinfitr::bids_parse_study(bids_dir) %>% 
+  select(any_of(names(tac_data)), blooddata)
+
+tac_data_files <- tac_data %>% 
+  filter(!duplicated(filename)) %>% 
+   select(any_of(names(raw_data)), filename)
+
+save_data <- inner_join(raw_data, tac_data_files) %>% 
+  mutate(filename = str_remove(filename, "_desc.*")) %>% 
+  mutate(filename = str_remove(filename, "_weights.*")) %>% 
+  mutate(filename = str_remove(filename, "_tacs.*")) %>% 
+  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>% 
+  mutate(filename = paste0(analysis_folder, "/", filename))
+
+walk2(save_data$blooddata, save_data$filename, blooddata2inputfunction_tsv)
+
+# Load the created inputfunction files
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+  select(-measurement, -desc)
+```
+
+```{r blood-loading-error, eval=(!use_blood_dir && !use_analysis_folder && !use_bids_raw)}
+stop("No blood data available - provide blood_dir or ensure blood data exists in analysis folder or BIDS directory")
+```
+
+## Loading Delay Information
+
+```{r load-delay}
+delay_data <- tibble(
+  filename = list.files(analysis_folder, pattern = "*_desc-delayfit_kinpar.tsv", 
+                       recursive = TRUE, full.names = TRUE)
+)
+
+if( nrow(delay_data)==0 ) {
+  cat("No delay data found for kinetic modelling.")
+  cat("Delay will be set to 0.")
+  
+  delay_source <- "Not estimated: assumed to be zero"
+  
+  delay_data <- blood_data %>% 
+    select(-input) %>% 
+    mutate(inpshift = 0)
+  
+} else{
+  
+  delay_data <- delay_data %>% 
+    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    unnest(attributes) %>% 
+    filter(!is.na(sub)) %>% 
+    mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
+    mutate(pet = str_remove(basename(pet), "_desc.*")) %>%
+    mutate(pet = str_remove(pet, "_kinpar.*")) %>% 
+    mutate(
+      inpshift = map_dbl(filename, ~{
+          tryCatch({
+            delay <- read_tsv(.x)
+            if (!is.null(delay$blood_timeshift)) {
+              delay$blood_timeshift
+            } else {
+              0  # Default to zero if no delay found
+            }
+          }, error = function(e) 0)  # Default to zero on error
+        })
+      ) %>% 
+    select(-filename, -measurement, -model, -desc)
+  
+  delay_source <- "Inherited from delay fit"
+}
+```
+
+
+```{r vB-loading-setup, echo=FALSE}
+# Determine inheritance for vB
+if(!is.null(model_config$vB_source) && 
+   str_detect(model_config$vB_source, "inherit")) {
+  vB_inheritance <- TRUE
+} else {
+  vB_inheritance <- FALSE
+}
+```
+
+
+```{r heading-vB, echo=vB_inheritance, eval=vB_inheritance, results='asis'}
+str_glue("## Loading vB Information
+         
+         The model has been defined to inherit a vB value from a previous model run.
+         ")
+```
+
+
+```{r load-vB, echo=vB_inheritance, eval=vB_inheritance}
+vB_inheritance_model <- str_match(model_config$vB_source, "inherit_(model\\d)")[,2]
+vB_inheritance_type <- str_match(model_config$vB_source, "inherit_model\\d_(\\w*)")[,2]
+
+vB_data <- tibble(
+  filename = list.files(analysis_folder, 
+                        pattern = paste0("*_desc-", vB_inheritance_model,"_kinpar.tsv"), 
+                       recursive = TRUE, full.names = TRUE)
+)
+
+if( nrow(vB_data)==0 ) {
+  cat("No vB data found for inheritance.")
+  cat("vB will be set to 0.05")
+  
+  vB_data <- blood_data %>% 
+    select(-input) %>% 
+    mutate(vB = 0.05)
+  
+} else{
+  
+  vB_data <- vB_data %>% 
+    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    unnest(attributes) %>% 
+    filter(!is.na(sub)) %>% 
+    mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
+    mutate(pet = str_remove(basename(pet), "_desc.*")) %>%
+    mutate(pet = str_remove(pet, "_kinpar.*")) %>% 
+    mutate(vB_kp = map(filename, read_tsv)) %>% 
+    select(-filename, -measurement, -desc) %>% 
+    group_by(pet)
+  
+  # Calculation
+  if(vB_inheritance_type == "mean") {
+    vB_data <- vB_data %>% 
+      mutate(vB=map_dbl(vB_kp, ~mean(.x$vB))) %>% 
+    select(-vB_kp) %>% 
+    ungroup()
+  }
+  
+  if(vB_inheritance_type == "median") {
+  vB_data <- vB_data %>% 
+    mutate(vB=map_dbl(vB_kp, ~median(.x$vB))) %>% 
+    select(-vB_kp) %>% 
+    ungroup()
+  }
+  
+  if(vB_inheritance_type == "regional") {
+  vB_data <- vB_data %>% 
+    mutate(vB_kp = map(vB_kp, ~.x %>% 
+                         select(region, vB))) %>% 
+    unnest(vB_kp) %>% 
+    ungroup()
+  }
+}
+```
+
+
+
+
+# Combining Data
+
+```{r}
+tac_data_nested <- tac_data %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+                                           "run", "pet", "filename", "region")))) %>% 
+  nest(.key="tacs")
+
+model_data <- inner_join(tac_data_nested, blood_data) %>% 
+  ungroup() %>% 
+  mutate(output_stem = filename) %>% 
+  select(-filename) %>% 
+  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
+  mutate(output_stem = str_remove(output_stem, "_weights.*")) %>% 
+  mutate(output_stem = str_remove(output_stem, "_tacs.*"))
+
+model_data <- model_data %>% 
+  left_join(delay_data)
+```
+
+```{r combine-vB, echo=vB_inheritance, eval=vB_inheritance}
+model_data <- model_data %>% 
+  left_join(vB_data)
+```
+
+
+# 2TCM Model Fitting
+
+Now we proceed to the actual 2TCM model fitting using all available regional TACs.
+
+```{r model-prep}
+# Extract model parameters from configuration
+K1_start <- model_config$K1$start %||% 0.1
+K1_lower <- model_config$K1$lower %||% 0
+K1_upper <- model_config$K1$upper %||% 1
+
+k2_start <- model_config$k2$start %||% 0.1  
+k2_lower <- model_config$k2$lower %||% 0
+k2_upper <- model_config$k2$upper %||% 1
+
+k3_start <- model_config$k3$start %||% 0.1
+k3_lower <- model_config$k3$lower %||% 0
+k3_upper <- model_config$k3$upper %||% 1
+
+k4_start <- model_config$k4$start %||% 0.1
+k4_lower <- model_config$k4$lower %||% 0
+k4_upper <- model_config$k4$upper %||% 1
+
+vB_start <- model_config$vB$start %||% 0.05
+vB_lower <- model_config$vB$lower %||% 0
+vB_upper <- model_config$vB$upper %||% 0.2
+
+multstart_iter <- model_config$multstart_iter %||% 1
+
+# Set vB if not being fit or inherited
+if(vB_source=="set") {
+  model_data$vB <- model_config$vB$start %||% 0.05
+}
+
+# Extract TAC subset parameters
+subset_config <- model_config$subset
+frameStartEnd <- NULL
+timeStartEnd <- NULL
+
+if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset_config$end))) {
+  if (subset_config$type == "frame") {
+    frameStartEnd <- c(subset_config$start, subset_config$end)
+  } else if (subset_config$type == "time") {
+    timeStartEnd <- c(subset_config$start, subset_config$end)
+  }
+}
+```
+
+
+```{r model-fitting}
+# Safe 2TCM function to handle errors
+safe_twotcm <- possibly(twotcm, otherwise = NA)
+
+if(vB_source == "fit") {
+  
+  # Fit 2TCM model to all regional TACs
+  model_data <- model_data %>% 
+    group_by(output_stem, region) %>% 
+    mutate(fit_2tcm = pmap(list(tacs, input, inpshift),
+                           ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
+                                   input = ..2, 
+                                   weights = ..1$weights,
+                                   inpshift = ..3,
+                                   frameStartEnd = frameStartEnd,
+                                   timeStartEnd = timeStartEnd,
+                                   K1.start = K1_start,
+                                   K1.lower = K1_lower, 
+                                   K1.upper = K1_upper,
+                                   k2.start = k2_start,
+                                   k2.lower = k2_lower,
+                                   k2.upper = k2_upper,
+                                   k3.start = k3_start,
+                                   k3.lower = k3_lower,
+                                   k3.upper = k3_upper,
+                                   k4.start = k4_start,
+                                   k4.lower = k4_lower,
+                                   k4.upper = k4_upper,
+                                   multstart_iter = multstart_iter))) %>%
+    ungroup() %>% 
+    mutate(success = map_dbl(fit_2tcm, length) > 1)
+  
+} else {
+  
+    # Fit 2TCM model to all regional TACs
+    model_data <- model_data %>% 
+      group_by(output_stem, region) %>% 
+      mutate(fit_2tcm = pmap(list(tacs, input, inpshift, vB),
+                             ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
+                                     input = ..2, 
+                                     weights = ..1$weights,
+                                     inpshift = ..3,
+                                     vB = ..4,
+                                     frameStartEnd = frameStartEnd,
+                                     timeStartEnd = timeStartEnd,
+                                     K1.start = K1_start,
+                                     K1.lower = K1_lower, 
+                                     K1.upper = K1_upper,
+                                     k2.start = k2_start,
+                                     k2.lower = k2_lower,
+                                     k2.upper = k2_upper,
+                                     k3.start = k3_start,
+                                     k3.lower = k3_lower,
+                                     k3.upper = k3_upper,
+                                     k4.start = k4_start,
+                                     k4.lower = k4_lower,
+                                     k4.upper = k4_upper,
+                                     multstart_iter = multstart_iter))) %>%
+      ungroup() %>% 
+      mutate(success = map_dbl(fit_2tcm, length) > 1)
+  
+}
+
+
+```
+
+```{r, results='asis'}
+success_n <- sum(model_data$success)
+tot_n <- nrow(model_data)
+
+str_glue("Model successfully estimated for {success_n} / {tot_n} ({round(100*success_n/tot_n)}%) of measurements.
+         
+         Model estimation unsuccessful for {tot_n-success_n} / {tot_n}  ({100-(round(100*success_n/tot_n))}%) of measurements.")
+```
+
+# Results
+
+```{r}
+model_data <- model_data %>% 
+  filter(success)
+```
+
+
+## Parameters
+
+```{r}
+model_res <- model_data %>% 
+  ungroup() %>% 
+  mutate(par = map(fit_2tcm, "par")) %>% 
+  select(-fit_2tcm, -tacs, -input)
+```
+
+### Estimates
+
+```{r}
+par_table <- model_res %>% 
+  select(-output_stem) %>% 
+  select(where(~ n_distinct(.x) > 1)) %>% 
+  select(-any_of(c("vB", "inpshift"))) %>% 
+  unnest(par)
+  
+par_table %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+### Standard Error
+
+Here is shown the standard error as a fraction of the mean value (i.e. 1 = 100\%).
+
+```{r}
+par_se_table <- model_data %>% 
+  ungroup() %>% 
+  mutate(par.se = map(fit_2tcm, "par.se")) %>% 
+  select(-fit_2tcm, -tacs, -input) %>% 
+  select(-output_stem) %>% 
+  select(where(~ n_distinct(.x) > 1)) %>% 
+  select(-any_of(c("vB", "inpshift"))) %>% 
+  unnest(par.se) %>% 
+  select(where(~ mean(is.na(.x)) < 1))
+
+par_se_table %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+### Goodness of Fit
+
+```{r}
+RSS <- function(fit) {
+  deviance(fit)
+}
+
+reduced_chisq <- function(fit) {
+  deviance(fit) / df.residual(fit)
+}
+
+gof_table <- model_data %>% 
+  ungroup() %>% 
+  mutate(gof = map(fit_2tcm, ~tibble(
+    AIC = AIC(.x$fit),
+    BIC = BIC(.x$fit),
+    RSS = RSS(.x$fit),
+    reduced_chisq = reduced_chisq(.x$fit)))) %>% 
+  select(-fit_2tcm, -tacs, -input) %>% 
+  select(-output_stem) %>% 
+  select(where(~ n_distinct(.x) > 1)) %>% 
+  select(-any_of(c("vB", "inpshift"))) %>% 
+  unnest(gof) %>% 
+  select(where(~ mean(is.na(.x)) < 1))
+  
+gof_table %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+
+**Note:** The Reduced Chi-Squared figure is a goodness-of-fit metric calculated as the weighted residual sum of squares divided by degrees of freedom. Values near 1.0 indicate appropriate model fit and error estimation, while values >>1 suggest underfitting, and values <<1 suggest overfitting.
+
+### Parameter Plots
+
+#### Overall Histogram
+
+```{r, fig.width=7, fig.height=9}
+par_table_long <- par_table %>% 
+  pivot_longer(cols=c(K1, k2, k3, k4, Vt, Vnd, BPp, BPnd), 
+               names_to = "Parameter",
+               values_to = "Value")
+
+
+ggplot(par_table_long, aes(x=Value, fill=Parameter)) +
+  geom_histogram(colour="black") +
+  facet_wrap(~Parameter, scales="free", ncol=2) +
+  guides(fill="none")
+```
+
+
+#### Histograms By Region
+
+```{r, fig.width=7, fig.height=9}
+ggplot(par_table_long, aes(x=Value, fill=region)) +
+  geom_histogram(colour="black") +
+  facet_wrap(~Parameter, scales="free", ncol=2)
+```
+
+
+## Fits
+
+### Plots
+
+```{r, fig.height=4, fig.width=6}
+fitplots <- model_data %>% 
+  mutate(title = paste(pet, " : ", region)) %>% 
+  mutate(fitplot = pmap(list(fit_2tcm, region, title), 
+                        ~plot(..1, roiname=..2) + 
+                          labs(title = ..3,
+                               y = "Radioactivity (kBq)",
+                               x = "Time (min)"))) %>% 
+  pull(fitplot)
+
+walk(fitplots, ~print(.x))
+```
+
+### Residuals
+
+```{r, fig.height=4, fig.width=6}
+resplots <- model_data %>% 
+  mutate(title = paste(pet, " : ", region)) %>% 
+  mutate(resplot = pmap(list(fit_2tcm, title), 
+                        ~plot_residuals(..1) + 
+                          labs(title = ..2))) %>% 
+  pull(resplot)
+
+walk(resplots, ~print(.x))
+```
+
+
+
+
+# Saving Parameters
+
+## Main TSV
+
+```{r}
+savepar <- inner_join(par_table, 
+                      par_se_table) %>% 
+  inner_join(gof_table) %>% 
+  # Fixing parameter names
+  rename_with(~str_replace(.x, "\\.se", "-se")) %>% 
+  rename_with(~str_replace(.x, "Vt", "VT"))
+
+write_tsv(savepar, 
+          file=paste0(analysis_folder, "/", 
+                      "model_", "2TCM","_",
+                      "desc-", desc,"_",
+                      "kinpar.tsv"))
+```
+
+## PET Folder TSVs
+
+```{r}
+folder_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>% 
+  mutate(dirname = dirname(filename)) %>% 
+  select(-filename, -basename, -measurement, -desc)
+
+savepar_pet <- savepar %>% 
+    group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+                                           "run", "pet")))) %>% 
+  nest(.key="kinpars") %>% 
+  inner_join(folder_data) %>% 
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
+                           "model_", "2TCM","_",
+                            "desc-", desc,"_",
+                            "kinpar.tsv"))
+
+walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r}
+savepar_pet <- savepar_pet %>% 
+  group_by(pet) %>% 
+  mutate(jsondat = map(kinpars, ~list(
+      Description = "Two tissue compartmental model fit using nonlinear least squares estimation.",
+      ModelName = "2TCM",
+      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")))) %>% 
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+  
+walk2(savepar_pet$jsondat, 
+      savepar_pet$filename_json, 
+      ~writeLines(.x, .y))
+```
+
+# Saving Fitted Values
+
+## PET Folder TSVs
+
+```{r}
+savefits <- model_data %>% 
+  filter(success) %>% 
+  mutate(fitvals = map(fit_2tcm, ~{
+    
+    interpfitvals <- tibble(
+      Time = seq(from=min(.x$tacs$Time),
+                  to=max(.x$tacs$Time),
+                  length.out=500)) %>% 
+      mutate(Target_fitted = predict(.x$fit, newdata = list(t_tac = Time, 
+        tac = pracma::interp1(.x$tacs$Time, .x$tacs$Target, 
+                              xi = .x$input$Time, method = "linear"))))
+        
+    .x$tacs %>% 
+      mutate(Weights = .x$weights) %>% 
+      full_join(interpfitvals) %>% 
+      # mutate(frame_start = Time - 0.5*Duration,
+      #        frame_end = Time + 0.5*Duration) %>% 
+      select(
+        # frame_start,
+        # frame_end,
+        frame_mid = Time,
+        # frame_dur = Duration,
+        TAC = Target,
+        TAC_fitted = Target_fitted,
+        weights=Weights
+        ) %>% 
+      arrange(frame_mid)
+  })) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  unnest(cols=c("fitvals")) %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+                                           "run", "pet")))) %>% 
+  nest(.key="fitvals")
+
+savefits_pet <- savefits %>% 
+  inner_join(folder_data) %>% 
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
+                           "model_", "2TCM","_",
+                            "desc-", desc,"fitted",
+                            "_",
+                            "tacs.tsv"))
+
+walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r}
+savefits_pet <- savefits_pet %>% 
+  group_by(pet) %>% 
+  mutate(jsondat = map(fitvals, ~list(
+      Description = "Two tissue compartment model fitted values.",
+      ModelName = "2TCM",
+      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}"),
+      frame_mid = "The frame middle time in minutes",
+      TAC = paste("TAC radioactivity data in kBq to which the model was fitted.",
+                  "If there is a vB, this is after removal of blood radioactivity."),
+      TAC_fitted = "Model fitted values.",
+      weights = "Model weights"))) %>% 
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+  
+walk2(savefits_pet$jsondat, 
+      savefits_pet$filename_json, 
+      ~writeLines(.x, .y))
+```
+
+
+
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```
