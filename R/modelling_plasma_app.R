@@ -679,11 +679,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                      "1TCM (Non-linear)" = "1TCM",
                                                      "2TCM (Non-linear)" = "2TCM",
                                                      "Logan (Linear)" = "Logan",
-                                                     "MA1 (Linear)" = "MA1",
-                                                     "SRTM (Non-invasive, Non-linear)" = "SRTM",
-                                                     "refLogan (Non-invasive, Linear)" = "refLogan",
-                                                     "MRTM1 (Non-invasive, Linear)" = "MRTM1",
-                                                     "MRTM2 (Non-invasive, Linear)" = "MRTM2"
+                                                     "MA1 (Linear)" = "MA1"
                                          ),
                                          selected = "none"),
                              # 1TCM selection panel
@@ -883,11 +879,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                      "1TCM (Non-linear)" = "1TCM",
                                                      "2TCM (Non-linear)" = "2TCM",
                                                      "Logan (Linear)" = "Logan",
-                                                     "MA1 (Linear)" = "MA1",
-                                                     "SRTM (Non-invasive, Non-linear)" = "SRTM",
-                                                     "refLogan (Non-invasive, Linear)" = "refLogan",
-                                                     "MRTM1 (Non-invasive, Linear)" = "MRTM1",
-                                                     "MRTM2 (Non-invasive, Linear)" = "MRTM2"
+                                                     "MA1 (Linear)" = "MA1"
                                          ),
                                          selected = "none"),
                              # 1TCM selection panel
@@ -2116,11 +2108,17 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model1")
-        showNotification("Model 1 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 1 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 1: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model1")
@@ -2146,11 +2144,17 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model2")
-        showNotification("Model 2 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 2 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 2: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model2")
@@ -2176,11 +2180,17 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model3")
-        showNotification("Model 3 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 3 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 3: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model3")

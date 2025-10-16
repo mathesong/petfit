@@ -1951,11 +1951,17 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model1")
-        showNotification("Model 1 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 1 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 1: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model1")
@@ -1981,11 +1987,17 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model2")
-        showNotification("Model 2 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 2 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 2: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model2")
@@ -2011,11 +2023,17 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
+
         # Remove fitting notification and show completion
         removeNotification(id = "fitting_model3")
-        showNotification("Model 3 fitting report generated successfully", type = "message", duration = 5)
-        
+
+        # Check if report was actually generated
+        if (!is.null(report_file)) {
+          showNotification("Model 3 fitting report generated successfully", type = "message", duration = 5)
+        } else {
+          showNotification("Error fitting Model 3: report generation failed", type = "error", duration = 5)
+        }
+
       }, error = function(e) {
         # Remove fitting notification and show error
         removeNotification(id = "fitting_model3")
