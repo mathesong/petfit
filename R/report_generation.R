@@ -142,8 +142,9 @@ get_model_template <- function(model_type) {
   
   template_map <- list(
     "1TCM" = "1tcm_report.Rmd",
-    "2TCM" = "2tcm_report.Rmd", 
+    "2TCM" = "2tcm_report.Rmd",
     "Logan" = "logan_report.Rmd",
+    "MA1" = "ma1_report.Rmd",
     "Fit Delay" = "fit_delay_report.Rmd"
   )
   
