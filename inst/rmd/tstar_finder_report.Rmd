@@ -43,7 +43,7 @@ if (file.exists(config_path)) {
 
 # t* Finder Analysis Report
 
-This report summarises the t* (t-star) optimisation analysis for Logan graphical analysis in the petfit analysis pipeline (powered by kinfitr).
+This report summarises the t* (t-star) optimisation analysis for Logan graphical analysis.
 
 ## Analysis Configuration
 

@@ -501,10 +501,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              # Model selection drop-down menu
                              selectInput("button", "Select a model:",
                                          choices = c("No Model 1" = "none",
-                                                     "1TCM (Non-linear)" = "1TCM",
-                                                     "2TCM (Non-linear)" = "2TCM",
-                                                     "Logan (Linear)" = "Logan",
-                                                     "MA1 (Linear)" = "MA1"
+                                                     "1TCM (Non-linear, Reversible binding)" = "1TCM",
+                                                     "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
+                                                     "Logan (Linear, Reversible binding)" = "Logan",
+                                                     "MA1 (Linear, Reversible binding)" = "MA1",
+                                                     "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
                              # 1TCM selection panel
@@ -593,6 +595,49 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
                                
                              ),
+                             # 2TCM_irr selection panel
+                             conditionalPanel(
+                               condition = "input.button == '2TCM_irr'",
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.lower", "k3.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.upper", "k3.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.lower", "vB.lower", value = 0.01, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.upper", "vB.upper", value = 0.1, min = 0, step=.001)),
+                               ),
+                               checkboxInput("vB.fit", "Fit vB (otherwise use vB.start)", value = TRUE),
+
+                               # Time/Frame Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+
+                               # Multstart Options
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
+
+                             ),
                              # Logan selection panel
                              conditionalPanel(
                                condition = "input.button == 'Logan'",
@@ -601,8 +646,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source", "vB Parameter Source:",
@@ -634,8 +679,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source", "vB Parameter Source:",
@@ -651,6 +696,39 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
                                radioButtons("subset_type", "Selection Method:",
                                            choices = list("Frame Numbers" = "frame", 
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                               )
+                             ),
+
+                             # Patlak selection panel
+                             conditionalPanel(
+                               condition = "input.button == 'Patlak'",
+                               h4("t* Definition"),
+                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
+                               radioButtons("tstar_type", "",
+                                           choices = list("Number of Frames (from the end)" = "frame",
+                                                         "Time Point (minutes)" = "time"),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+
+                               h4("Other Parameters"),
+                               selectInput("vB_source", "vB Parameter Source:",
+                                          choices = list("Set vB" = "set"),
+                                          selected = "set"),
+                               conditionalPanel(
+                                 condition = "input.vB_source == 'set'",
+                                 numericInput("vB_value", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
+                               ),
+
+                               # TAC Subset Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
                                                          "Time Points (minutes)" = "time"),
                                            selected = "time", inline = TRUE),
                                fluidRow(
@@ -676,10 +754,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              # Model selection drop-down menu
                              selectInput("button2", "Select a model:",
                                          choices = c("No Model 2" = "none",
-                                                     "1TCM (Non-linear)" = "1TCM",
-                                                     "2TCM (Non-linear)" = "2TCM",
-                                                     "Logan (Linear)" = "Logan",
-                                                     "MA1 (Linear)" = "MA1"
+                                                     "1TCM (Non-linear, Reversible binding)" = "1TCM",
+                                                     "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
+                                                     "Logan (Linear, Reversible binding)" = "Logan",
+                                                     "MA1 (Linear, Reversible binding)" = "MA1",
+                                                     "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
                              # 1TCM selection panel
@@ -784,6 +864,49 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
                                
                              ),
+                             # 2TCM_irr selection panel
+                             conditionalPanel(
+                               condition = "input.button2 == '2TCM_irr'",
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.lower2", "k3.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.upper2", "k3.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.lower2", "vB.lower", value = 0.01, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.upper2", "vB.upper", value = 0.1, min = 0, step=.001)),
+                               ),
+                               checkboxInput("vB.fit2", "Fit vB (otherwise use vB.start)", value = TRUE),
+
+                               # Time/Frame Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type2", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+
+                               # Multstart Options
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
+
+                             ),
                              # Logan selection panel
                              conditionalPanel(
                                condition = "input.button2 == 'Logan'",
@@ -792,8 +915,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type2", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source2", "vB Parameter Source:",
@@ -829,8 +952,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type2", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source2", "vB Parameter Source:",
@@ -859,6 +982,39 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                )
                              ),
 
+                             # Patlak selection panel
+                             conditionalPanel(
+                               condition = "input.button2 == 'Patlak'",
+                               h4("t* Definition"),
+                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
+                               radioButtons("tstar_type2", "",
+                                           choices = list("Number of Frames (from the end)" = "frame",
+                                                         "Time Point (minutes)" = "time"),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+
+                               h4("Other Parameters"),
+                               selectInput("vB_source2", "vB Parameter Source:",
+                                          choices = list("Set vB" = "set"),
+                                          selected = "set"),
+                               conditionalPanel(
+                                 condition = "input.vB_source2 == 'set'",
+                                 numericInput("vB_value2", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
+                               ),
+
+                               # TAC Subset Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type2", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                               )
+                             ),
+
                              hr(),
                              conditionalPanel(
                                condition = "input.button2 != 'none'",
@@ -876,10 +1032,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              # Model selection drop-down menu
                              selectInput("button3", "Select a model:",
                                          choices = c("No Model 3" = "none",
-                                                     "1TCM (Non-linear)" = "1TCM",
-                                                     "2TCM (Non-linear)" = "2TCM",
-                                                     "Logan (Linear)" = "Logan",
-                                                     "MA1 (Linear)" = "MA1"
+                                                     "1TCM (Non-linear, Reversible binding)" = "1TCM",
+                                                     "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
+                                                     "Logan (Linear, Reversible binding)" = "Logan",
+                                                     "MA1 (Linear, Reversible binding)" = "MA1",
+                                                     "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
                              # 1TCM selection panel
@@ -990,6 +1148,60 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
                                
                              ),
+                             # 2TCM_irr selection panel
+                             conditionalPanel(
+                               condition = "input.button3 == '2TCM_irr'",
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.lower3", "k3.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k3.upper3", "k3.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.lower3", "vB.lower", value = 0.01, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.upper3", "vB.upper", value = 0.1, min = 0, step=.001)),
+                               ),
+                               selectInput("vB_source3", "vB Parameter Source:",
+                                          choices = list(
+                                            "Fit vB" = "fit",
+                                            "Set vB (uses vB.start)" = "set",
+                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
+                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                                            "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
+                                            "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+                                            "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
+                                          ),
+                                          selected = "fit"),
+
+                               # Time/Frame Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type3", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+
+                               # Multstart Options
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
+
+                             ),
                              # Logan selection panel
                              conditionalPanel(
                                condition = "input.button3 == 'Logan'",
@@ -998,8 +1210,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type3", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source3", "vB Parameter Source:",
@@ -1038,8 +1250,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                radioButtons("tstar_type3", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("vB_source3", "vB Parameter Source:",
@@ -1070,6 +1282,47 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                  column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
                                )
                              ),
+
+                            # Patlak selection panel
+                            conditionalPanel(
+                              condition = "input.button3 == 'Patlak'",
+                              h4("t* Definition"),
+                              p("Define t* (time point for linear analysis start) using frame numbers or time."),
+                              radioButtons("tstar_type3", "",
+                                          choices = list("Number of Frames (from the end)" = "frame",
+                                                        "Time Point (minutes)" = "time"),
+                                          selected = "frame", inline = TRUE),
+                              numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+
+                              h4("Other Parameters"),
+                              selectInput("vB_source3", "vB Parameter Source:",
+                                         choices = list(
+                                           "Set vB" = "set",
+                                           "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
+                                           "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                           "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                                           "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
+                                           "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+                                           "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
+                                         ),
+                                         selected = "set"),
+                              conditionalPanel(
+                                condition = "input.vB_source3 == 'set'",
+                                numericInput("vB_value3", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
+                              ),
+
+                              # TAC Subset Selection
+                              h4("TAC Subset Selection"),
+                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                              radioButtons("subset_type3", "Selection Method:",
+                                          choices = list("Frame Numbers" = "frame",
+                                                        "Time Points (minutes)" = "time"),
+                                          selected = "time", inline = TRUE),
+                              fluidRow(
+                                column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                              )
+                            ),
 
                              hr(),
                              conditionalPanel(
@@ -1265,9 +1518,46 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                 }
               }
             }
-          } else if (!is.null(model_type) && (model_type == "Logan" || model_type == "MA1")) {
+          } else if (!is.null(model_type) && model_type == "2TCM_irr") {
+            # Parameter restoration for 2TCM_irr (K1, k2, k3, vB - no k4)
+            if (!is.null(model_config$K1)) {
+              updateNumericInput(session, paste0("K1.start", suffix), value = model_config$K1$start %||% 0.1)
+              updateNumericInput(session, paste0("K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
+              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 1)
+            }
+            if (!is.null(model_config$k2)) {
+              updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
+              updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
+              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
+            }
+            if (!is.null(model_config$k3)) {
+              updateNumericInput(session, paste0("k3.start", suffix), value = model_config$k3$start %||% 0.1)
+              updateNumericInput(session, paste0("k3.lower", suffix), value = model_config$k3$lower %||% 0.0001)
+              updateNumericInput(session, paste0("k3.upper", suffix), value = model_config$k3$upper %||% 0.5)
+            }
+            if (!is.null(model_config$vB)) {
+              updateNumericInput(session, paste0("vB.start", suffix), value = model_config$vB$start %||% 0.05)
+              updateNumericInput(session, paste0("vB.lower", suffix), value = model_config$vB$lower %||% 0.01)
+              updateNumericInput(session, paste0("vB.upper", suffix), value = model_config$vB$upper %||% 0.1)
+
+              # Handle vB parameter restoration based on model number (suffix)
+              if (suffix == "") {
+                # Model 1 uses old checkbox system
+                updateCheckboxInput(session, paste0("vB.fit", suffix), value = model_config$vB$fit %||% TRUE)
+              } else {
+                # Models 2 and 3 use new inheritance system
+                if (!is.null(model_config$vB_source)) {
+                  updateSelectInput(session, paste0("vB_source", suffix), selected = model_config$vB_source %||% "fit")
+                } else if (!is.null(model_config$vB$fit)) {
+                  # Backward compatibility: convert old fit boolean to new vB_source
+                  vB_source_value <- if (model_config$vB$fit) "fit" else "set"
+                  updateSelectInput(session, paste0("vB_source", suffix), selected = vB_source_value)
+                }
+              }
+            }
+          } else if (!is.null(model_type) && (model_type == "Logan" || model_type == "MA1" || model_type == "Patlak")) {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1286,7 +1576,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             }
           } else if (!is.null(model_type) && model_type == "refLogan") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1321,7 +1611,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             }
           } else if (!is.null(model_type) && model_type == "MRTM1") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1334,7 +1624,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             }
           } else if (!is.null(model_type) && model_type == "MRTM2") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1704,8 +1994,43 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             )
             model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
           }
-        } else if (model_type == "Logan" || model_type == "MA1") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+        } else if (model_type == "2TCM_irr") {
+          model_params$K1 = list(
+            start = input[[paste0("K1.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("K1.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("K1.upper", suffix)]] %||% 1
+          )
+          model_params$k2 = list(
+            start = input[[paste0("k2.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
+          )
+          model_params$k3 = list(
+            start = input[[paste0("k3.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("k3.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("k3.upper", suffix)]] %||% 0.5
+          )
+
+          # Handle vB parameter based on model number (suffix)
+          if (suffix == "") {
+            # Model 1 uses old checkbox system
+            model_params$vB = list(
+              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
+              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
+              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1,
+              fit = input[[paste0("vB.fit", suffix)]] %||% TRUE
+            )
+          } else {
+            # Models 2 and 3 use new inheritance system
+            model_params$vB = list(
+              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
+              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
+              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1
+            )
+            model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
+          }
+        } else if (model_type == "Logan" || model_type == "MA1" || model_type == "Patlak") {
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "set"
           if (input[[paste0("vB_source", suffix)]] == "set" || is.null(input[[paste0("vB_source", suffix)]])) {
@@ -1725,7 +2050,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             )
           }
         } else if (model_type == "refLogan") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
           if (input[[paste0("k2prime_source", suffix)]] == "set" || is.null(input[[paste0("k2prime_source", suffix)]])) {
@@ -1761,7 +2086,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             upper = input[[paste0("k2a.upper", suffix)]] %||% 0.5
           )
         } else if (model_type == "MRTM1") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           
           # TAC Subset Selection
@@ -1777,7 +2102,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             )
           }
         } else if (model_type == "MRTM2") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
           if (input[[paste0("k2prime_source", suffix)]] == "set" || is.null(input[[paste0("k2prime_source", suffix)]])) {

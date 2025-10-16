@@ -138,7 +138,7 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 
 #' Run Automatic Pipeline
 #'
-#' @description Execute the petfit analysis pipeline (powered by kinfitr) automatically based on a config file
+#' @description Execute the petfit analysis pipeline automatically based on a config file
 #'
 #' @param analysis_folder Character string path to analysis folder containing config
 #' @param bids_dir Character string path to BIDS directory (can be NULL)

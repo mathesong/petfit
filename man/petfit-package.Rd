@@ -4,9 +4,9 @@
 \name{petfit-package}
 \alias{petfit}
 \alias{petfit-package}
-\title{petfit: Petfit BIDS App Configuration Interface}
+\title{petfit: PETFit BIDS App Configuration Interface}
 \description{
-Petfit is a BIDS app and Shiny UI for performing PET kinetic modelling using kinfitr. It provides a user interface for configuring kinetic modeling parameters for Time Activity Curves (TACs).
+PETFit is a BIDS app and Shiny UI for performing PET kinetic modelling using kinfitr. It provides a user interface for configuring kinetic modelling parameters for time–activity curves (TACs).
 }
 \author{
 \strong{Maintainer}: Granville Matheson \email{granville.matheson@ki.se}

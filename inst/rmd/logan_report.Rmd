@@ -12,13 +12,13 @@ params:
   blood_dir: NULL
 ---
 
-For temporary debugging, this defines temporary parameters for the parameterised report
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
 
-```{r}
-analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/"
-blood_dir <-"/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/bloodstream"
-model_number <- "Model 2"
-```
+<!-- ```{r} -->
+<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
+<!-- blood_dir <-"/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/bloodstream" -->
+<!-- model_number <- "Model 2" -->
+<!-- ``` -->
 
 
 ```{r setup, include=FALSE}
@@ -63,7 +63,7 @@ oldfiles <- list.files(analysis_folder, pattern=desc,
 file.remove(oldfiles)
 ```
 
-This report summarises the Logan graphical analysis results for the petfit analysis pipeline (powered by kinfitr).
+This report summarises the Logan graphical analysis results.
 
 # Analysis Configuration
 
@@ -451,9 +451,9 @@ Now we proceed to the actual Logan model fitting using all available regional TA
 
 
 ```{r model-prep}
-# Set vB if not being fit or inherited
+# Set vB to fixed value (Logan cannot fit vB)
 if(vB_source=="set") {
-  model_data$vB <- model_config$vB$start %||% 0.05
+  model_data$vB <- model_config$vB_value %||% 0.05
 }
 
 # Extract TAC subset parameters
@@ -732,7 +732,7 @@ savefits <- model_data %>%
       filter(!is.na(Logan_x)) %>% 
       select(-frames_from_end)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 

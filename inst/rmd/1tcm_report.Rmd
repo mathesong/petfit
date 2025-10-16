@@ -15,7 +15,7 @@ params:
 <!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
 
 <!-- ```{r} -->
-<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/ds004869/derivatives/petfit/Primary_Analysis/" -->
+<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
 <!-- blood_dir <-"/home/granville/Repositories/OpenNeuro/ds004869/derivatives/bloodstream" -->
 <!-- model_number <- "Model 1" -->
 <!-- ``` -->
@@ -28,7 +28,6 @@ library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
-theme_set(theme_light())
 
 theme_set(theme_light())
 
@@ -65,7 +64,7 @@ file.remove(oldfiles)
 
 
 
-This report summarises the 1TCM model fitting step in the petfit analysis pipeline (powered by kinfitr).
+This report summarises the 1TCM model fitting step.
 
 # Analysis Configuration
 
@@ -543,8 +542,6 @@ if(vB_source == "fit") {
       mutate(success = map_dbl(fit_1tcm, length) > 1)
   
 }
-
-
 ```
 
 ```{r, results='asis'}
@@ -790,7 +787,7 @@ savefits <- model_data %>%
         ) %>% 
       arrange(frame_mid)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 

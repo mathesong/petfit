@@ -65,7 +65,7 @@ file.remove(oldfiles)
 
 
 
-This report summarises the 2TCM model fitting step in the petfit analysis pipeline (powered by kinfitr).
+This report summarises the 2TCM model fitting step.
 
 # Analysis Configuration
 
@@ -817,7 +817,7 @@ savefits <- model_data %>%
         ) %>% 
       arrange(frame_mid)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 

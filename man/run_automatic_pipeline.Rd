@@ -27,5 +27,5 @@ run_automatic_pipeline(
 List with execution result and messages
 }
 \description{
-Execute the petfit analysis pipeline (powered by kinfitr) automatically based on a config file
+Execute the petfit analysis pipeline automatically based on a config file
 }

@@ -65,11 +65,11 @@ file.remove(oldfiles)
 
 
 
-This report summarises the 2TCM model fitting step in the petfit analysis pipeline (powered by kinfitr).
+This report summarises the irreversible 2TCM model fitting step.
 
 # Analysis Configuration
 
-**Model:** `r params$model_number` - 2TCM (Two Tissue Compartment Model)
+**Model:** `r params$model_number` - 2TCM_irr (Two Tissue Compartment Model with Irreversible Binding)
 
 **Analysis folder:** `r params$analysis_folder`
 
@@ -90,12 +90,12 @@ if (!is.null(config$Models)) {
   }
 }
 
-if (!is.null(model_config) && model_config$type == "2TCM") {
+if (!is.null(model_config) && model_config$type == "2TCM_irr") {
   # Create configuration table
   config_items <- list(
-    "Model Type" = "2TCM (Two Tissue Compartment Model)",
+    "Model Type" = "Irreversible 2TCM (Two Tissue Compartment Model with Irreversible Binding)",
     "K1 Start Value" = model_config$K1$start %||% "Default",
-    "K1 Lower Bound" = model_config$K1$lower %||% "Default", 
+    "K1 Lower Bound" = model_config$K1$lower %||% "Default",
     "K1 Upper Bound" = model_config$K1$upper %||% "Default",
     "k2 Start Value" = model_config$k2$start %||% "Default",
     "k2 Lower Bound" = model_config$k2$lower %||% "Default",
@@ -159,20 +159,20 @@ if (!is.null(model_config) && model_config$type == "2TCM") {
     Value = map_chr(config_items, as.character)
   )
   
-  kable(config_df, caption = "2TCM Model Configuration")
-  
+  kable(config_df, caption = "Irreversible 2TCM Model Configuration")
+
 } else {
-  cat("2TCM model configuration not found or incomplete.")
+  cat("2TCM_irr model configuration not found or incomplete.")
 }
 ```
 
 ```{r setup-conditions, echo=FALSE}
-# Verify we have a valid 2TCM configuration
-has_2tcm_config <- !is.null(model_config) && model_config$type == "2TCM"
+# Verify we have a valid 2TCM_irr configuration
+has_2tcm_irr_config <- !is.null(model_config) && model_config$type == "2TCM_irr"
 
-# Exit early if not a 2TCM configuration
-if (!has_2tcm_config) {
-  cat("Invalid or missing 2TCM configuration. This report should not have been generated.")
+# Exit early if not a 2TCM_irr configuration
+if (!has_2tcm_irr_config) {
+  cat("Invalid or missing 2TCM_irr configuration. This report should not have been generated.")
   knitr::knit_exit()
 }
 ```
@@ -456,31 +456,29 @@ model_data <- model_data %>%
 ```
 
 
-# 2TCM Model Fitting
+# 2TCM_irr Model Fitting
 
-Now we proceed to the actual 2TCM model fitting using all available regional TACs.
+Now we proceed to the actual 2TCM_irr model fitting using all available regional TACs. Note that k4 is fixed to 0 in this irreversible binding model.
 
 ```{r model-prep}
 # Extract model parameters from configuration
 K1_start <- model_config$K1$start %||% 0.1
-K1_lower <- model_config$K1$lower %||% 0
+K1_lower <- model_config$K1$lower %||% 0.0001
 K1_upper <- model_config$K1$upper %||% 1
 
-k2_start <- model_config$k2$start %||% 0.1  
-k2_lower <- model_config$k2$lower %||% 0
-k2_upper <- model_config$k2$upper %||% 1
+k2_start <- model_config$k2$start %||% 0.1
+k2_lower <- model_config$k2$lower %||% 0.0001
+k2_upper <- model_config$k2$upper %||% 0.5
 
 k3_start <- model_config$k3$start %||% 0.1
-k3_lower <- model_config$k3$lower %||% 0
-k3_upper <- model_config$k3$upper %||% 1
+k3_lower <- model_config$k3$lower %||% 0.0001
+k3_upper <- model_config$k3$upper %||% 0.5
 
-k4_start <- model_config$k4$start %||% 0.1
-k4_lower <- model_config$k4$lower %||% 0
-k4_upper <- model_config$k4$upper %||% 1
+# Note: k4 is fixed to 0 in 2TCM_irr model (irreversible binding)
 
 vB_start <- model_config$vB$start %||% 0.05
-vB_lower <- model_config$vB$lower %||% 0
-vB_upper <- model_config$vB$upper %||% 0.2
+vB_lower <- model_config$vB$lower %||% 0.01
+vB_upper <- model_config$vB$upper %||% 0.1
 
 multstart_iter <- model_config$multstart_iter %||% 1
 
@@ -505,23 +503,23 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 
 
 ```{r model-fitting}
-# Safe 2TCM function to handle errors
-safe_twotcm <- possibly(twotcm, otherwise = NA)
+# Safe 2TCM_irr function to handle errors
+safe_twotcm_irr <- possibly(twotcm_irr, otherwise = NA)
 
 if(vB_source == "fit") {
-  
-  # Fit 2TCM model to all regional TACs
-  model_data <- model_data %>% 
-    group_by(output_stem, region) %>% 
-    mutate(fit_2tcm = pmap(list(tacs, input, inpshift),
-                           ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
-                                   input = ..2, 
+
+  # Fit 2TCM_irr model to all regional TACs
+  model_data <- model_data %>%
+    group_by(output_stem, region) %>%
+    mutate(fit_2tcm_irr = pmap(list(tacs, input, inpshift),
+                           ~safe_twotcm_irr(t_tac = ..1$frame_mid, tac = ..1$TAC,
+                                   input = ..2,
                                    weights = ..1$weights,
                                    inpshift = ..3,
                                    frameStartEnd = frameStartEnd,
                                    timeStartEnd = timeStartEnd,
                                    K1.start = K1_start,
-                                   K1.lower = K1_lower, 
+                                   K1.lower = K1_lower,
                                    K1.upper = K1_upper,
                                    k2.start = k2_start,
                                    k2.lower = k2_lower,
@@ -529,28 +527,25 @@ if(vB_source == "fit") {
                                    k3.start = k3_start,
                                    k3.lower = k3_lower,
                                    k3.upper = k3_upper,
-                                   k4.start = k4_start,
-                                   k4.lower = k4_lower,
-                                   k4.upper = k4_upper,
                                    multstart_iter = multstart_iter))) %>%
-    ungroup() %>% 
-    mutate(success = map_dbl(fit_2tcm, length) > 1)
-  
+    ungroup() %>%
+    mutate(success = map_dbl(fit_2tcm_irr, length) > 1)
+
 } else {
-  
-    # Fit 2TCM model to all regional TACs
-    model_data <- model_data %>% 
-      group_by(output_stem, region) %>% 
-      mutate(fit_2tcm = pmap(list(tacs, input, inpshift, vB),
-                             ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
-                                     input = ..2, 
+
+    # Fit 2TCM_irr model to all regional TACs
+    model_data <- model_data %>%
+      group_by(output_stem, region) %>%
+      mutate(fit_2tcm_irr = pmap(list(tacs, input, inpshift, vB),
+                             ~safe_twotcm_irr(t_tac = ..1$frame_mid, tac = ..1$TAC,
+                                     input = ..2,
                                      weights = ..1$weights,
                                      inpshift = ..3,
                                      vB = ..4,
                                      frameStartEnd = frameStartEnd,
                                      timeStartEnd = timeStartEnd,
                                      K1.start = K1_start,
-                                     K1.lower = K1_lower, 
+                                     K1.lower = K1_lower,
                                      K1.upper = K1_upper,
                                      k2.start = k2_start,
                                      k2.lower = k2_lower,
@@ -558,13 +553,10 @@ if(vB_source == "fit") {
                                      k3.start = k3_start,
                                      k3.lower = k3_lower,
                                      k3.upper = k3_upper,
-                                     k4.start = k4_start,
-                                     k4.lower = k4_lower,
-                                     k4.upper = k4_upper,
                                      multstart_iter = multstart_iter))) %>%
-      ungroup() %>% 
-      mutate(success = map_dbl(fit_2tcm, length) > 1)
-  
+      ungroup() %>%
+      mutate(success = map_dbl(fit_2tcm_irr, length) > 1)
+
 }
 
 
@@ -590,10 +582,10 @@ model_data <- model_data %>%
 ## Parameters
 
 ```{r}
-model_res <- model_data %>% 
-  ungroup() %>% 
-  mutate(par = map(fit_2tcm, "par")) %>% 
-  select(-fit_2tcm, -tacs, -input)
+model_res <- model_data %>%
+  ungroup() %>%
+  mutate(par = map(fit_2tcm_irr, "par")) %>%
+  select(-fit_2tcm_irr, -tacs, -input)
 ```
 
 ### Estimates
@@ -615,17 +607,17 @@ par_table %>%
 Here is shown the standard error as a fraction of the mean value (i.e. 1 = 100\%).
 
 ```{r}
-par_se_table <- model_data %>% 
-  ungroup() %>% 
-  mutate(par.se = map(fit_2tcm, "par.se")) %>% 
-  select(-fit_2tcm, -tacs, -input) %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
-  unnest(par.se) %>% 
+par_se_table <- model_data %>%
+  ungroup() %>%
+  mutate(par.se = map(fit_2tcm_irr, "par.se")) %>%
+  select(-fit_2tcm_irr, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(par.se) %>%
   select(where(~ mean(is.na(.x)) < 1))
 
-par_se_table %>% 
+par_se_table %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -641,18 +633,18 @@ reduced_chisq <- function(fit) {
   deviance(fit) / df.residual(fit)
 }
 
-gof_table <- model_data %>% 
-  ungroup() %>% 
-  mutate(gof = map(fit_2tcm, ~tibble(
+gof_table <- model_data %>%
+  ungroup() %>%
+  mutate(gof = map(fit_2tcm_irr, ~tibble(
     AIC = AIC(.x$fit),
     BIC = BIC(.x$fit),
     RSS = RSS(.x$fit),
-    reduced_chisq = reduced_chisq(.x$fit)))) %>% 
-  select(-fit_2tcm, -tacs, -input) %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
-  unnest(gof) %>% 
+    reduced_chisq = reduced_chisq(.x$fit)))) %>%
+  select(-fit_2tcm_irr, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(gof) %>%
   select(where(~ mean(is.na(.x)) < 1))
   
 gof_table %>% 
@@ -668,8 +660,8 @@ gof_table %>%
 #### Overall Histogram
 
 ```{r, fig.width=7, fig.height=9}
-par_table_long <- par_table %>% 
-  pivot_longer(cols=c(K1, k2, k3, k4, Vt, Vnd, BPp, BPnd), 
+par_table_long <- par_table %>%
+  pivot_longer(cols=c(K1, k2, k3, Ki, Vnd, lambdak3),
                names_to = "Parameter",
                values_to = "Value")
 
@@ -697,7 +689,7 @@ ggplot(par_table_long, aes(x=Value, fill=region)) +
 ```{r, fig.height=4, fig.width=6}
 fitplots <- model_data %>% 
   mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(fitplot = pmap(list(fit_2tcm, region, title), 
+  mutate(fitplot = pmap(list(fit_2tcm_irr, region, title), 
                         ~plot(..1, roiname=..2) + 
                           labs(title = ..3,
                                y = "Radioactivity (kBq)",
@@ -712,7 +704,7 @@ walk(fitplots, ~print(.x))
 ```{r, fig.height=4, fig.width=6}
 resplots <- model_data %>% 
   mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(resplot = pmap(list(fit_2tcm, title), 
+  mutate(resplot = pmap(list(fit_2tcm_irr, title), 
                         ~plot_residuals(..1) + 
                           labs(title = ..2))) %>% 
   pull(resplot)
@@ -728,16 +720,15 @@ walk(resplots, ~print(.x))
 ## Main TSV
 
 ```{r}
-savepar <- inner_join(par_table, 
-                      par_se_table) %>% 
-  inner_join(gof_table) %>% 
+savepar <- inner_join(par_table,
+                      par_se_table) %>%
+  inner_join(gof_table) %>%
   # Fixing parameter names
-  rename_with(~str_replace(.x, "\\.se", "-se")) %>% 
-  rename_with(~str_replace(.x, "Vt", "VT"))
+  rename_with(~str_replace(.x, "\\.se", "-se"))
 
 write_tsv(savepar, 
           file=paste0(analysis_folder, "/", 
-                      "model_", "2TCM","_",
+                      "model_", "2TCM_irr","_",
                       "desc-", desc,"_",
                       "kinpar.tsv"))
 ```
@@ -759,7 +750,7 @@ savepar_pet <- savepar %>%
   nest(.key="kinpars") %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM","_",
+                           "model_", "2TCM_irr","_",
                             "desc-", desc,"_",
                             "kinpar.tsv"))
 
@@ -770,8 +761,8 @@ walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
 savepar_pet <- savepar_pet %>% 
   group_by(pet) %>% 
   mutate(jsondat = map(kinpars, ~list(
-      Description = "Two tissue compartmental model fit using nonlinear least squares estimation.",
-      ModelName = "2TCM",
+      Description = "Two tissue compartmental model with irreversible binding fit using nonlinear least squares estimation.",
+      ModelName = "2TCM_irr",
       AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")))) %>% 
   mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
@@ -788,7 +779,7 @@ walk2(savepar_pet$jsondat,
 ```{r}
 savefits <- model_data %>% 
   filter(success) %>% 
-  mutate(fitvals = map(fit_2tcm, ~{
+  mutate(fitvals = map(fit_2tcm_irr, ~{
     
     interpfitvals <- tibble(
       Time = seq(from=min(.x$tacs$Time),
@@ -814,7 +805,7 @@ savefits <- model_data %>%
         ) %>% 
       arrange(frame_mid)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 
@@ -823,7 +814,7 @@ savefits <- model_data %>%
 savefits_pet <- savefits %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM","_",
+                           "model_", "2TCM_irr","_",
                             "desc-", desc,"fitted",
                             "_",
                             "tacs.tsv"))
@@ -835,8 +826,8 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 savefits_pet <- savefits_pet %>% 
   group_by(pet) %>% 
   mutate(jsondat = map(fitvals, ~list(
-      Description = "Two tissue compartment model fitted values.",
-      ModelName = "2TCM",
+      Description = "Two tissue compartment model with irreversible binding fitted values.",
+      ModelName = "2TCM_irr",
       AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}"),
       frame_mid = "The frame middle time in minutes",
       TAC = paste("TAC radioactivity data in kBq to which the model was fitted.",

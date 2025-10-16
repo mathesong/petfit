@@ -536,8 +536,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source", "k2' Parameter Source:",
@@ -566,8 +566,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                
@@ -592,8 +592,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source", "k2' Parameter Source:",
@@ -669,8 +669,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type2", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source2", "k2' Parameter Source:",
@@ -707,8 +707,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type2", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                
@@ -733,8 +733,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type2", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar2", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source2", "k2' Parameter Source:",
@@ -814,8 +814,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type3", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source3", "k2' Parameter Source:",
@@ -855,8 +855,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type3", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                
@@ -881,8 +881,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                radioButtons("tstar_type3", "",
                                            choices = list("Number of Frames (from the end)" = "frame", 
                                                          "Time Point (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
-                               numericInput("tstarIncludedFrames3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
+                                           selected = "frame", inline = TRUE),
+                               numericInput("tstar3", "t* (0 for all frames)", value = 10, min = 0, step = 1),
                                
                                h4("Other Parameters"),
                                selectInput("k2prime_source3", "k2' Parameter Source:",
@@ -1110,7 +1110,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           } else if (!is.null(model_type) && (model_type == "Logan" || model_type == "MA1")) {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1129,7 +1129,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           } else if (!is.null(model_type) && model_type == "refLogan") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1164,7 +1164,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           } else if (!is.null(model_type) && model_type == "MRTM1") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1177,7 +1177,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           } else if (!is.null(model_type) && model_type == "MRTM2") {
             if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstarIncludedFrames", suffix), value = model_config$tstar %||% 10)
+              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
             if (!is.null(model_config$tstar_type)) {
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
@@ -1548,7 +1548,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
           }
         } else if (model_type == "Logan" || model_type == "MA1") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "set"
           if (input[[paste0("vB_source", suffix)]] == "set" || is.null(input[[paste0("vB_source", suffix)]])) {
@@ -1568,7 +1568,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             )
           }
         } else if (model_type == "refLogan") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
           if (input[[paste0("k2prime_source", suffix)]] == "set" || is.null(input[[paste0("k2prime_source", suffix)]])) {
@@ -1604,7 +1604,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             upper = input[[paste0("k2a.upper", suffix)]] %||% 0.5
           )
         } else if (model_type == "MRTM1") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           
           # TAC Subset Selection
@@ -1620,7 +1620,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             )
           }
         } else if (model_type == "MRTM2") {
-          model_params$tstar = input[[paste0("tstarIncludedFrames", suffix)]] %||% 10
+          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
           if (input[[paste0("k2prime_source", suffix)]] == "set" || is.null(input[[paste0("k2prime_source", suffix)]])) {

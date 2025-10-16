@@ -1,6 +1,6 @@
 ---
 title: "Patlak Plot Model Fitting Report"
-output: 
+output:
   html_document:
     toc: true
     toc_depth: 2
@@ -12,13 +12,13 @@ params:
   blood_dir: NULL
 ---
 
-For temporary debugging, this defines temporary parameters for the parameterised report
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
 
-```{r}
-analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/"
-blood_dir <-"/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/bloodstream"
-model_number <- "Model 2"
-```
+<!-- # ```{r} -->
+<!-- # analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
+<!-- # blood_dir <-"/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/bloodstream" -->
+<!-- # model_number <- "Model 3" -->
+<!-- # ``` -->
 
 
 ```{r setup, include=FALSE}
@@ -63,11 +63,11 @@ oldfiles <- list.files(analysis_folder, pattern=desc,
 file.remove(oldfiles)
 ```
 
-This report summarises the Logan graphical analysis results for the petfit analysis pipeline (powered by kinfitr).
+This report summarises the Patlak graphical analysis results.
 
 # Analysis Configuration
 
-**Model:** `r params$model_number` - Logan (Logan Graphical Analysis)
+**Model:** `r params$model_number` - Patlak (Patlak Graphical Analysis for Irreversible Binding)
 
 **Analysis folder:** `r params$analysis_folder`
 
@@ -88,10 +88,10 @@ if (!is.null(config$Models)) {
   }
 }
 
-if (!is.null(model_config) && model_config$type == "Logan") {
+if (!is.null(model_config) && model_config$type == "Patlak") {
   # Create configuration table
   config_items <- list(
-    "Model Type" = "Logan (Logan Graphical Analysis)"
+    "Model Type" = "Patlak (Patlak Graphical Analysis for Irreversible Binding)"
   )
 
   # Add t* configuration
@@ -148,20 +148,20 @@ if (!is.null(model_config) && model_config$type == "Logan") {
     Value = map_chr(config_items, as.character)
   )
 
-  kable(config_df, caption = "Logan Model Configuration")
+  kable(config_df, caption = "Patlak Model Configuration")
 
 } else {
-  cat("Logan model configuration not found or incomplete.")
+  cat("Patlak model configuration not found or incomplete.")
 }
 ```
 
 ```{r setup-conditions, echo=FALSE}
-# Verify we have a valid Logan configuration
-has_logan_config <- !is.null(model_config) && model_config$type == "Logan"
+# Verify we have a valid Patlak configuration
+has_patlak_config <- !is.null(model_config) && model_config$type == "Patlak"
 
-# Exit early if not a Logan configuration
-if (!has_logan_config) {
-  cat("Invalid or missing Logan configuration. This report should not have been generated.")
+# Exit early if not a Patlak configuration
+if (!has_patlak_config) {
+  cat("Invalid or missing Patlak configuration. This report should not have been generated.")
   knitr::knit_exit()
 }
 ```
@@ -445,15 +445,15 @@ model_data <- model_data %>%
 ```
 
 
-# Logan Model Fitting
+# Patlak Model Fitting
 
-Now we proceed to the actual Logan model fitting using all available regional TACs.
+Now we proceed to the actual Patlak model fitting using all available regional TACs. Note that this is an irreversible binding/delivery-limited model.
 
 
 ```{r model-prep}
-# Set vB if not being fit or inherited
+# Set vB to fixed value (Patlak cannot fit vB)
 if(vB_source=="set") {
-  model_data$vB <- model_config$vB$start %||% 0.05
+  model_data$vB <- model_config$vB_value %||% 0.05
 }
 
 # Extract TAC subset parameters
@@ -471,13 +471,13 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 ```
 
 ```{r model-fitting}
-# Safe Logan function to handle errors
-safe_Loganplot <- possibly(Loganplot, otherwise = NA)
+# Safe Patlak function to handle errors
+safe_Patlakplot <- possibly(Patlakplot, otherwise = NA)
 
 model_data <- model_data %>%
   group_by(output_stem, region) %>%
-  mutate(fit_Logan = pmap(list(tacs, input, inpshift, vB),
-                         ~safe_Loganplot(
+  mutate(fit_Patlak = pmap(list(tacs, input, inpshift, vB),
+                         ~safe_Patlakplot(
                            t_tac = ..1$frame_mid,
                            tac = ..1$TAC,
                            input = ..2,
@@ -485,11 +485,11 @@ model_data <- model_data %>%
                            tstar_type = model_config$tstar_type,
                            inpshift = ..3,
                            vB = ..4,
-                           dur = ..1$frame_dur,
+                           weights = ..1$weights,
                            frameStartEnd = frameStartEnd,
                            timeStartEnd = timeStartEnd))) %>%
   ungroup() %>%
-  mutate(success = map_dbl(fit_Logan, length) > 1)
+  mutate(success = map_dbl(fit_Patlak, length) > 1)
 ```
 
 ```{r, results='asis'}
@@ -515,8 +515,8 @@ model_data <- model_data %>%
 ```{r}
 model_res <- model_data %>% 
   ungroup() %>% 
-  mutate(par = map(fit_Logan, "par")) %>% 
-  select(-fit_Logan, -tacs, -input)
+  mutate(par = map(fit_Patlak, "par")) %>% 
+  select(-fit_Patlak, -tacs, -input)
 ```
 
 ### Estimates
@@ -526,7 +526,8 @@ par_table <- model_res %>%
   select(-output_stem) %>% 
   select(where(~ n_distinct(.x) > 1)) %>% 
   select(-any_of(c("vB", "inpshift"))) %>% 
-  unnest(par)
+  unnest(par) %>% 
+  rename(Ki = K)
   
 par_table %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
@@ -540,13 +541,14 @@ Here is shown the standard error as a fraction of the mean value (i.e. 1 = 100\%
 ```{r}
 par_se_table <- model_data %>% 
   ungroup() %>% 
-  mutate(par.se = map(fit_Logan, "par.se")) %>% 
-  select(-fit_Logan, -tacs, -input) %>% 
+  mutate(par.se = map(fit_Patlak, "par.se")) %>% 
+  select(-fit_Patlak, -tacs, -input) %>% 
   select(-output_stem) %>% 
   select(where(~ n_distinct(.x) > 1)) %>% 
   select(-any_of(c("vB", "inpshift"))) %>% 
   unnest(par.se) %>% 
-  select(where(~ mean(is.na(.x)) < 1))
+  select(where(~ mean(is.na(.x)) < 1)) %>% 
+  rename(Ki.se = K.se)
 
 par_se_table %>% 
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
@@ -566,12 +568,12 @@ reduced_chisq <- function(fit) {
 
 gof_table <- model_data %>% 
   ungroup() %>% 
-  mutate(gof = map(fit_Logan, ~tibble(
+  mutate(gof = map(fit_Patlak, ~tibble(
     AIC = AIC(.x$fit),
     BIC = BIC(.x$fit),
     RSS = RSS(.x$fit),
     reduced_chisq = reduced_chisq(.x$fit)))) %>% 
-  select(-fit_Logan, -tacs, -input) %>% 
+  select(-fit_Patlak, -tacs, -input) %>% 
   select(-output_stem) %>% 
   select(where(~ n_distinct(.x) > 1)) %>% 
   select(-any_of(c("vB", "inpshift"))) %>% 
@@ -591,8 +593,8 @@ gof_table %>%
 #### Overall Histogram
 
 ```{r, fig.width=6, fig.height=5}
-par_table_long <- par_table %>% 
-  pivot_longer(cols=c(Vt), 
+par_table_long <- par_table %>%
+  pivot_longer(cols=c(Ki),
                names_to = "Parameter",
                values_to = "Value")
 
@@ -618,8 +620,8 @@ ggplot(par_table_long, aes(x=Value, fill=region)) +
 ```{r, fig.height=4, fig.width=6}
 fitplots <- model_data %>% 
   mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(fitplot = pmap(list(fit_Logan, region, title), 
-                        ~plot(..1, roiname=..2) + 
+  mutate(fitplot = pmap(list(fit_Patlak, region, title), 
+                        ~plot_Patlakfit(..1, roiname=..2) + 
                           labs(title = ..3,
                                y = "Radioactivity (kBq)",
                                x = "Time (min)"))) %>% 
@@ -633,7 +635,7 @@ walk(fitplots, ~print(.x))
 ```{r, fig.height=4, fig.width=6}
 resplots <- model_data %>% 
   mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(resplot = pmap(list(fit_Logan, title), 
+  mutate(resplot = pmap(list(fit_Patlak, title), 
                         ~plot_residuals(..1) + 
                           labs(title = ..2))) %>% 
   pull(resplot)
@@ -653,12 +655,11 @@ savepar <- inner_join(par_table,
                       par_se_table) %>% 
   inner_join(gof_table) %>% 
   # Fixing parameter names
-  rename_with(~str_replace(.x, "\\.se", "-se")) %>% 
-  rename_with(~str_replace(.x, "Vt", "VT"))
+  rename_with(~str_replace(.x, "\\.se", "-se"))
 
-write_tsv(savepar, 
-          file=paste0(analysis_folder, "/", 
-                      "model_", "Logan","_",
+write_tsv(savepar,
+          file=paste0(analysis_folder, "/",
+                      "model_", "Patlak","_",
                       "desc-", desc,"_",
                       "kinpar.tsv"))
 ```
@@ -678,9 +679,9 @@ savepar_pet <- savepar %>%
     group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 
   nest(.key="kinpars") %>% 
-  inner_join(folder_data) %>% 
-  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "Logan","_",
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model_", "Patlak","_",
                             "desc-", desc,"_",
                             "kinpar.tsv"))
 
@@ -688,11 +689,11 @@ walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
 ```
 
 ```{r}
-savepar_pet <- savepar_pet %>% 
-  group_by(pet) %>% 
+savepar_pet <- savepar_pet %>%
+  group_by(pet) %>%
   mutate(jsondat = map(kinpars, ~list(
-      Description = "Logan Graphical Analysis using least squares estimation.",
-      ModelName = "Logan",
+      Description = "Patlak Graphical Analysis using least squares estimation for irreversible binding.",
+      ModelName = "Patlak",
       AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")))) %>% 
   mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
@@ -710,38 +711,38 @@ walk2(savepar_pet$jsondat,
 ```{r}
 savefits <- model_data %>% 
   filter(success) %>% 
-  mutate(fitvals = map(fit_Logan, ~{
+  mutate(fitvals = map(fit_Patlak, ~{
     bind_cols(.x$tacs, .x$fitvals) %>%
-      mutate(frame_start = Time - 0.5*Duration,
-             frame_end = Time + 0.5*Duration) %>% 
+      # mutate(frame_start = Time - 0.5*Duration,
+      #        frame_end = Time + 0.5*Duration) %>% 
       select(
-        frame_start,
-        frame_end,
+        # frame_start,
+        # frame_end,
         frame_mid = Time,
-        frame_dur = Duration,
+        # frame_dur = Duration,
         TAC = Target,
-        Logan_x = Logan_Plasma,
-        Logan_y = Logan_ROI) %>% 
-      mutate(Logan_fitted = as.numeric(.x$fit$coefficients[1]) + 
-          Logan_x * as.numeric(.x$fit$coefficients[2]),
+        Patlak_x = Patlak_Plasma,
+        Patlak_y = Patlak_ROI) %>% 
+      mutate(Patlak_fitted = as.numeric(.x$fit$coefficients[1]) + 
+          Patlak_x * as.numeric(.x$fit$coefficients[2]),
         ) %>% 
       mutate(frames_from_end = n() - (1:n())+1) %>% 
-      mutate(Logan_fitted = ifelse(frames_from_end < .x$tstarIncludedFrames,
-                                   yes = Logan_fitted,
+      mutate(Patlak_fitted = ifelse(frames_from_end < .x$tstarIncludedFrames,
+                                   yes = Patlak_fitted,
                                    no = NA)) %>% 
-      filter(!is.na(Logan_x)) %>% 
+      filter(!is.na(Patlak_x)) %>% 
       select(-frames_from_end)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, vB, fitvals) %>% 
+  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 
   nest(.key="fitvals")
 
-savefits_pet <- savefits %>% 
-  inner_join(folder_data) %>% 
-  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "Logan","_",
+savefits_pet <- savefits %>%
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model_", "Patlak","_",
                             "desc-", desc,"fitted",
                             "_",
                             "tacs.tsv"))
@@ -750,18 +751,18 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 ```
 
 ```{r}
-savefits_pet <- savefits_pet %>% 
-  group_by(pet) %>% 
+savefits_pet <- savefits_pet %>%
+  group_by(pet) %>%
   mutate(jsondat = map(fitvals, ~list(
-      Description = "Logan graphical analysis fitted values.",
-      ModelName = "Logan",
+      Description = "Patlak graphical analysis fitted values for irreversible binding.",
+      ModelName = "Patlak",
       AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}"),
       frame_mid = "The frame middle time in minutes",
       TAC = paste("TAC radioactivity data in kBq.",
                   "If there is a vB, this is after removal of blood radioactivity."),
-      Logan_x = "Transformed values for the x axis of the Logan plot",
-      Logan_y = "Transformed values for the y axis of the Logan plot",
-      Logan_fitted = "Model fitted values"))) %>% 
+      Patlak_x = "Transformed values for the x axis of the Patlak plot",
+      Patlak_y = "Transformed values for the y axis of the Patlak plot",
+      Patlak_fitted = "Model fitted values"))) %>% 
   mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
   

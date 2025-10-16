@@ -7,7 +7,7 @@ An R Shiny web application suite for creating customised PETFit BIDS App configu
 PETFit consists of three complementary Shiny applications that work together to provide a complete workflow for PET kinetic modelling analysis:
 
 1. **Region Definition App**: Creates brain region definitions and combined TACs from segmentation data
-2. **Modelling App with Plasma Input**: Configures invasive kinetic models (1TCM, 2TCM, Logan, MA1) requiring blood input data
+2. **Modelling App with Plasma Input**: Configures invasive kinetic models (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak) requiring blood input data
 3. **Modelling App with Reference Tissue**: Configures non-invasive kinetic models (SRTM, refLogan, MRTM1, MRTM2) using reference regions
 
 All applications support multiple usage modes including interactive GUI configuration, automated batch processing, and Docker containerization for reproducible research environments. The kinetic modelling itself is executed via the underlying kinfitr package.
@@ -26,10 +26,12 @@ All applications support multiple usage modes including interactive GUI configur
 ### Supported Kinetic Models
 
 #### Invasive Models (Require Blood Input)
-- **1TCM**: Single tissue compartment model
-- **2TCM**: Two tissue compartment model  
-- **Logan**: Logan graphical analysis
-- **MA1**: Multilinear analysis
+- **1TCM** (Reversible binding): Single tissue compartment model
+- **2TCM** (Reversible binding): Two tissue compartment model
+- **2TCM_irr** (Irreversible binding): Two tissue compartment model with irreversible specific binding
+- **Logan** (Reversible binding): Logan graphical analysis
+- **MA1** (Reversible binding): Multilinear analysis
+- **Patlak** (Irreversible binding): Patlak graphical analysis for irreversible/delivery-limited kinetics
 
 #### Non-Invasive Models (Reference Region Based)
 - **SRTM**: Simplified reference tissue model

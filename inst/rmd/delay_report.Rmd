@@ -51,7 +51,7 @@ if (file.exists(config_path)) {
 }
 ```
 
-This report summarises the delay estimation step between blood and tissue curves in the petfit analysis pipeline (powered by kinfitr).
+This report summarises the delay estimation step between blood and tissue curves.
 
 # Analysis Configuration
 
