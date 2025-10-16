@@ -1,0 +1,60 @@
+{
+  "DataSubset": {
+    "sub": ["01", "02"],
+    "ses": "01",
+    "trc": "18FFDG",
+    "rec": "",
+    "task": "",
+    "run": "",
+    "desc": "freesurfer",
+    "regions": ["Cortex", "Hippocampus"]
+  },
+  "Weights": {
+    "region_type": "mean_combined",
+    "region": "",
+    "external_tacs": "",
+    "radioisotope": "F18",
+    "halflife": "",
+    "method": "2",
+    "custom_formula": "",
+    "minweight": 0.25
+  },
+  "FitDelay": {
+    "blood_source": "1",
+    "model": "1tcm_median",
+    "time_window": 5,
+    "regions": "",
+    "multiple_regions": "",
+    "vB_value": 0.05,
+    "fit_vB": true,
+    "use_weights": true,
+    "inpshift_lower": -0.5,
+    "inpshift_upper": 0.5
+  },
+  "Model1": {
+    "model_type": "2TCM",
+    "K1_lower": 0.001,
+    "K1_upper": 1,
+    "K1_start": 0.1,
+    "k2_lower": 0.001,
+    "k2_upper": 1,
+    "k2_start": 0.1,
+    "k3_lower": 0.001,
+    "k3_upper": 1,
+    "k3_start": 0.1,
+    "k4_lower": 0.001,
+    "k4_upper": 1,
+    "k4_start": 0.1,
+    "vB_lower": 0,
+    "vB_upper": 0.1,
+    "vB_start": 0.05,
+    "fit_vB": true,
+    "use_weights": true
+  },
+  "Model2": {
+    "model_type": "No Model"
+  },
+  "Model3": {
+    "model_type": "No Model"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "regions": ["frontal", "temporal", "parietal"],
+  "segmentation": "freesurfer",
+  "data_subset": {
+    "subjects": ["sub-01", "sub-02"],
+    "sessions": ["ses-01"],
+    "tracers": ["18F-FDG"]
+  },
+  "weights": {
+    "type": "frame_duration",
+    "parameters": {}
+  },
+  "fit_delay": true,
+  "models": {
+    "model1": {
+      "type": "1TCM",
+      "parameters": {
+        "K1": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "k2": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "vB": {"lower": 0.0, "upper": 0.1, "start": 0.05}
+      }
+    },
+    "model2": {
+      "type": "2TCM",
+      "parameters": {
+        "K1": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "k2": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "k3": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "k4": {"lower": 0.001, "upper": 1.0, "start": 0.1},
+        "vB": {"lower": 0.0, "upper": 0.1, "start": 0.05}
+      }
+    },
+    "model3": {
+      "type": "Logan",
+      "parameters": {
+        "t_star": {"value": 30}
+      }
+    }
+  }
+}

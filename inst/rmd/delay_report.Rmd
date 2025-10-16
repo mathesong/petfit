@@ -1,0 +1,766 @@
+---
+title: "Delay Estimation Report"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
+
+<!-- ```{r} -->
+<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/ds004869/derivatives/petfit/Primary_Analysis/" -->
+<!-- blood_dir <-"/home/granville/Repositories/OpenNeuro/ds004869/derivatives/bloodstream" -->
+<!-- ``` -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(glue)
+library(DT)
+
+theme_set(theme_light())
+
+theme_set(theme_light())
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder %||% analysis_folder
+bids_dir <- params$bids_dir %||% bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    # cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+This report summarises the delay estimation step between blood and tissue curves in the petfit analysis pipeline (powered by kinfitr).
+
+# Analysis Configuration
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Blood Data and Method Configuration
+
+```{r delay-config}
+if (!is.null(config$FitDelay)) {
+  delay_config <- config$FitDelay
+  
+  # Blood data source information (use parameter, not config)
+  blood_dir_display <- if (!is.null(blood_dir)) blood_dir else "Not specified"
+  # cat("**Blood Data Source:** ", blood_dir, "\n\n")
+  
+  # Method mapping for display
+  method_display <- switch(delay_config$model %||% "none",
+    "none" = "None (no delay fitting)",
+    # "lin2tcm_singletac" = "Linear 2TCM Profile from Single Representative TAC (Very Quick)",
+    "1tcm_singletac" = "1TCM Delay from Single Representative TAC (Quick)", 
+    "2tcm_singletac" = "2TCM Delay from Single Representative TAC (Less Quick)",
+    "1tcm_median" = "1TCM Median Delay from Multiple Regions (Recommended)",
+    "2tcm_median" = "2TCM Median Delay from Multiple Regions (Very Slow)",
+    "Unknown method"
+  )
+  
+  # cat("**Delay Estimation Method:** ", method_display, "\n\n")
+  
+  # Create configuration table
+  config_items <- list(
+    "Blood Directory" = blood_dir_display,
+    "Estimation Method" = method_display,
+    "Time Window (minutes)" = delay_config$time_window %||% "Not specified",
+    "Blood Shift Lower Limit (minutes)" = delay_config$inpshift_lower %||% -0.5,
+    "Blood Shift Upper Limit (minutes)" = delay_config$inpshift_upper %||% 0.5,
+    "vB Value" = delay_config$vB_value %||% "Not specified",
+    "Fit vB Parameter" = ifelse(delay_config$fit_vB %||% FALSE, "Yes", "No"),
+    "Use Weights" = ifelse(delay_config$use_weights %||% FALSE, "Yes", "No")
+  )
+  
+  # Add multiple regions info if applicable
+  if (delay_config$model %in% c("1tcm_median", "2tcm_median")) {
+    multiple_regions <- delay_config$multiple_regions %||% ""
+    if (multiple_regions != "") {
+      config_items[["Regions for Analysis"]] <- multiple_regions
+    } else {
+      config_items[["Regions for Analysis"]] <- "All available regions"
+    }
+  }
+  
+  config_df <- tibble(
+    Parameter = names(config_items),
+    Value = map_chr(config_items, as.character)
+  )
+  
+  kable(config_df, caption = "Delay Estimation Configuration")
+  
+} else {
+  cat("No delay estimation configuration found in the analysis file.")
+}
+```
+
+```{r setup-conditions, echo=FALSE}
+# Set up conditional execution based on delay method
+delay_method <- config$FitDelay$model %||% "none"
+
+# Exit early if no delay fitting is requested
+if (delay_method == "none") {
+  cat("No delay estimation requested. This report should not have been generated.")
+  knitr::knit_exit()
+}
+
+do_1tcm_singletac <- delay_method == "1tcm_singletac"
+do_2tcm_singletac <- delay_method == "2tcm_singletac" 
+do_1tcm_median <- delay_method == "1tcm_median"
+do_2tcm_median <- delay_method == "2tcm_median"
+```
+
+<!-- ## Delay Estimation Method Details -->
+
+<!-- ```{r method-details} -->
+<!-- if (!is.null(config$FitDelay)) { -->
+<!--   method <- config$FitDelay$model %||% "zero" -->
+
+<!--   if (method == "zero") { -->
+<!--     cat("**No delay fitting performed.** All delays are set to zero.\n\n") -->
+<!--     cat("This approach assumes perfect temporal alignment between blood and tissue data, ") -->
+<!--     cat("which may be appropriate when delays are negligible or have been pre-corrected.\n") -->
+<!--   } else if (method %in% c("1tcm_mean", "2tcm_mean", "lin2tcm_mean")) { -->
+<!--     cat("**Single TAC Approach:** Delay estimation using the mean TAC across all regions.\n\n") -->
+<!--     cat("This method fits the selected model to a single representative TAC (mean of all regions) ") -->
+<!--     cat("and estimates one delay value that applies to all measurements. This is computationally ") -->
+<!--     cat("efficient but assumes consistent delay across all brain regions.\n") -->
+<!--   } else if (method %in% c("1tcm_median", "2tcm_median")) { -->
+<!--     cat("**Multiple Regions Approach:** Delay estimation using median across multiple regional TACs.\n\n") -->
+<!--     cat("This method fits the selected model to individual regional TACs and uses the median ") -->
+<!--     cat("delay estimate. This approach is more robust to regional variations and outliers, ") -->
+<!--     cat("providing a more representative delay estimate for the entire dataset.\n") -->
+
+<!--     multiple_regions <- config$FitDelay$multiple_regions %||% "" -->
+<!--     if (multiple_regions != "") { -->
+<!--       cat("\n**Regions analysed:** ", str_replace_all(multiple_regions, ";", ", "), "\n") -->
+<!--     } else { -->
+<!--       cat("\n**All available regions** are included in the analysis.\n") -->
+<!--     } -->
+<!--   } -->
+
+<!--   # Time window information -->
+<!--   time_window <- config$FitDelay$time_window %||% 5 -->
+<!--   cat("\n**Time Window:** The first ", time_window, " minutes of data are used for delay estimation. ") -->
+<!--   cat("This focuses on the early uptake phase where delay effects are most apparent.\n") -->
+
+<!-- } else { -->
+<!--   cat("Delay estimation configuration not found.") -->
+<!-- } -->
+<!-- ``` -->
+
+
+
+# Loading Data
+
+## Loading TAC Data
+
+```{r data-loading-logicals, echo=FALSE}
+# Define data loading approach logicals
+# is_single_region <- delay_method %in% c("lin2tcm_singletac", "1tcm_singletac", "2tcm_singletac")
+is_single_region <- delay_method %in% c("1tcm_singletac", "2tcm_singletac")
+
+# is_multiple_regions: Load individual regional TACs (for median approaches)
+# Note: This is TRUE even if only one region is specified for median procedures
+# because it defines how we load the data (individual regions vs combined)
+is_multiple_regions <- delay_method %in% c("1tcm_median", "2tcm_median")
+```
+
+```{r load-tacs-single, echo=is_single_region, eval=is_single_region}
+tac_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+tac_data <- tibble(
+  filename = tac_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>% 
+  unnest(tacs) %>% 
+  select(-basename, -measurement, -desc)
+```
+
+
+```{r load-tacs-multiple, echo=is_multiple_regions, eval=is_multiple_regions}
+weights_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+weightsdata <- tibble(
+  filename = weights_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>% 
+  unnest(tacs) %>% 
+  select(-filename, -basename, -measurement, -desc, -TAC)
+  
+
+tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+tac_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>% 
+  unnest(tacs) %>% 
+  select(-basename, -measurement, -desc) %>% 
+  inner_join(weightsdata)
+```
+
+
+Because we are now working with kinetic modelling, we need to use minutes instead of seconds. Hence, we will henceforth use minutes for time.
+
+```{r}
+tac_data <- tac_data %>% 
+  mutate(frame_start = frame_start/60,
+         frame_end = frame_end/60,
+         frame_dur = frame_dur/60,
+         frame_mid = frame_mid/60)
+```
+
+
+
+## Loading Blood Data
+
+```{r blood-loading-setup, echo=FALSE}
+# Determine which blood loading approach to use
+if (!is.null(blood_dir)) {
+  use_blood_dir <- TRUE
+  use_analysis_folder <- FALSE
+  use_bids_raw <- FALSE
+} else {
+  use_blood_dir <- FALSE
+  blood_source <- determine_blood_source(analysis_folder, bids_dir)
+  use_analysis_folder <- blood_source == "analysis_folder"
+  use_bids_raw <- blood_source == "bids_dir"
+}
+```
+
+```{r load-from-blood-dir, eval=use_blood_dir, echo=use_blood_dir}
+# Load blood data from specified blood_dir
+inputfunction_files <- list.files(blood_dir, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in blood_dir: ", blood_dir)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(blood_dir) %>% 
+  select(-measurement)
+```
+
+```{r load-from-analysis-folder, eval=use_analysis_folder, echo=use_analysis_folder}
+# Load processed inputfunction files from analysis folder
+inputfunction_files <- list.files(analysis_folder, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in analysis_folder: ", blood_dir)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+  select(-measurement, -desc)
+```
+
+```{r create-analysis-inputfunctions, eval=use_bids_raw, echo=use_bids_raw, results='asis'}
+str_glue("Because we are loading blood data from the raw BIDS folder, we will first generate 
+         an arterial input function using linear interpolation of the measured curves,
+         and then create *_inputfunction.tsv files in the petfit analysis folder.")
+```
+
+```{r load-from-bids-raw, eval=use_bids_raw}
+# Load blood files from bids_dir
+blood_files <- list.files(bids_dir, pattern = "*_blood\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(blood_files) == 0) {
+  stop("No _blood.tsv files found in bids_dir")
+}
+
+# Generate blood data from raw BIDS data
+raw_data <- kinfitr::bids_parse_study(bids_dir) %>% 
+  select(any_of(names(tac_data)), blooddata)
+
+tac_data_files <- tac_data %>% 
+  filter(!duplicated(filename)) %>% 
+   select(any_of(names(raw_data)), filename)
+
+save_data <- inner_join(raw_data, tac_data_files) %>% 
+  mutate(filename = str_remove(filename, "_desc.*")) %>% 
+  mutate(filename = str_remove(filename, "_weights.*")) %>% 
+  mutate(filename = str_remove(filename, "_tacs.*")) %>% 
+  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>% 
+  mutate(filename = paste0(analysis_folder, "/", filename))
+
+walk2(save_data$blooddata, save_data$filename, blooddata2inputfunction_tsv)
+
+# Load the created inputfunction files
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+  select(-measurement, -desc)
+```
+
+```{r blood-loading-error, eval=(!use_blood_dir && !use_analysis_folder && !use_bids_raw)}
+stop("No blood data available - provide blood_dir or ensure blood data exists in analysis folder or BIDS directory")
+```
+
+# Combining Blood and TAC Data
+
+```{r}
+tac_data_nested <- tac_data %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+                                           "run", "pet", "filename", "region")))) %>% 
+  nest(.key="tacs")
+
+model_data <- inner_join(tac_data_nested, blood_data) %>% 
+  ungroup() %>% 
+  mutate(output_stem = filename) %>% 
+  select(-filename) %>% 
+  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
+  mutate(output_stem = str_remove(output_stem, "_weights.*")) %>% 
+  mutate(output_stem = str_remove(output_stem, "_tacs.*"))
+```
+
+
+
+# Delay Estimation
+
+
+<!-- ## Linear 2TCM Profile from Single Representative TAC -->
+
+<!-- ```{r, eval=do_lin2tcm_singletac, echo=do_lin2tcm_singletac} -->
+<!-- # Linear 2TCM delay estimation using single representative TAC -->
+<!-- time_window <- config$FitDelay$time_window %||% 5 -->
+<!-- vB_value <- config$FitDelay$vB_value %||% 0.05 -->
+<!-- fit_vB <- config$FitDelay$fit_vB %||% FALSE -->
+<!-- use_weights <- config$FitDelay$use_weights %||% FALSE -->
+
+<!-- model_data <- model_data %>%  -->
+<!--   group_by(output_stem) %>%  -->
+<!--   mutate(delayFit = map2(tacs, input,  -->
+<!--                          ~lin2tcm_inpshiftProfile(t_tac = .x$frame_mid, tac = .x$TAC,  -->
+<!--                                  input = .y, dur = .x$frame_dur, -->
+<!--                                  weights = if(use_weights) .x$weights else NULL, -->
+<!--                                  vB =  if(fit_vB) vB_value else NULL, -->
+<!--                                  timeStartEnd = c(0,time_window))))  -->
+
+<!-- delay_out <- model_data %>%  -->
+<!--   mutate(inpshift = map_dbl(delayFit, c("par", "inpshift"))) %>%  -->
+<!--   select(-delayFit, -tacs, -input) %>%  -->
+<!--   ungroup() -->
+<!-- ``` -->
+
+```{r, eval=do_1tcm_singletac, echo=do_1tcm_singletac, results='asis'}
+str_glue("## 1TCM Delay from Single Representative TAC")
+```
+
+```{r, eval=do_1tcm_singletac, echo=do_1tcm_singletac}
+# 1TCM delay estimation using single TAC
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+fit_vB <- config$FitDelay$fit_vB %||% FALSE
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_onetcm <- possibly(onetcm, otherwise = NA)
+
+model_data <- model_data %>% 
+  group_by(output_stem) %>% 
+  mutate(delayFit = map2(tacs, input, 
+                         ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC, 
+                                 input = .y, 
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ))) 
+```
+
+```{r, eval=do_2tcm_singletac, echo=do_2tcm_singletac, results='asis'}
+str_glue("## 2TCM Delay from Single Representative TAC")
+```
+
+```{r, eval=do_2tcm_singletac, echo=do_2tcm_singletac}
+# 2TCM delay estimation using single TAC
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+fit_vB <- config$FitDelay$fit_vB %||% FALSE
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_twotcm <- possibly(twotcm, otherwise = NA)
+
+model_data <- model_data %>% 
+  group_by(output_stem) %>% 
+  mutate(delayFit = map2(tacs, input, 
+                         ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC, 
+                                 input = .y, 
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ))) 
+```
+
+```{r, eval=do_1tcm_median, echo=do_1tcm_median, results='asis'}
+str_glue("## 1TCM Median Delay from Multiple Regions")
+```
+
+```{r, eval=do_1tcm_median, echo=do_1tcm_median}
+# 1TCM delay estimation using multiple regions (median approach)
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+fit_vB <- config$FitDelay$fit_vB %||% FALSE
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_onetcm <- possibly(onetcm, otherwise = NA)
+
+model_data <- model_data %>% 
+  group_by(output_stem, region) %>% 
+  mutate(delayFit = map2(tacs, input, 
+                         ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC, 
+                                 input = .y, 
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ))) 
+```
+
+
+
+```{r, eval=do_2tcm_median, echo=do_2tcm_median, results='asis'}
+str_glue("## 2TCM Median Delay from Multiple Regions")
+```
+
+```{r, eval=do_2tcm_median, echo=do_2tcm_median}
+# 2TCM delay estimation using multiple regions (median approach)
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+fit_vB <- config$FitDelay$fit_vB %||% FALSE
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_twotcm <- possibly(twotcm, otherwise = NA)
+
+model_data <- model_data %>% 
+  group_by(output_stem, region) %>% 
+  mutate(delayFit = map2(tacs, input, 
+                         ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC, 
+                                 input = .y, 
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ))) 
+```
+
+### Extract results
+
+```{r, eval=is_single_region, echo=is_single_region}
+delay_out <- model_data %>% 
+  ungroup() %>% 
+  mutate(inpshift = map_dbl(delayFit, ~{
+    if(!is.list(.x)) NA_real_ else .x$par$inpshift
+  })) %>% 
+  select(-delayFit, -tacs, -input)
+```
+
+
+```{r, eval=is_multiple_regions, echo=is_multiple_regions}
+delay_estimates <- model_data %>% 
+  ungroup() %>% 
+  mutate(inpshift = map_dbl(delayFit, ~{
+    if(!is.list(.x)) NA_real_ else .x$par$inpshift
+  })) %>% 
+  select(-delayFit, -tacs, -input)
+
+delay_out <- delay_estimates %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+                                           "run", "pet",
+                                           "output_stem")))) %>% 
+  summarise(inpshift = median(inpshift))
+```
+
+
+```{r, results='asis'}
+str_glue("Delay values estimated for {sum(!is.na(delay_out$inpshift))} / {nrow(delay_out)} ({round(100*(sum(!is.na(delay_out$inpshift))/ nrow(delay_out)))}%) of measurements.
+         
+         Delay estimation unsuccessful for {nrow(delay_out)-sum(!is.na(delay_out$inpshift))} / {nrow(delay_out)} ({100-round(100*(sum(!is.na(delay_out$inpshift))/ nrow(delay_out)))}%) of measurements.")
+
+```
+
+
+```{r}
+delay_out %>% 
+  ungroup() %>% 
+  arrange(inpshift) %>% 
+  select(pet, blood_timeshift = inpshift) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
+  DT::datatable()
+```
+
+
+
+# Plotting
+
+## TAC Fits with Delay
+
+Inspect these plots to ascertain that the red arterial input function rises around the same time as the TAC does, and that the rise of the TAC follows the first few frames reasonably accurately, and is not excessively offset in time.
+
+```{r delay-plot-single, eval=is_single_region, echo=is_single_region,fig.width=6, fig.height=4}
+walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
+        labs(title=.y)))
+```
+
+```{r, eval=do_1tcm_median, echo=do_1tcm_median}
+# fit again with new delay
+fit_again_with_newdelay <- model_data %>% 
+  select(-delayFit) %>% 
+  inner_join(delay_out) %>% 
+  group_by(output_stem) %>% 
+  mutate(delayFit2 = pmap(list(tacs, input, inpshift),
+                         ~safe_onetcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
+                                 input = ..2, 
+                                 weights = if(use_weights) ..1$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift = ..3))) %>% 
+  mutate(success =map_lgl(delayFit2, ~{
+    if(is.list(.x)) TRUE else FALSE} )) %>% 
+  filter(success)
+
+tacfitted_tacs <- fit_again_with_newdelay %>% 
+  mutate(tacs = map(delayFit2, ~tibble(
+    frame_mid = .x$tacs$Time,
+    TAC = .x$tacs$Target
+  ))) %>% 
+  select(pet, output_stem, region, tacs) %>% 
+  unnest(tacs) %>% 
+  group_by(pet, output_stem) %>% 
+  nest(.key="tacs")
+
+tacfitted_preds <- fit_again_with_newdelay %>% 
+  mutate(preds = map(delayFit2, ~tibble(
+    frame_mid = seq(min(.x$tacs$Time), max(.x$tacs$Time), length.out=100 ),
+    TAC = predict(.x$fit, newdata=list(t_tac = frame_mid))))) %>% 
+  select(pet, output_stem, region, preds) %>% 
+  unnest() %>% 
+  group_by(pet, output_stem) %>% 
+  nest(.key="preds")
+
+tacfitted_inputs <- fit_again_with_newdelay %>% 
+  select(pet, output_stem, input) %>% 
+  filter(!duplicated(pet))
+
+tacs_refits <- inner_join(tacfitted_tacs, tacfitted_preds) %>% 
+  inner_join(tacfitted_inputs) %>% 
+  mutate(ymax = map_dbl(tacs, ~max(.x$TAC)*1.2))
+
+pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input, 
+           tacs_refits$pet, tacs_refits$ymax), 
+           ~print(ggplot(..1, aes(x=frame_mid, y=TAC)) +
+                    geom_line(data=..3, aes(x=Time, y=AIF),
+                              colour="red", region=NULL) +
+                    geom_point(aes(colour=region)) + 
+                    geom_line(data=..2, aes(colour=region, group=region)) +
+                    labs(title=..4,
+                         colour="Region",
+                         x = "Time (min)") +
+                    coord_cartesian(ylim=c(0,..5),
+                                    xlim=c(0,time_window))))
+```
+
+
+```{r, eval=do_2tcm_median, echo=do_2tcm_median}
+# fit again with new delay
+fit_again_with_newdelay <- model_data %>% 
+  select(-delayFit) %>% 
+  inner_join(delay_out) %>% 
+  group_by(output_stem) %>% 
+  mutate(delayFit2 = pmap(list(tacs, input, inpshift),
+                         ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
+                                 input = ..2, 
+                                 weights = if(use_weights) ..1$weights else NULL,
+                                 vB =  if(fit_vB) vB_value else NULL,
+                                 timeStartEnd = c(0,time_window), 
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift = ..3))) %>% 
+  mutate(success =map_lgl(delayFit2, ~{
+    if(is.list(.x)) TRUE else FALSE} )) %>% 
+  filter(success)
+
+tacfitted_tacs <- fit_again_with_newdelay %>% 
+  mutate(tacs = map(delayFit2, ~tibble(
+    frame_mid = .x$tacs$Time,
+    TAC = .x$tacs$Target
+  ))) %>% 
+  select(pet, output_stem, region, tacs) %>% 
+  unnest(tacs) %>% 
+  group_by(pet, output_stem) %>% 
+  nest(.key="tacs")
+
+tacfitted_preds <- fit_again_with_newdelay %>% 
+  mutate(preds = map(delayFit2, ~tibble(
+    frame_mid = seq(min(.x$tacs$Time), max(.x$tacs$Time), length.out=100 ),
+    TAC = predict(.x$fit, newdata=list(t_tac = frame_mid))))) %>% 
+  select(pet, output_stem, region, preds) %>% 
+  unnest() %>% 
+  group_by(pet, output_stem) %>% 
+  nest(.key="preds")
+
+tacfitted_inputs <- fit_again_with_newdelay %>% 
+  select(pet, output_stem, input) %>% 
+  filter(!duplicated(pet))
+
+tacs_refits <- inner_join(tacfitted_tacs, tacfitted_preds) %>% 
+  inner_join(tacfitted_inputs) %>% 
+  mutate(ymax = map_dbl(tacs, ~max(.x$TAC)*1.2))
+
+pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input, 
+           tacs_refits$pet, tacs_refits$ymax), 
+           ~print(ggplot(..1, aes(x=frame_mid, y=TAC)) +
+                    geom_line(data=..3, aes(x=Time, y=AIF),
+                              colour="red", region=NULL) +
+                    geom_point(aes(colour=region)) + 
+                    geom_line(data=..2, aes(colour=region, group=region)) +
+                    labs(title=..4,
+                         colour="Region",
+                         x = "Time (min)") +
+                    coord_cartesian(ylim=c(0,..5),
+                                    xlim=c(0,time_window))))
+```
+
+
+## Distribution of Estimates
+
+### Across Measurements
+
+This allows us to estimate systematic trends in the delay, as well as to check for outliers.
+
+```{r inpshift-histogram-id, fig.width=8, fig.height=6}
+ggplot(delay_out, aes(x=inpshift)) +
+  geom_histogram(fill="blue", colour="grey") +
+  geom_vline(xintercept=0, linetype="dashed") +
+  labs(title = "Distribution of Estimated Blood Shift Values",
+       x = "Blood Time Shift Estimate (min)")
+```
+
+```{r, fig.width=4, fig.height=4, eval=is_multiple_regions, echo=is_multiple_regions, results='asis'}
+
+
+str_glue("### Within regions
+         
+         This allows us to check for consistency between regions within PET measurements")
+
+```
+
+
+```{r inpshift-histogram-within, fig.width=4, fig.height=4, eval=is_multiple_regions, echo=is_multiple_regions}
+histograms <- delay_estimates %>% 
+  group_by(pet, output_stem) %>% 
+  mutate(count = n()) %>% 
+  filter(count > 1) %>% 
+  nest() %>% 
+  ungroup() %>% 
+  mutate(plot = map2(data, pet, ~ggplot(.x, aes(x=inpshift)) +
+      geom_histogram(fill="blue", colour="grey") +
+      geom_vline(xintercept=0, linetype="dashed") +
+      labs(title = .y,
+           x = "Blood Time Shift Estimate (min)")) )
+
+walk(histograms$plot, print)
+```
+
+
+
+# Saving Outcomes
+
+```{r}
+ModelName = str_match(method_display, "^(\\w*) ")[,2]
+
+delay_out <- delay_out %>% 
+  mutate(filename = paste0(output_stem, 
+                           "_model-", ModelName,
+                           "_desc-delayfit",
+                           "_kinpar.tsv"))
+
+save_inpshift <- function(inpshift, filename) {
+  
+  out_tsv <- tibble(
+    blood_timeshift = inpshift)
+  
+  write_tsv(out_tsv, filename)
+  
+  json_filename <- str_replace(filename, pattern = ".tsv", ".json")
+  
+  json_output <- list(
+    Description = method_display,
+    ModelName = ModelName,
+    AdditionalModelDetails = str_glue("vB fitted: {config_items$`Fit vB Parameter`}")
+  )
+    
+    json_output <- jsonlite::toJSON(json_output, pretty = TRUE, auto_unbox = TRUE)
+    writeLines(json_output, json_filename)
+}
+
+walk2(delay_out$inpshift, 
+      paste0(analysis_folder, "/", delay_out$filename),
+      save_inpshift)
+```
+
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

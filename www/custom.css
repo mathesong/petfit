@@ -1,0 +1,47 @@
+/* Custom CSS for petfit BIDS App */
+
+/* Main container styling */
+.container-fluid {
+    padding: 20px;
+}
+
+/* Sidebar styling */
+.well {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+/* Tab content styling */
+.tab-content {
+    padding: 20px 0;
+}
+
+/* Model configuration panels */
+.model-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: #ffffff;
+}
+
+/* Parameter input groups */
+.parameter-group {
+    margin-bottom: 10px;
+}
+
+/* Download button styling */
+.download-btn {
+    margin-top: 20px;
+}
+
+/* Progress indicators */
+.progress-container {
+    margin: 20px 0;
+}
+
+/* Validation messages */
+.validation-message {
+    font-size: 0.875rem;
+    margin-top: 5px;
+}

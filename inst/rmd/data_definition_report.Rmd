@@ -1,0 +1,380 @@
+---
+title: "Data Definition Report"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
+
+<!-- ```{r} -->
+<!-- analysis_folder <- "/home/granville/Repositories/OpenNeuro/ds004869/derivatives/petfit/Primary_Analysis/" -->
+<!-- ``` -->
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(knitr)
+library(jsonlite)
+library(plotly)
+library(crosstalk)
+library(htmltools)
+
+theme_set(theme_light())
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder %||% analysis_folder
+bids_dir <- params$bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+This report summarises the data subsetting and individual TACs file creation step of the petfit analysis pipeline (powered by kinfitr).
+
+# Analysis Configuration
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Subsetting Parameters
+
+The following subsetting criteria were applied to the combined TACs data:
+
+```{r subsetting-params}
+if (!is.null(config$Subsetting)) {
+  subsetting <- config$Subsetting
+  subsetting_df <- tibble(
+    Parameter = names(subsetting),
+    Value = map_chr(subsetting, ~ if(.x == "" || is.null(.x)) "All" else as.character(.x))
+  )
+  kable(subsetting_df)
+} else {
+  cat("No subsetting parameters found in configuration file.")
+}
+```
+
+# Data Summary
+
+```{r load-data}
+# Read all generated TACs files for comprehensive statistics
+tacs_files <- list.files(analysis_folder, 
+                        pattern = "*_desc-combinedregions_tacs.tsv", 
+                        recursive = TRUE)
+
+tacdata <- tibble(
+  filename = tacs_files
+) %>% 
+  mutate(basename = basename(filename)) %>% 
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>% 
+  unnest(attributes) %>% 
+  group_by(filename) %>% 
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>% 
+  unnest(tacs) %>% 
+  # pet column already exists in the individual files, so don't rename
+  select(-measurement, -desc, -basename, -filename)
+```
+
+```{r tac-unit-conversion}
+# Read TAC units from combined regions JSON metadata
+combined_tacs_json <- file.path(dirname(analysis_folder), "desc-combinedregions_tacs.json")
+
+if (file.exists(combined_tacs_json)) {
+  tryCatch({
+    json_metadata <- jsonlite::fromJSON(combined_tacs_json)
+    if ("radioactivity" %in% names(json_metadata) && "Units" %in% names(json_metadata$radioactivity)) {
+      original_tac_units_full <- json_metadata$radioactivity$Units
+      # Extract just radioactivity units (before "/mL")
+      original_tac_units <- kinfitr:::get_units_radioactivity(original_tac_units_full)$rad
+      cat("TAC units from combined regions JSON:", original_tac_units, "\n")
+      
+      # Apply unit conversion to standardize to kBq
+      tacdata <- tacdata %>%
+        mutate(TAC = kinfitr::unit_convert(TAC, from_units = original_tac_units, to_units = "kBq"))
+    } else {
+      cat("No radioactivity units found in JSON metadata, assuming already in kBq\n")
+    }
+  }, error = function(e) {
+    cat("Error reading JSON metadata, assuming TAC values already in kBq:", e$message, "\n")
+  })
+} else {
+  cat("Combined TACs JSON not found, assuming TAC values already in kBq\n")
+}
+```
+ 
+Total measurements: `r length(unique(tacdata$pet))`
+
+Total subjects: `r length(unique(tacdata$sub))`
+
+Total regions: `r length(unique(tacdata$region))`
+
+Total TACs: `r length(unique(  paste(tacdata$region, tacdata$pet) ))`
+
+Total number of frames: `r nrow(tacdata)`
+
+## Summary by PET Measurement
+
+The following table lists the number of frames for each PET measurement in order to identify problematic measurements of measurements with missing time spans.
+
+```{r measurement-summary}
+pet_framesummary <- tacdata %>%
+  ungroup() %>% 
+  group_by(pet) %>% 
+  filter(!duplicated(frame_start)) %>% 
+  summarise(
+    FramesCount = length(unique(frame_start)),
+    StartTime = min(frame_start)/60,
+    EndTime = max(frame_end)/60,
+    DurationSum = sum(frame_dur)/60,
+    MissingDuration = ((EndTime-StartTime)-DurationSum)/60,
+    .groups = "drop"
+  )
+
+# Add min/max TAC values per PET measurement
+tac_summary <- tacdata %>%
+  ungroup() %>%
+  group_by(pet) %>%
+  summarise(
+    MinTAC = round(min(TAC, na.rm = TRUE), 2),
+    MaxTAC = round(max(TAC, na.rm = TRUE), 2),
+    .groups = "drop"
+  )
+
+# Combine summaries
+pet_framesummary <- pet_framesummary %>%
+  left_join(tac_summary, by = "pet")
+
+kable(pet_framesummary)
+```
+
+
+# Data Visualisation
+
+```{r suv-outcome, echo=FALSE}
+#| results: asis
+
+if( sum(is.na(tacdata$InjectedRadioactivity)) == 0 &&
+    sum(is.na(tacdata$bodyweight)) == 0 ) {
+  
+  suv_outcome <- "SUV"
+  
+  do_suv <- TRUE
+  do_suv70 <- FALSE
+  do_tac <- FALSE
+  
+  str_glue("SUV is calculated based on the InjectedRadioactivity dose and bodyweight because it is present for all measurements.")
+
+  
+}
+
+if( sum(is.na(tacdata$InjectedRadioactivity)) == 0 &&
+    sum(is.na(tacdata$bodyweight)) > 0 ) {
+  
+  suv_outcome <- "SUV_bw70"
+  do_suv <- FALSE
+  do_suv70 <- TRUE
+  do_tac <- FALSE
+  
+  str_glue("SUV is approximated based on the InjectedRadioactivity dose, but assuming a bodyweight of 70kg for all individuals because this information is not available for all participants.")
+  
+}
+
+if( sum(is.na(tacdata$InjectedRadioactivity)) > 0 ) {
+  
+  suv_outcome <- "TAC"
+  do_suv <- FALSE
+  do_suv70 <- FALSE
+  do_tac <- TRUE
+  
+  str_glue("Plots are shown using TAC values and not SUV because the InjectedRadioactivity dose is not available for all measurements.")
+  
+}
+```
+
+```{r, eval=do_suv, echo=do_suv}
+tacdata <- tacdata %>% 
+  mutate(SUV = TAC / (InjectedRadioactivity/bodyweight))
+
+y_axis_title <- "SUV"
+```
+
+```{r, eval=do_suv70, echo=do_suv70}
+tacdata <- tacdata %>% 
+  mutate(SUV = TAC / (InjectedRadioactivity/70))
+
+y_axis_title <- "SUV (assuming a bodyweight of 70kg)"
+```
+
+```{r, eval=do_tac, echo=do_tac}
+tacdata <- tacdata %>% 
+  mutate(SUV = TAC)
+
+y_axis_title <- "TAC Radioactivity (kBq)"
+```
+
+## By Region
+
+Here the TACs are shown for all PET measurements for each region.  Hover over individual TACs to see which measurement they belong to, and double click to reset the highlighting.
+
+
+```{r tac-region-plots, fig.height=6, fig.width=8}
+regplots <- tacdata %>% 
+  mutate(tac = paste(pet, region)) %>% 
+  group_by(region) %>% 
+  nest() %>% 
+  mutate(
+    plot = map2(region, data, ~{
+      shared_data <- SharedData$new(.y, ~tac)
+      
+      p <- ggplot(shared_data, aes(x = frame_mid/60, y = SUV, 
+                                  group = tac, colour = tac,
+                                  text = paste("PET:", pet))) +
+        geom_point() +
+        geom_line(linewidth = 0.5) +
+        labs(title = .x,
+             x = "Time (min)",
+             y = y_axis_title) +
+        guides(colour=FALSE) +
+        theme_minimal()
+      
+      ggplotly(p, tooltip = "text") %>%
+  highlight(on = "plotly_hover", off = "plotly_doubleclick", 
+           opacityDim = 0.2) %>%
+  layout(
+    width = 800,
+    height = 500,
+    hovermode = "closest",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        x = 1,
+        y = 1,
+        buttons = list(
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "linear")),
+            label = "linear x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "linear")),
+            label = "log x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "log")),
+            label = "linear x / log y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "log")),
+            label = "log x / log y"
+          )
+        )
+      )
+    )
+  )
+    })
+  ) %>% 
+  pull(plot)
+
+htmltools::tagList(map(regplots, ~htmltools::div(.x, style="width: 800px; height: 600px; margin-bottom: 20px;")))
+```
+
+
+## By PET
+
+Here the TACs are shown for all regions for each PET measurement.  Hover over individual TACs to see which region they belong to, and double click to reset the highlighting.
+
+
+```{r tac-pet-plots, fig.height=6, fig.width=8}
+petplots <- tacdata %>% 
+  mutate(tac = paste(pet, region)) %>% 
+  group_by(pet) %>% 
+  nest() %>% 
+  mutate(
+    plot = map2(pet, data, ~{
+      shared_data <- SharedData$new(.y, ~tac)
+      
+      p <- ggplot(shared_data, aes(x = frame_mid/60, y = SUV, 
+                                  group = tac, colour = tac,
+                                  text = paste("Region:", region))) +
+        geom_point() +
+        geom_line(linewidth = 0.5) +
+        labs(title = .x,
+             x = "Time (min)",
+             y = y_axis_title) +
+        guides(colour=FALSE) +
+        theme_minimal()
+      
+      ggplotly(p, tooltip = "text") %>%
+  highlight(on = "plotly_hover", off = "plotly_doubleclick", 
+           opacityDim = 0.2) %>%
+  layout(
+    width = 800,
+    height = 500,
+    hovermode = "closest",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        x = 1,
+        y = 1,
+        buttons = list(
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "linear")),
+            label = "linear x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "linear")),
+            label = "log x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "log")),
+            label = "linear x / log y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "log")),
+            label = "log x / log y"
+          )
+        )
+      )
+    )
+  )
+    })
+  ) %>% 
+  pull(plot)
+
+htmltools::tagList(map(petplots, ~htmltools::div(.x, style="width: 800px; height: 600px; margin-bottom: 20px;")))
+```
+
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

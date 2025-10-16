@@ -1,0 +1,29 @@
+---
+title: "Configuration Validation Report"
+output: html_document
+params:
+  config_file: NULL
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Configuration Validation
+
+This report validates the petfit configuration file parameters, which are executed through kinfitr.
+
+```{r load-config}
+# Load and validate configuration from params$config_file
+```
+
+```{r validation-checks}
+# Run validation checks on configuration parameters
+```
+
+```{r validation-results}
+# Display validation results
+```

@@ -1,0 +1,660 @@
+---
+title: "Weights Report"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
+
+<!--  ```{r} -->
+<!--  analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
+<!--  ``` -->
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(plotly)
+library(crosstalk)
+library(htmltools)
+
+theme_set(theme_light())
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder %||% analysis_folder
+bids_dir <- params$bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    # cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+This report summarises the weights calculation step of the petfit analysis pipeline (powered by kinfitr).
+
+# Analysis Configuration
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Weights Configuration
+
+The following weights parameters were applied to the TACs data:
+
+```{r weights-params}
+if (!is.null(config$Weights)) {
+  weights <- config$Weights
+  weights_df <- tibble(
+    Parameter = names(weights),
+    Value = map_chr(weights, ~ if(.x == "" || is.null(.x)) "Not specified" else as.character(.x))
+  )
+  
+  if(config$Weights$radioisotope %in% c("C11", "O15", "F18") & 
+     config$Weights$halflife == "") {
+    weights_df <- weights_df %>% 
+      filter(Parameter != "halflife")
+  }
+  
+  kable(weights_df)
+} else {
+  cat("No weights parameters found in configuration file.")
+}
+```
+
+
+# Region Selection and TAC Preparation
+
+```{r tac-creation-config, echo=FALSE}
+#| results: asis
+
+create_tacmean_single   <- FALSE
+create_tacmean_combined <- FALSE
+create_tacmean_external <- FALSE
+
+if( config$Weights$region_type == "single" ) {
+  create_tacmean_single   <- TRUE
+  chosen_region <- config$Weights$region
+  
+  str_glue("Defining radioactivity for weights estimation as originating from a single ROI: ",
+           config$Weights$region)
+}
+
+if( config$Weights$region_type == "mean_combined" ) {
+  create_tacmean_combined <- TRUE
+  
+  tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+  regions <- tibble(
+    filename = tacs_files) %>%
+    mutate(basename = basename(filename)) %>%
+    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    unnest(attributes) %>%
+    group_by(filename) %>%
+    mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+    ungroup() %>% 
+    unnest(tacs) %>%
+    pull(region) %>% 
+    unique()
+  
+  str_glue("Defining radioactivity for weights estimation as originating from the ",
+           "volume-weighted mean of the analysis ROIs: ",
+           paste(regions, collapse=";"))
+}
+
+if( config$Weights$region_type == "external" ) {
+  create_tacmean_external <- TRUE
+  
+  str_glue("Defining radioactivity for weights estimation as originating from the ",
+           "volume-weighted mean of an external segmentation: ",
+           config$Weights$external_tacs)
+  
+  
+}
+```
+
+
+
+```{r single-tacdata-creation, eval=create_tacmean_single, echo=create_tacmean_single}
+tacs_files <- list.files(analysis_folder,
+                      pattern = "*_desc-combinedregions_tacs.tsv",
+                      recursive = TRUE)
+
+weights_tacdata <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  unnest(tacs) %>%
+  filter(region == config$Weights$region) %>% 
+  ungroup() %>% 
+  select(-filename, -basename, -measurement, -desc, -region,
+         -volume_mm3, -InjectedRadioactivity, -bodyweight)
+  # select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC)
+  
+```
+
+
+
+```{r combined-tacdata-creation, eval=create_tacmean_combined, echo=create_tacmean_combined}
+tacs_files <- list.files(analysis_folder,
+                      pattern = "*_desc-combinedregions_tacs.tsv",
+                      recursive = TRUE)
+
+# Use unified BIDS parsing to get consistent pet identifiers
+bids_attributes <- bids_parse_files(analysis_folder)
+bids_attributes$pet <- attributes_to_title(bids_attributes)
+
+weights_tacdata <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  # Join with unified BIDS attributes to get consistent pet column
+  left_join(select(bids_attributes, -filedata)) %>%
+  group_by(filename) %>% 
+  select(-filename, -basename, -measurement, -desc) %>% 
+  ungroup()
+
+mean_tacdata <- weights_tacdata %>% 
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  select(-pet) %>% 
+  unnest(tacs) %>%
+  # Calculate volume-weighted mean across all regions for each PET measurement
+  group_by(pet, frame_start, frame_end, frame_dur, frame_mid, TAC) %>% 
+  summarise(
+    TAC = sum(TAC * volume_mm3) / sum(volume_mm3),  # Volume-weighted mean
+    .groups = "drop"
+  )
+
+weights_tacdata <- left_join(weights_tacdata, mean_tacdata) %>% 
+  select(-filename)
+```
+
+```{r external-tacdata-creation, eval=create_tacmean_external, echo=create_tacmean_external}
+# Load segmentation mean TACs from combined regions file
+selected_segmentation <- config$Weights$external_tacs
+
+# Find TACs files for data structure
+tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+# Create subsetted data structure to join to seg means
+weights_tacdata <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  unnest(tacs) %>%
+  group_by(pet) %>%
+  filter(region == region[1]) %>%
+  ungroup() %>%
+  select(-filename, -basename, -measurement, -desc, -region,
+         -volume_mm3, -InjectedRadioactivity, -bodyweight) %>%
+  select(-TAC)  # to be replaced by the meanTAC
+
+
+# Load combined regions file (one level up from analysis folder)
+petfit_dir <- dirname(analysis_folder)
+combined_regions_file <- file.path(petfit_dir, "desc-combinedregions_tacs.tsv")
+
+if (file.exists(combined_regions_file)) {
+  combined_regions_data <- read_tsv(combined_regions_file, show_col_types = FALSE)
+
+  # Filter for the selected segmentation and extract seg_meanTAC
+  if ("seg_meanTAC" %in% colnames(combined_regions_data) && "segmentation" %in% colnames(combined_regions_data)) {
+    segmentation_data <- combined_regions_data %>%
+      filter(segmentation == selected_segmentation) %>%
+      # Take first instance for each time point since seg_meanTAC is the same for all regions from the same segmentation
+      group_by(pet, frame_start, frame_end, frame_dur, frame_mid) %>%
+      slice_head(n = 1) %>%
+      ungroup() %>%
+      select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC = seg_meanTAC)
+
+    if (nrow(segmentation_data) > 0) {
+      cat("Successfully loaded segmentation mean TACs for segmentation:", selected_segmentation, "\n")
+      # cat("Total measurements found:", length(unique(weights_tacdata$pet)), "\n")
+    } else {
+      stop("No data found for segmentation: ", selected_segmentation)
+    }
+  } else {
+    if (!"seg_meanTAC" %in% colnames(combined_regions_data)) {
+      stop("seg_meanTAC column not found in combined regions file. Please regenerate combined regions with updated region definition app.")
+    }
+    if (!"segmentation" %in% colnames(combined_regions_data)) {
+      stop("segmentation column not found in combined regions file")
+    }
+  }
+} else {
+  stop("Combined regions file not found: ", combined_regions_file)
+}
+
+weights_tacdata <- left_join(weights_tacdata, segmentation_data)
+```
+
+```{r external-tacdata-check, eval=create_tacmean_external, echo=FALSE}
+#| results: asis
+
+missing_frames <- sum(is.na(weights_tacdata$TAC))
+
+str_glue("Number of frames missing mean radioactivity values: ", missing_frames)
+```
+
+```{r external-tacdata-missing, eval=create_tacmean_external, echo=FALSE}
+if( missing_frames > 0 ) {
+  missing_frames_table <- weights_tacdata %>% 
+    filter(is.na(TAC))
+  
+  kable(missing_frames_table)
+}
+```
+
+
+
+
+# Weights Calculation
+
+```{r weights-creation-config, echo=FALSE}
+#| results: asis
+
+create_custom_weights  <- FALSE
+create_defined_weights <- FALSE
+
+
+if( config$Weights$method == "custom" ) {
+  create_custom_weights  <- TRUE
+  
+  str_glue("Defining custom weights using formula: ",
+           config$Weights$formula)
+}
+
+if( config$Weights$method != "custom" ) {
+  create_defined_weights <- TRUE
+  
+    str_glue("Defining weights using method: ",
+           config$Weights$formula)
+}
+```
+
+
+## Decay Correction Considerations
+
+```{r define-hl}
+# Extract radioisotope and halflife from config
+radioisotope <- config$Weights$radioisotope %||% "C11"
+halflife_raw <- config$Weights$halflife %||% ""
+
+# Convert empty strings back to NULL for function calls
+halflife <- if(halflife_raw == "" || is.null(halflife_raw)) NULL else as.numeric(halflife_raw)
+
+# Prepare radioisotope and half-life
+if (radioisotope == "Other" && !is.null(halflife)) {
+  radionuclide_halflife <- halflife
+  radioisotope_for_uncorrection <- "C11"  # Use as placeholder, actual halflife will override
+} else {
+  radionuclide_halflife <- NULL
+  radioisotope_for_uncorrection <- radioisotope
+}
+```
+
+
+```{r weights-data, echo=create_custom_weights, eval=create_custom_weights}
+weights_data <- weights_tacdata %>% 
+  rename(tac = TAC) %>% 
+  mutate(tac_uncor = decay_uncorrect(frame_start, frame_end, tac,
+                                     radioisotope = radioisotope_for_uncorrection,
+                                     radionuclide_halflife = radionuclide_halflife)) %>% 
+  mutate(corrections = corrections <- tac_uncor/tac)
+```
+
+## Generate weights
+
+```{r gen-weights-custom, echo=create_custom_weights, eval=create_custom_weights}
+apply_weight_formula <- function(data, formula_string) {
+  data %>%
+    mutate(calcweights = eval(parse(text = formula_string)))
+}
+
+weights_output <- apply_weight_formula(weights_data, config$Weights$formula) %>% 
+  select(-tac_uncor, -corrections) %>% 
+  rename(TAC = tac)
+```
+
+```{r custom-weights-message, echo=create_custom_weights, eval=create_custom_weights}
+#| results: asis
+
+str_glue("Now we check for outlier and minweight issues")
+```
+
+```{r minweight-weights-custom, echo=create_custom_weights, eval=create_custom_weights}
+minweight <- config$Weights$minweight
+
+# Apply minweight correction
+weights_final <- weights_output %>%
+  mutate(
+    weights = {
+      
+      # Outlier protection for max weight
+      maxweight <- max(calcweights, na.rm = TRUE)
+      maxweights <- tail(calcweights[order(calcweights)], 5)
+      if (min(maxweights, na.rm = TRUE) < 0.5 * maxweight) {
+        maxweight <- median(maxweights)
+      }
+      
+      # Normalize weights
+      calcweights[calcweights > maxweight] <- maxweight
+      calcweights <- calcweights / maxweight
+      
+      # Apply minweight correction
+      minweights <- rep(minweight, length(calcweights))
+      if (any(calcweights < minweights)) {
+        min_calcweight <- min(calcweights[frame_dur != 0], na.rm = TRUE)
+        calcweights <- calcweights - min_calcweight / (1 - min_calcweight)
+        calcweights <- minweights + calcweights * (1 - minweights)
+      }
+      
+      calcweights[frame_dur == 0] <- 0
+      calcweights
+    }
+  ) %>% 
+  select(-calcweights)
+```
+
+
+```{r gen-weights-defined, echo=create_defined_weights, eval=create_defined_weights}
+
+if (as.numeric(config$Weights$method) == 0) {
+  
+  # Method 0 (uniform weights)
+  weights_output <- weights_tacdata %>% 
+    mutate(weights = 1)
+
+} else {
+  
+  # Using pre-defined weighting methods
+  weights_output <- weights_tacdata %>% 
+    mutate(weights = weights_create(t_start = frame_start/60, 
+                                    t_end = frame_end/60, 
+                                    TAC, 
+                                    radioisotope = radioisotope_for_uncorrection, 
+                                    method = as.numeric(config$Weights$method), 
+                                    minweight = as.numeric(config$Weights$minweight), 
+                                    radionuclide_halflife = radionuclide_halflife))
+  
+}
+```
+
+
+## Normalise weights to mean 1
+
+```{r normalise}
+weights_output <- weights_output %>% 
+  group_by(pet) %>% 
+  mutate(weights = weights/mean(weights)) %>% 
+  ungroup()
+```
+
+
+## Weights Summary Statistics
+
+```{r weights-stats}
+weights_stats <- weights_output %>%
+  ungroup() %>%
+  group_by(pet) %>%
+  summarise(
+    MinWeight = min(weights),
+    MaxWeight = max(weights),
+    MeanWeight = mean(weights),
+    MedianWeight = median(weights),
+    WeightRatio = max(weights)/min(weights)
+  ) %>%
+  mutate(across(c(MinWeight, MaxWeight, MeanWeight, MedianWeight, WeightRatio), ~ round(.x, 3)))
+
+kable(weights_stats,
+      col.names = c("PET", "Min Weight", "Max Weight", "Mean Weight", "Median Weight", "Weight MinMax Ratio"))
+```
+
+# Data Visualisation
+
+## Weights Over Time
+
+The following plots show how weights vary over time for each PET measurement. Double click to reset the highlighting.
+
+```{r weights-time-plots, fig.height=6, fig.width=8}
+# Create shared data
+shared_weights <- SharedData$new(weights_output, ~pet)
+
+weights_plot <- ggplot(shared_weights, aes(x = frame_mid/60, y = weights,
+                                          group = pet, colour = pet,
+                                          text = paste("PET:", pet))) +
+  geom_point() +
+  geom_line(linewidth = 0.5) +
+  labs(x = "Time (min)",
+       y = "weight") +
+  theme_minimal() +
+  guides(colour = "none")
+
+ggplotly(weights_plot, tooltip = "text") %>%
+  highlight(on = "plotly_hover", off = "plotly_doubleclick", 
+           opacityDim = 0.2) %>%
+  layout(
+    width = 800,
+    height = 500,
+    hovermode = "closest",
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        x = 1,
+        y = 1,
+        buttons = list(
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "linear")),
+            label = "linear x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "linear")),
+            label = "log x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "log")),
+            label = "linear x / log y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "log")),
+            label = "log x / log y"
+          )
+        )
+      )
+    )
+  )
+```
+
+## Weights Over the TAC
+
+Here we show the weights over the TAC represented by point size.  Double click to reset the highlighting.
+
+```{r tac-weights-setup}
+library(crosstalk)
+# Create shared data with peak-normalized TAC
+shared_tac <- weights_output %>%
+  group_by(pet) %>%
+  mutate(TAC_norm = TAC / max(TAC, na.rm = TRUE)) %>%
+  ungroup() %>%
+  SharedData$new(~pet)
+
+tac_plot <- ggplot(shared_tac, aes(x = frame_mid/60, y = TAC_norm,
+                                  group = pet, colour = pet,
+                                  text = paste("PET:", pet))) +
+  geom_point(aes(size = weights)) +
+  geom_line(linewidth = 0.5) +
+  labs(x = "Time (min)",
+       y = "Peak-normalised TAC") +
+  theme_minimal() +
+  guides(colour = "none")
+
+ggplotly(tac_plot, tooltip = "text") %>%
+  highlight(on = "plotly_hover", off = "plotly_doubleclick", 
+           opacityDim = 0.2) %>%
+  layout(
+    width = 800,
+    height = 500,
+    hovermode = "closest",
+    showlegend = TRUE,
+    legend = list(
+      title = list(text = "Weights"),
+      x = 1.02,
+      y = 1
+    ),
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        x = 1,
+        y = 1,
+        buttons = list(
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "linear")),
+            label = "linear x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "linear")),
+            label = "log x / linear y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "linear", yaxis.type = "log")),
+            label = "linear x / log y"
+          ),
+          list(
+            method = "relayout",
+            args = list(list(xaxis.type = "log", yaxis.type = "log")),
+            label = "log x / log y"
+          )
+        )
+      )
+    )
+  )
+```
+
+
+
+## Implied Standard Error Over the TAC
+
+Optimal weights are equal to the inverse variance. Hence, using the peak-normalised TACs, if we assume that the error for weights=1 is equal to 5\% of the peak TAC value, the effective standard error across the TAC can be visualised as follows:
+
+
+```{r individual-tac-plots, fig.width=8, fig.height=6}
+# Function to create individual TAC plots with SE ribbons
+create_individual_tac_plot <- function(pet_id) {
+  data <- weights_output %>%
+    filter(pet == pet_id) %>%
+    mutate(
+      TAC_norm = TAC / max(TAC, na.rm = TRUE),
+      peak_error = 0.05,  # 5% of peak value
+      variance = peak_error^2 / weights,  # Variance is inverse of weights, scaled by peak error
+      se = sqrt(variance),  # Standard error
+      ymin = TAC_norm - se,
+      ymax = TAC_norm + se
+    )
+  
+  ggplot(data, aes(x = frame_mid/60, y = TAC_norm)) +
+    geom_ribbon(aes(ymin = ymin, ymax = ymax), 
+                alpha = 0.5, fill = "lightblue") +
+    geom_line(linewidth = 0.8, color = "darkblue") +
+    geom_point(color = "darkblue", size = 2) +
+    labs(x = "Time (min)",
+         y = "Peak-normalized TAC",
+         title = pet_id) +
+    theme_minimal() +
+    ylim(min(data$ymin, na.rm = TRUE), max(data$ymax, na.rm = TRUE))
+}
+
+# Get unique PET IDs
+pet_ids <- unique(weights_output$pet)
+
+# Create individual plots
+individual_plots <- map(pet_ids, create_individual_tac_plot)
+names(individual_plots) <- pet_ids
+
+# Display each plot
+walk(individual_plots, print)
+```
+
+# Saving Output
+
+```{r save-individual-weights}
+# Save individual weight files for each PET measurement in BIDS structure
+# Find existing TACs files to determine directory structure
+tacs_files <- list.files(analysis_folder, 
+                        pattern = "*_desc-combinedregions_tacs.tsv", 
+                        recursive = TRUE, 
+                        full.names = TRUE)
+
+# Process each PET measurement
+walk(unique(weights_output$pet), function(pet_id) {
+  # Find the corresponding TACs file for this PET measurement
+  matching_file <- tacs_files[str_detect(basename(tacs_files), paste0("^", pet_id, "_"))]
+  
+  if (length(matching_file) > 0) {
+    # Use the directory of the matching TACs file
+    target_dir <- dirname(matching_file[1])
+    
+    # Filter weights data for this PET measurement
+    pet_weights <- weights_output %>%
+      filter(pet == pet_id) %>%
+      select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC, weights)
+    
+    # Create output filename following BIDS convention
+    output_filename <- paste0(pet_id, "_desc-weights_weights.tsv")
+    output_path <- file.path(target_dir, output_filename)
+    
+    # Save the weights file
+    readr::write_tsv(pet_weights, output_path)
+    
+    # Show relative path for cleaner output
+    relative_path <- str_remove(output_path, paste0(analysis_folder, "/"))
+    cat("Saved weights for", pet_id, "to:", relative_path, "\n")
+  } else {
+    cat("Warning: Could not find TACs file for", pet_id, "\n")
+  }
+})
+```
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

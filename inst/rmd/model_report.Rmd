@@ -1,0 +1,29 @@
+---
+title: "petfit Model Report"
+output: html_document
+params:
+  config_file: NULL
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Kinetic Modeling Report
+
+This is a parameterized R Markdown report for petfit modeling results generated via kinfitr.
+
+```{r load-config}
+# Load configuration from params$config_file
+```
+
+```{r run-analysis}
+# Run kinetic modeling analysis based on configuration
+```
+
+```{r results}
+# Display results and plots
+```

@@ -1,0 +1,71 @@
+Bootstrap: docker
+From: rocker/shiny-verse:latest
+
+%labels
+    Author mathesong
+    Version 1.0
+    Description petfit PET imaging analysis application
+    
+%arguments
+    USER_ID=1000
+    GROUP_ID=1000
+    USER_NAME=petfit
+
+%post
+    # Install system dependencies
+    apt-get update && apt-get install -y \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libgit2-dev \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Create user and group with specified IDs
+    groupadd -g {{ GROUP_ID }} {{ USER_NAME }} && \
+        useradd -u {{ USER_ID }} -g {{ GROUP_ID }} -m -s /bin/bash {{ USER_NAME }}
+
+    # Install additional R packages required by petfit (and its kinfitr dependency)
+    /usr/local/bin/install2.r --error --skipinstalled \
+        optparse \
+        remotes \
+        && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
+
+    # Install kinfitr from GitHub
+    R -e "remotes::install_github('mathesong/kinfitr', dependencies = TRUE)"
+
+    # Create app directory and set permissions
+    mkdir -p /app
+    chown -R {{ USER_NAME }}:{{ USER_NAME }} /app
+
+    # Create data directory and set permissions
+    mkdir -p /data
+    chown -R {{ USER_NAME }}:{{ USER_NAME }} /data
+
+%files
+    # Copy the petfit app package files
+    . /app/
+    
+    # Copy Docker-specific scripts (reuse for Singularity)
+    docker/run_petfit.R /app/run_petfit.R
+
+%environment
+    # Set environment variables
+    export LC_ALL=C
+    export PATH=/app:$PATH
+    
+%runscript
+    # Default runscript - execute the petfit entry point
+    exec /app/run_petfit.R "$@"
+
+%help
+    This container runs the petfit PET imaging analysis application built on kinfitr.
+    
+    Usage examples:
+    
+    Interactive mode:
+    singularity run petfit.sif --func modelling
+    
+    Automatic mode:
+    singularity run petfit.sif --func modelling --mode automatic
+    
+    For detailed usage information, see the singularity/README.md file.

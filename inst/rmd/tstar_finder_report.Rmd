@@ -1,0 +1,178 @@
+---
+title: "t* Finder Analysis Report"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+  tstar_results: NULL  
+  binding_regions: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(jsonlite)
+theme_set(theme_light())
+
+# Use parameters
+analysis_folder <- params$analysis_folder
+bids_dir <- params$bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+# t* Finder Analysis Report
+
+This report summarises the t* (t-star) optimisation analysis for Logan graphical analysis in the petfit analysis pipeline (powered by kinfitr).
+
+## Analysis Configuration
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+## t* Finder Overview
+
+The t* finder analysis determines the optimal start time for the linear phase in Logan graphical analysis. It uses regions with different binding characteristics to find the t* that provides:
+
+- **Consistent linearity** across binding levels
+- **Stable VT estimates** 
+- **Minimal bias** in parameter estimation
+
+## Binding Regions Configuration
+
+```{r binding-regions}
+if (!is.null(params$binding_regions)) {
+  cat("Binding regions specified for t* optimisation:")
+  cat("\n- Low binding regions:", params$binding_regions$low %||% "Not specified")
+  cat("\n- Medium binding regions:", params$binding_regions$medium %||% "Not specified") 
+  cat("\n- High binding regions:", params$binding_regions$high %||% "Not specified")
+} else {
+  cat("Binding regions not specified.")
+  cat("\nTypical classification:")
+  cat("\n- Low binding: cerebellar gray matter, white matter")
+  cat("\n- Medium binding: cortical regions")
+  cat("\n- High binding: striatum, thalamus")
+}
+```
+
+## t* Optimization Results
+
+```{r tstar-results}
+if (!is.null(params$tstar_results)) {
+  cat("t* optimisation analysis completed successfully.")
+  # Add results summary here
+} else {
+  cat("t* optimisation results not available.")
+  cat("\nt* finder analysis will produce:")
+  cat("\n- Optimal t* recommendations")
+  cat("\n- Linearity metrics across t* values")
+  cat("\n- VT stability analysis")
+  cat("\n- Binding-specific t* recommendations")
+}
+```
+
+## t* Optimisation Plots
+
+```{r tstar-plots, fig.height=8, fig.width=12}
+cat("t* optimisation visualisation will include:")
+cat("\n- R² vs. t* for different binding regions")
+cat("\n- VT coefficient of variation vs. t*")
+cat("\n- Logan plots at different t* values")
+cat("\n- Recommended t* selection")
+```
+
+## Linearity Assessment
+
+```{r linearity-assessment}
+cat("Linearity assessment across t* values:")
+cat("\n- R² values for each region and t*")
+cat("\n- Minimum R² thresholds")
+cat("\n- Optimal t* for maximum linearity")
+cat("\n- Trade-offs between regions")
+```
+
+## VT Stability Analysis
+
+```{r vt-stability}
+cat("VT stability analysis will show:")
+cat("\n- VT estimates vs. t* for each region")
+cat("\n- Coefficient of variation in VT")
+cat("\n- Plateau detection in VT estimates")
+cat("\n- Sensitivity to t* selection")
+```
+
+## Binding-Specific Recommendations
+
+```{r binding-recommendations}
+cat("Binding-specific t* recommendations:")
+cat("\n- Optimal t* for low binding regions")
+cat("\n- Optimal t* for medium binding regions")
+cat("\n- Optimal t* for high binding regions")
+cat("\n- Compromise t* for all regions")
+```
+
+## Quality Metrics
+
+```{r quality-metrics}
+cat("Quality metrics for t* selection:")
+cat("\n- Overall linearity score")
+cat("\n- VT precision metrics")
+cat("\n- Bias assessment")
+cat("\n- Robustness to outliers")
+```
+
+## Recommendations
+
+```{r recommendations}
+cat("t* selection recommendations:")
+cat("\n- Primary recommendation: Single t* for all regions")
+cat("\n- Alternative: Binding-specific t* values")
+cat("\n- Sensitivity analysis: Range of acceptable t* values")
+cat("\n- Quality thresholds: Minimum requirements")
+```
+
+## Implementation Notes
+
+```{r implementation}
+cat("Implementation considerations:")
+cat("\n- Apply recommended t* to Logan analysis")
+cat("\n- Document t* selection rationale")
+cat("\n- Consider region-specific t* if warranted")
+cat("\n- Validate with independent datasets")
+```
+
+## Next Steps
+
+After reviewing this report:
+
+1. **Select optimal t***: Choose recommended t* value for Logan analysis
+2. **Validate selection**: Confirm t* provides good linearity across regions
+3. **Apply to Logan analysis**: Use selected t* in Logan graphical analysis
+4. **Document rationale**: Record t* selection criteria and results
+
+## Session Information
+
+```{r session-info}
+sessionInfo()
+```

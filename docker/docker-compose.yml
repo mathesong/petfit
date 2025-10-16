@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  petfit-modelling-plasma:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    ports:
+      - "3838:3838"
+    volumes:
+      # Example mounts - adjust paths as needed for testing
+      - ./test_data/bids:/data/bids_dir
+      - ./test_data/derivatives:/data/derivatives_dir
+      - ./test_data/blood:/data/blood_dir
+    command: ["--func", "modelling_plasma", "--mode", "interactive"]
+    container_name: petfit-modelling-plasma
+
+  petfit-modelling-ref:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    ports:
+      - "3840:3838"
+    volumes:
+      # Example mounts - adjust paths as needed for testing
+      - ./test_data/bids:/data/bids_dir
+      - ./test_data/derivatives:/data/derivatives_dir
+    command: ["--func", "modelling_ref", "--mode", "interactive"]
+    container_name: petfit-modelling-ref
+    
+  petfit-regiondef:
+    build: 
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    ports:
+      - "3839:3838"
+    volumes:
+      # Example mounts for region definition
+      - ./test_data/bids:/data/bids_dir
+    command: ["--func", "regiondef", "--mode", "interactive"]
+    container_name: petfit-regiondef
+    
+  petfit-auto-plasma-full:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      # Example mounts for automatic processing
+      - ./test_data/derivatives:/data/derivatives_dir
+      - ./test_data/blood:/data/blood_dir
+    command: ["--func", "modelling_plasma", "--mode", "automatic"]
+    container_name: petfit-auto-plasma-full
+
+  petfit-auto-plasma-step:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      # Example mounts for step-specific processing
+      - ./test_data/derivatives:/data/derivatives_dir
+      - ./test_data/blood:/data/blood_dir
+    command: ["--func", "modelling_plasma", "--mode", "automatic", "--step", "weights"]
+    container_name: petfit-auto-plasma-step
+
+  petfit-auto-ref-full:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      # Example mounts for automatic processing
+      - ./test_data/derivatives:/data/derivatives_dir
+    command: ["--func", "modelling_ref", "--mode", "automatic"]
+    container_name: petfit-auto-ref-full
+
+  petfit-auto-ref-step:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_NAME: petfit
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      # Example mounts for step-specific processing
+      - ./test_data/derivatives:/data/derivatives_dir
+    command: ["--func", "modelling_ref", "--mode", "automatic", "--step", "weights"]
+    container_name: petfit-auto-ref-step
+
+# User Configuration:
+# Copy .env.example to .env and adjust USER_ID/GROUP_ID if needed
+# Default values (1000:1000) work for most single-user Linux systems
+# Find your IDs with: id -u (user ID) and id -g (group ID)
+#
+# Example usage commands:
+#
+# Interactive plasma input modelling app:
+# docker-compose up petfit-modelling-plasma
+# Then open http://localhost:3838
+#
+# Interactive reference tissue modelling app:
+# docker-compose up petfit-modelling-ref
+# Then open http://localhost:3840
+#
+# Interactive region definition app:
+# docker-compose up petfit-regiondef
+# Then open http://localhost:3839
+#
+# Automatic plasma full pipeline:
+# docker-compose up petfit-auto-plasma-full
+#
+# Automatic plasma specific step:
+# docker-compose up petfit-auto-plasma-step
+#
+# Automatic reference tissue full pipeline:
+# docker-compose up petfit-auto-ref-full
+#
+# Automatic reference tissue specific step:
+# docker-compose up petfit-auto-ref-step
+#
+# Build only:
+# docker-compose build
+#
+# Clean up:
+# docker-compose down --rmi all
