@@ -29,8 +29,6 @@ library(DT)
 
 theme_set(theme_light())
 
-theme_set(theme_light())
-
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder %||% analysis_folder
 bids_dir <- params$bids_dir %||% bids_dir %||% NULL
@@ -598,7 +596,9 @@ tacfitted_preds <- fit_again_with_newdelay %>%
   nest(.key="preds")
 
 tacfitted_inputs <- fit_again_with_newdelay %>% 
-  select(pet, output_stem, input) %>% 
+  select(pet, output_stem, delayFit2) %>% 
+  mutate(input = map(delayFit2, "input")) %>% 
+  select(-delayFit2) %>% 
   filter(!duplicated(pet))
 
 tacs_refits <- inner_join(tacfitted_tacs, tacfitted_preds) %>% 
@@ -659,7 +659,9 @@ tacfitted_preds <- fit_again_with_newdelay %>%
   nest(.key="preds")
 
 tacfitted_inputs <- fit_again_with_newdelay %>% 
-  select(pet, output_stem, input) %>% 
+  select(pet, output_stem, delayFit2) %>% 
+  mutate(input = map(delayFit2, "input")) %>% 
+  select(-delayFit2) %>% 
   filter(!duplicated(pet))
 
 tacs_refits <- inner_join(tacfitted_tacs, tacfitted_preds) %>% 
