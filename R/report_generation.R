@@ -2,7 +2,7 @@
 #'
 #' @description Generate a parameterised report for a specific analysis step
 #'
-#' @param step_name Character string name of the step ("data_definition", "weights", "delay")
+#' @param step_name Character string name of the step ("data_definition", "weights", "delay", "reference_tac")
 #' @param analysis_folder Character string path to the analysis folder
 #' @param output_dir Character string path to output directory (default: analysis_folder/reports)
 #' @param bids_dir Character string path to the BIDS directory (optional)

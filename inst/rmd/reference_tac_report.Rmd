@@ -1,0 +1,162 @@
+---
+title: "Reference TAC Report"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+<!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
+
+<!--  ```{r} -->
+<!--  analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
+<!--  ``` -->
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(plotly)
+library(crosstalk)
+library(htmltools)
+
+theme_set(theme_light())
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder %||% analysis_folder
+bids_dir <- params$bids_dir %||% NULL
+blood_dir <- params$blood_dir %||% NULL
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    # cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+This report summarises the reference TAC preparation step.
+
+# Analysis Configuration
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Reference TAC Configuration
+
+The following reference TAC parameters were applied:
+
+```{r reference-params}
+if (!is.null(config$ReferenceTAC)) {
+  ref_tac <- config$ReferenceTAC
+  ref_tac_df <- tibble(
+    Parameter = names(ref_tac),
+    Value = map_chr(ref_tac, ~ if(.x == "" || is.null(.x)) "Not specified" else as.character(.x))
+  )
+
+  # Filter out empty conditional fields for cleaner display
+  ref_tac_df <- ref_tac_df %>%
+    filter(!(Parameter == "spline_df" & Value == "Not specified"),
+           !(Parameter == "weights_minweight" & Value == "Not specified"),
+           !(Parameter == "weights_custom_formula" & Value == "Not specified"))
+
+  kable(ref_tac_df)
+} else {
+  cat("No reference TAC parameters found in configuration file.")
+}
+```
+
+## Reference Region
+
+```{r reference-region-info, echo=FALSE}
+#| results: asis
+
+if (!is.null(config$ReferenceTAC$region) && config$ReferenceTAC$region != "") {
+  str_glue("Reference region: **{config$ReferenceTAC$region}**")
+} else {
+  cat("No reference region specified.")
+}
+```
+
+## Fitting Method
+
+```{r fitting-method-info, echo=FALSE}
+#| results: asis
+
+if (!is.null(config$ReferenceTAC$fitting_method)) {
+  fitting_method <- config$ReferenceTAC$fitting_method
+
+  if (fitting_method == "raw") {
+    cat("Using **raw reference TAC** without fitting.")
+  } else if (fitting_method == "feng1tc") {
+    cat("Fitting reference TAC using **Feng+1TC Reference Model**.")
+  } else if (fitting_method == "spline") {
+    df_value <- config$ReferenceTAC$spline_df %||% "Not specified"
+    str_glue("Fitting reference TAC using **Spline Model** with {df_value} degrees of freedom.")
+  }
+} else {
+  cat("Fitting method not specified.")
+}
+```
+
+## Weighting Configuration
+
+```{r weighting-info, echo=FALSE}
+#| results: asis
+
+if (!is.null(config$ReferenceTAC$weights_method)) {
+  weights_method <- config$ReferenceTAC$weights_method
+
+  if (weights_method == "same_as_target") {
+    cat("Using **same weights as target TACs**.")
+  } else if (weights_method == "custom") {
+    formula <- config$ReferenceTAC$weights_custom_formula %||% "Not specified"
+    str_glue("Using **custom weighting formula**: `{formula}`")
+  } else {
+    # Show predefined method formula
+    formula <- config$ReferenceTAC$weights_formula %||% "Not specified"
+    str_glue("Using predefined weighting method: **{weights_method}**  \nFormula: `{formula}`")
+  }
+
+  if (weights_method != "same_as_target" && !is.null(config$ReferenceTAC$weights_minweight) &&
+      config$ReferenceTAC$weights_minweight != "") {
+    minweight <- config$ReferenceTAC$weights_minweight
+    str_glue("  \nMinimum weight: **{minweight}**")
+  }
+} else {
+  cat("Weighting method not specified.")
+}
+```
+
+# Processing Summary
+
+```{r processing-placeholder, echo=FALSE}
+#| results: asis
+
+cat("Reference TAC processing details will be added in future implementation.")
+```
+
+---
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

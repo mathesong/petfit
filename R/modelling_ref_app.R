@@ -390,89 +390,123 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              br(),
                              actionButton("run_weights", "▶ Calculate Weights", class = "btn-success btn-lg")
                     ),
-                    # Tab panel for delay ----
-                    tabPanel("Fit Delay",
-                             
-                             # p("Here we estimate the delay between the TAC data and the blood input data.",
-                             #   style = "font-size:14px;"),
-                             # Blood data status (simple display)
-                             div(id = "delay_blood_status",
-                                 style = "margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;",
-                                 uiOutput("delay_blood_status_display")
+                    # Tab panel for Reference TAC ----
+                    tabPanel("Reference TAC",
+                             br(),
+                             h3("Reference Region Selection"),
+                             p("Select the reference region to use for all reference tissue models. The same reference region will be used for Model 1, Model 2, and Model 3.",
+                               style = "font-size:14px; margin-bottom:20px;"
                              ),
-                             
-                             # h3("Delay Fitting Configuration"),
-                             # br(),
-                             p("The recommended first approach is to fit a simple model (i.e. 1TCM) to the early frames of the acquisition, typically with weights turned off and with vB set to a reasonable fixed value, and to calculate delay from the median for multiple regions. Poor performance is usually resolved by altering the time window, using weights, or using another model.",
-                               style = "font-size: 14px; margin-bottom: 15px;"),
-                                 
-                                 fluidRow(
-                                   column(6,
-                                     h4("Delay Estimation Approach"),
-                                     selectInput("delay_model", "",
-                                                choices = c("None (no delay fitting)" = "none",
-                                                          # "Linear 2TCM Profile from Single Representative TAC (Very Quick)" = "lin2tcm_singletac",
-                                                          "1TCM Delay from Single Representative TAC (Quick)" = "1tcm_singletac",
-                                                          "2TCM Delay from Single Representative TAC (Less Quick)" = "2tcm_singletac",
-                                                          "1TCM Median Delay from Multiple Regions (Recommended, Slow)" = "1tcm_median",
-                                                          "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median"),
-                                                selected = "1tcm_median",
-                                                width = "100%"),
-                                     conditionalPanel(
-                                       condition = "input.delay_model == '1tcm_singletac' || input.delay_model == '2tcm_singletac'",
-                                       p("Note: \"Single Representative TAC\" methods use the same TAC that was used for weights calculation.", 
-                                         style = "font-size: 12px; color: #666; margin-top: 5px;")
-                                     ),
-                                     
-                                     # Conditional input for Multiple TACs approaches
-                                     conditionalPanel(
-                                       condition = "input.delay_model == '1tcm_median' || input.delay_model == '2tcm_median'",
-                                       br(),
-                                       textInput("delay_multiple_regions", "Regions for Multiple Regions Analysis (Optional):",
-                                               value = "",
-                                               placeholder = "e.g., Frontal;Temporal;Hippocampus;Striatum",
-                                               width = "100%"),
-                                       p("Optional: Define a subset of regions. Leave blank to estimate delay for all regions.", 
-                                         style = "font-size: 12px; color: #666; margin-top: 5px;")
-                                     )
-                                   ),
-                                   column(6,
-                                     h4("Time Window"),
-                                     numericInput("delay_time_window", "Minutes of TAC data to fit delay over:",
-                                                value = 5, min = 1, max = 120, step = 0.5),
-                                     # p("It is recommended to restrict the fitting to the early phase of the PET measurement to optimise sensitivity.", 
-                                     #   style = "font-size: 12px; color: #666; margin-top: 5px;")
-                                   )
-                                 ),
-                                 
-                                 hr(),
-                                 h3("Parameter Settings"),
+
+                             fluidRow(
+                               column(6,
+                                 selectInput("ref_region", "Reference Region:",
+                                           choices = c("Loading..." = ""),
+                                           selected = "",
+                                           width = "100%")
+                               )
+                             ),
+
+                             hr(),
+                             h3("Reference TAC Fitting"),
+                             p(strong("Note:"), " Fitting the reference TAC is generally not necessary for most analyses. However, it can be beneficial when dealing with very noisy reference region time activity curves, as it can help smooth the data and improve model stability.",
+                               style = "font-size:14px; margin-bottom:20px;"
+                             ),
+
+                             fluidRow(
+                               column(4,
+                                 selectInput("ref_fitting_method", "Reference TAC Method:",
+                                           choices = c("Raw Reference TAC" = "raw",
+                                                     "Fit the Reference TAC with Feng+1TC Reference Model" = "feng1tc",
+                                                     "Fit the Reference TAC with a Spline Model" = "spline"),
+                                           selected = "raw",
+                                           width = "100%")
+                               ),
+                               column(3,
+                                 conditionalPanel(
+                                   condition = "input.ref_fitting_method == 'spline'",
+                                   numericInput("ref_spline_df", "Degrees of Freedom:",
+                                              value = 5, min = 2, max = 20, step = 1)
+                                 )
+                               )
+                             ),
+
+                             # Reference TAC Weighting Method section - only shown when fitting is enabled
+                             conditionalPanel(
+                               condition = "input.ref_fitting_method != 'raw'",
+                               hr(),
+                               h3("Reference TAC Weighting Method"),
+                               p("Configure weighting for the reference TAC when fitting is applied. By default, the same weights as the target TACs will be used, but you can specify different weights if the reference region is particularly noisy.",
+                                 style = "font-size:14px; margin-bottom:20px;"
+                               ),
+
+                               fluidRow(
+                                 column(8,
+                                   selectInput("ref_weights_method", "Reference Weighting Method:",
+                                             choices = c("Same weights as Target TAC" = "same_as_target",
+                                                       "0. Uniform (all weights = 1)" = "0",
+                                                       "1. frame_dur / tac_uncor" = "1",
+                                                       "2. sqrt(frame_dur * tac_uncor) (default)" = "2",
+                                                       "3. sqrt(frame_dur) / tac" = "3",
+                                                       "4. sqrt(frame_dur)" = "4",
+                                                       "5. frame_dur * exp(-ln(2)/halflife)" = "5",
+                                                       "6. frame_dur / tac" = "6",
+                                                       "7. frame_dur" = "7",
+                                                       "8. frame_dur^2 / tac_uncor" = "8",
+                                                       "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2" = "9",
+                                                       "Custom formula" = "custom"),
+                                             selected = "same_as_target",
+                                             width = "100%")
+                                 )
+                               ),
+
+                               # Minimum weight input - only shown when not using same_as_target
+                               conditionalPanel(
+                                 condition = "input.ref_weights_method != 'same_as_target'",
                                  br(),
                                  fluidRow(
                                    column(4,
-                                     h4("Blood Volume (vB)"),
-                                     numericInput("delay_vB", "vB value:",
-                                                value = 0.05, min = 0, max = 1, step = 0.01),
-                                     checkboxInput("delay_fit_vB", "Fit vB parameter", value = FALSE)
-                                   ),
-                                   column(4,
-                                     h4("Blood Time Shift Search Range"),
-                                     p("Upper and lower limits for range for blood time shift (minutes):", 
-                                       style = "font-size: 12px; color: #666; margin-bottom: 10px;"),
-                                     numericInput("delay_inpshift_lower", "Lower limit:",
-                                                value = -0.5, min = -5, max = 0, step = 0.1),
-                                     numericInput("delay_inpshift_upper", "Upper limit:",
-                                                value = 0.5, min = 0, max = 5, step = 0.1)
-                                   ),
-                                   column(4,
-                                     h4("Weighting"),
-                                     checkboxInput("delay_use_weights", "Use frame weighting", value = FALSE),
-                                     br(),
+                                     numericInput("ref_weights_minweight", "Minimum Weight:",
+                                                value = 0.25, min = 0.001, max = 1, step = 0.001)
                                    )
-                                 ),
-                             
+                                 )
+                               ),
+
+                               # Custom formula panel
+                               conditionalPanel(
+                                 condition = "input.ref_weights_method == 'custom'",
+                                 br(),
+                                 div(
+                                   h4("Custom Formula"),
+                                   p("Define a custom weighting formula using available variables:",
+                                     style = "font-size:14px; margin-bottom:10px;"),
+                                   textAreaInput("ref_weights_custom_formula", "",
+                                               value = "",
+                                               rows = 2,
+                                               placeholder = "e.g., (frame_dur^2) / tac_uncor")
+                                 )
+                               ),
+
+                               # Available variables documentation - shown for custom or non-same_as_target
+                               conditionalPanel(
+                                 condition = "input.ref_weights_method != 'same_as_target'",
+                                 br(),
+                                 div(
+                                   p(strong("Available variables:"), style = "font-size:13px; margin-bottom:5px;"),
+                                   div(
+                                     p("• ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
+                                     p("• ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
+                                     p("• ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
+                                     p("• ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
+                                     p("• ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
+                                     style = "background:#f8f9fa; padding:10px; border-left:3px solid #007bff; margin:10px 0;"
+                                   )
+                                 )
+                               )
+                             ),
+
                              hr(),
-                             actionButton("run_delay", "▶ Estimate Delay", class = "btn-success btn-lg")
+                             actionButton("run_reference_tac", "▶ Prepare Reference TACs", class = "btn-success btn-lg")
                     ),
                     # Tab panel for tstar ----
                     tabPanel("Find t*",
@@ -631,10 +665,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              # Model selection drop-down menu
                              selectInput("button2", "Select a model:",
                                          choices = c("No Model 2" = "none",
-                                                     "1TCM (Invasive, Non-linear)" = "1TCM",
-                                                     "2TCM (Invasive, Non-linear)" = "2TCM",
-                                                     "Logan (Invasive, Linear)" = "Logan",
-                                                     "MA1 (Invasive, Linear)" = "MA1",
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
@@ -1251,99 +1281,38 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           updateNumericInput(session, "weights_minweight", 
                            value = existing_config$Weights$minweight %||% 0.25)
         }
-        # Restore FitDelay settings
-        if (!is.null(existing_config$FitDelay)) {
-          updateSelectInput(session, "delay_model", 
-                           selected = existing_config$FitDelay$model %||% "1tcm_median")
-          updateNumericInput(session, "delay_time_window", 
-                           value = existing_config$FitDelay$time_window %||% 5)
-          updateTextInput(session, "delay_regions", 
-                         value = existing_config$FitDelay$regions %||% "")
-          updateTextInput(session, "delay_multiple_regions", 
-                         value = existing_config$FitDelay$multiple_regions %||% "")
-          updateNumericInput(session, "delay_vB", 
-                           value = existing_config$FitDelay$vB_value %||% 0.05)
-          updateCheckboxInput(session, "delay_fit_vB", 
-                            value = existing_config$FitDelay$fit_vB %||% FALSE)
-          updateCheckboxInput(session, "delay_use_weights", 
-                            value = existing_config$FitDelay$use_weights %||% FALSE)
-          updateNumericInput(session, "delay_inpshift_lower", 
-                           value = existing_config$FitDelay$inpshift_lower %||% -0.5)
-          updateNumericInput(session, "delay_inpshift_upper", 
-                           value = existing_config$FitDelay$inpshift_upper %||% 0.5)
+        # Restore ReferenceTAC settings
+        if (!is.null(existing_config$ReferenceTAC)) {
+          updateSelectInput(session, "ref_region",
+                           selected = existing_config$ReferenceTAC$region %||% "")
+          updateSelectInput(session, "ref_fitting_method",
+                           selected = existing_config$ReferenceTAC$fitting_method %||% "raw")
+          # Restore spline parameters (backward compatible)
+          if (!is.null(existing_config$ReferenceTAC$spline_df)) {
+            if (existing_config$ReferenceTAC$spline_df != "") {
+              updateNumericInput(session, "ref_spline_df",
+                               value = as.numeric(existing_config$ReferenceTAC$spline_df) %||% 5)
+            }
+          }
+          # Restore reference weighting settings (backward compatible)
+          if (!is.null(existing_config$ReferenceTAC$weights_method)) {
+            updateSelectInput(session, "ref_weights_method",
+                             selected = existing_config$ReferenceTAC$weights_method %||% "same_as_target")
+          }
+          if (!is.null(existing_config$ReferenceTAC$weights_minweight)) {
+            # Only update if not empty string
+            if (existing_config$ReferenceTAC$weights_minweight != "") {
+              updateNumericInput(session, "ref_weights_minweight",
+                               value = existing_config$ReferenceTAC$weights_minweight %||% 0.25)
+            }
+          }
+          if (!is.null(existing_config$ReferenceTAC$weights_custom_formula)) {
+            if (existing_config$ReferenceTAC$weights_custom_formula != "") {
+              updateTextAreaInput(session, "ref_weights_custom_formula",
+                                value = existing_config$ReferenceTAC$weights_custom_formula)
+            }
+          }
         }
-      }
-    })
-    
-    # Blood data status display ----
-    output$delay_blood_status_display <- renderUI({
-      # Helper function to check for blood data files in a directory
-      check_blood_files <- function(dir_path) {
-        if (is.null(dir_path) || !dir.exists(dir_path)) {
-          return(list(found = FALSE, files = character(0)))
-        }
-        
-        blood_files <- list.files(dir_path, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
-        return(list(found = length(blood_files) > 0, files = blood_files))
-      }
-      
-      if (!is.null(blood_dir)) {
-        # User provided blood_dir - check for blood data files
-        blood_status <- check_blood_files(blood_dir)
-        
-        if (blood_status$found) {
-          div(
-            p(strong("✓ Blood data found"), 
-              style = "color: #1b7837; font-size: 16px; margin-bottom: 5px;")
-          )
-        } else {
-          div(
-            p(strong("✗ No blood data found in blood_dir"), 
-              style = "color: #d73027; font-size: 16px; margin-bottom: 5px;"),
-            p("No _blood.tsv or _inputfunction.tsv files detected in the specified blood directory", 
-              style = "color: #d73027; font-size: 14px;")
-          )
-        }
-      } else if (!is.null(bids_dir)) {
-        # Check for blood files in analysis folder first, then BIDS directory
-        blood_status_analysis <- check_blood_files(output_dir)
-        blood_status_bids <- check_blood_files(bids_dir)
-        
-        if (blood_status_analysis$found) {
-          # Prioritize analysis folder data
-          div(
-            p(strong("✓ Blood data found in petfit analysis folder"), 
-              style = "color: #1b7837; font-size: 16px; margin-bottom: 10px;")
-          )
-        } else if (blood_status_bids$found) {
-          # Fall back to raw BIDS data
-          div(
-            p(strong("✓ Blood data found in raw BIDS data directory"), 
-              style = "color: #1b7837; font-size: 16px; margin-bottom: 10px;"),
-            div(
-              style = "background-color: #e8f4f8; border-left: 4px solid #3182bd; padding: 10px; margin-top: 10px;",
-              p(strong("💡 Recommendation:"), "Consider using bloodstream for blood processing.", 
-                style = "color: #3182bd; font-size: 13px; margin: 0;")
-            )
-          )
-        } else {
-          div(
-            p(strong("✗ No blood data found"), 
-              style = "color: #d73027; font-size: 16px; margin-bottom: 10px;"),
-            p("No _blood.tsv or _inputfunction.tsv files detected in BIDS directory or analysis folder", 
-              style = "color: #d73027; font-size: 14px; margin-bottom: 10px;"),
-            p("If your analysis does not involve blood data, then delay estimation is unnecessary.", 
-              style = "color: #666; font-size: 14px;")
-          )
-        }
-      } else {
-        # Neither blood_dir nor bids_dir provided
-        div(
-          p(strong("⚠️ No blood data available"), 
-            style = "color: #d73027; font-size: 16px; margin-bottom: 10px;"),
-          p("Delay estimation requires blood data. Please provide a blood_dir parameter or bids_dir parameter when starting the app.", 
-            style = "color: #d73027; font-size: 14px;")
-        )
       }
     })
     
@@ -1404,7 +1373,58 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                          selected = "")
       })
     })
-    
+
+    # Reactive function to populate reference region options from combined regions file ----
+    observe({
+      tryCatch({
+        # Read region values from combined regions file (in petfit folder)
+        combined_regions_file <- file.path(petfit_dir, "desc-combinedregions_tacs.tsv")
+
+        cat("Looking for combined regions file for reference region population at:", combined_regions_file, "\n")
+
+        if (file.exists(combined_regions_file)) {
+          cat("Combined regions file found, reading region values...\n")
+          combined_regions <- readr::read_tsv(combined_regions_file, show_col_types = FALSE)
+
+          if (nrow(combined_regions) > 0 && "region" %in% colnames(combined_regions)) {
+            # Get unique region values for reference region selection
+            unique_regions <- sort(unique(combined_regions$region))
+            unique_regions <- unique_regions[!is.na(unique_regions)]
+
+            cat("Found", length(unique_regions), "unique regions:", paste(head(unique_regions, 10), collapse = ", "), "...\n")
+
+            if (length(unique_regions) > 0) {
+              # Create choices for region selection
+              choices <- setNames(unique_regions, unique_regions)
+
+              updateSelectInput(session, "ref_region",
+                               choices = choices,
+                               selected = unique_regions[1])
+
+              cat("Successfully updated reference region dropdown\n")
+            } else {
+              updateSelectInput(session, "ref_region",
+                               choices = c("No regions found" = ""),
+                               selected = "")
+            }
+          } else {
+            updateSelectInput(session, "ref_region",
+                             choices = c("No region column found" = ""),
+                             selected = "")
+          }
+        } else {
+          updateSelectInput(session, "ref_region",
+                           choices = c("Combined regions file not found" = ""),
+                           selected = "")
+        }
+      }, error = function(e) {
+        # If there's an error, provide default choice
+        updateSelectInput(session, "ref_region",
+                         choices = c("Error loading regions" = ""),
+                         selected = "")
+      })
+    })
+
     # Reactive expression to generate the config file ----
     config_json <- reactive({
       
@@ -1452,17 +1472,25 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         minweight = input$weights_minweight %||% 0.25
       )
       
-      # Fit Delay
-      FitDelay <- list(
-        model = input$delay_model %||% "1tcm_median",
-        time_window = input$delay_time_window %||% 5,
-        regions = input$delay_regions %||% "",
-        multiple_regions = input$delay_multiple_regions %||% "",
-        vB_value = input$delay_vB %||% 0.05,
-        fit_vB = input$delay_fit_vB %||% FALSE,
-        use_weights = input$delay_use_weights %||% FALSE,
-        inpshift_lower = input$delay_inpshift_lower %||% -0.5,
-        inpshift_upper = input$delay_inpshift_upper %||% 0.5
+      # Reference TAC Configuration
+      # Calculate reference weights formula
+      ref_weights_method_selected <- input$ref_weights_method %||% "same_as_target"
+      if (ref_weights_method_selected == "same_as_target") {
+        ref_weights_formula <- ""
+      } else if (ref_weights_method_selected == "custom") {
+        ref_weights_formula <- input$ref_weights_custom_formula %||% ""
+      } else {
+        ref_weights_formula <- method_formulas[ref_weights_method_selected] %||% ""
+      }
+
+      ReferenceTAC <- list(
+        region = input$ref_region %||% "",
+        fitting_method = input$ref_fitting_method %||% "raw",
+        spline_df = if(input$ref_fitting_method == "spline") as.character(input$ref_spline_df %||% 5) else "",
+        weights_method = ref_weights_method_selected,
+        weights_formula = ref_weights_formula,
+        weights_minweight = if(ref_weights_method_selected != "same_as_target") input$ref_weights_minweight %||% 0.25 else "",
+        weights_custom_formula = if(ref_weights_method_selected == "custom") input$ref_weights_custom_formula %||% "" else ""
       )
       
       # Models (capture actual model inputs and parameters)
@@ -1676,7 +1704,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         blood_dir = blood_dir,
         Subsetting = Subsetting,
         Weights = Weights,
-        FitDelay = FitDelay,
+        ReferenceTAC = ReferenceTAC,
         Models = Models
       )
       
@@ -1869,77 +1897,55 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         cat("Error generating weights report:", e$message, "\n")
       })
     })
-    
-    observeEvent(input$run_delay, {
-      # Check if blood data is available using same logic as status display
-      check_blood_files <- function(dir_path) {
-        if (is.null(dir_path) || !dir.exists(dir_path)) {
-          return(FALSE)
-        }
-        blood_files <- list.files(dir_path, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
-        return(length(blood_files) > 0)
-      }
-      
-      has_blood_data <- FALSE
-      
-      if (!is.null(blood_dir)) {
-        has_blood_data <- check_blood_files(blood_dir)
-      } else if (!is.null(bids_dir)) {
-        # Check analysis folder first, then BIDS directory
-        has_blood_data <- check_blood_files(output_dir) || check_blood_files(bids_dir)
-      }
-      
-      # Check if delay method is "none" - no report needed
-      if (input$delay_model == "none") {
-        save_config()
-        showNotification("No delay report necessary when delay fitting is disabled", type = "message", duration = 4)
+
+    observeEvent(input$run_reference_tac, {
+      # Check for combined regions TACs files first
+      tacs_files <- list.files(output_dir,
+                              pattern = "*_desc-combinedregions_tacs.tsv",
+                              recursive = TRUE)
+
+      if (length(tacs_files) == 0) {
+        showNotification("No combined regions TACs files found. Please run Data Definition first to create individual TACs files.",
+                        type = "error", duration = 8)
         return()
       }
-      
-      if (!has_blood_data) {
-        # Don't show notification - the status display already indicates no blood data
-        return()
-      }
-      
-      # Save configuration
+
       save_config()
-      showNotification("Delay configuration saved", type = "message", duration = 3)
-      
-      # Show generating report notification
-      showNotification("Estimating delays...", type = "message", duration = NULL, id = "generating_delay_report")
-      
-      # Generate delay report
+      # TODO: Add actual reference TAC preparation logic
+
+      # Generate reference TAC report
+      showNotification("Generating Reference TAC Report...", type = "message", duration = NULL, id = "generating_reference_tac_report")
+
       tryCatch({
         report_file <- generate_step_report(
-          step_name = "delay",
+          step_name = "reference_tac",
           analysis_folder = output_dir,
           bids_dir = bids_dir,
           blood_dir = blood_dir
         )
-        
-        # Remove generating notification and show completion
-        removeNotification(id = "generating_delay_report")
-        
+
+        removeNotification(id = "generating_reference_tac_report")
+
         if (!is.null(report_file)) {
-          showNotification("Delay report generated successfully", type = "message", duration = 5)
+          showNotification("Reference TAC report generated", type = "message", duration = 3)
         } else {
-          showNotification("Report generation completed", type = "message", duration = 5)
+          showNotification("Reference TAC report generation failed - check console for details", type = "error", duration = 5)
         }
-        
+
       }, error = function(e) {
-        # Remove generating notification and show error
-        removeNotification(id = "generating_delay_report")
-        showNotification("Error generating report", type = "error", duration = 5)
-        cat("Warning: Could not generate delay report:", e$message, "\n")
+        removeNotification(id = "generating_reference_tac_report")
+        error_msg <- paste("Could not generate Reference TAC report:", e$message)
+        showNotification(error_msg, type = "error", duration = 8)
+        cat("Error generating Reference TAC report:", e$message, "\n")
       })
     })
-    
+
     observeEvent(input$run_model1, {
       # Save configuration
       save_config()
       
       # Show fitting notification
-      model_type <- input$button %||% "1TCM"
+      model_type <- input$button %||% "SRTM"
       showNotification(paste("Fitting Model 1 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model1")
       
       # Generate model 1 report
@@ -1975,7 +1981,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       save_config()
       
       # Show fitting notification
-      model_type <- input$button2 %||% "1TCM"
+      model_type <- input$button2 %||% "SRTM"
       showNotification(paste("Fitting Model 2 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model2")
       
       # Generate model 2 report
@@ -2011,7 +2017,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       save_config()
       
       # Show fitting notification
-      model_type <- input$button3 %||% "1TCM"
+      model_type <- input$button3 %||% "SRTM"
       showNotification(paste("Fitting Model 3 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model3")
       
       # Generate model 3 report
