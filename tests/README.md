@@ -51,7 +51,8 @@ tests/
 #### 5. Validation & Pipeline (test-docker_functions.R)
 - **`validate_directory_requirements()`**: Directory validation for Docker
 - **`validate_blood_requirements()`**: Blood data requirement analysis
-- **`run_automatic_pipeline()`**: Full pipeline execution testing
+- **`petfit_modelling_auto()`**: Full modelling pipeline execution testing
+- **`petfit_regiondef_auto()`**: Region definition pipeline execution testing
 - **`execute_pipeline_step()`**: Individual step execution
 
 #### 6. Report Generation (test-report_generation.R)

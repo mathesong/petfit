@@ -291,7 +291,7 @@ test_docker_functions <- function() {
   cat("Testing Docker validation functions:\n")
   cat("- validate_directory_requirements()\n")
   cat("- validate_blood_requirements()\n")
-  cat("- run_automatic_pipeline()\n\n")
+  cat("- petfit_modelling_auto()\n\n")
   
   # Test 1: Directory validation
   cat("1. Testing directory validation...\n")
@@ -333,7 +333,7 @@ test_docker_functions <- function() {
   jsonlite::write_json(config, config_file, auto_unbox = TRUE, pretty = TRUE)
   
   tryCatch({
-    result <- run_automatic_pipeline(analysis_folder, bids_dir = bids_dir)
+    result <- petfit_modelling_auto(analysis_folder, bids_dir = bids_dir)
     cat("✗ Unexpected success - should have failed\n")
   }, error = function(e) {
     cat("✓ Pipeline validation correctly failed:", e$message, "\n")
