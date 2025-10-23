@@ -13,7 +13,7 @@ generate_step_report(
 )
 }
 \arguments{
-\item{step_name}{Character string name of the step ("data_definition", "weights", "delay")}
+\item{step_name}{Character string name of the step ("data_definition", "weights", "delay", "reference_tac")}
 
 \item{analysis_folder}{Character string path to the analysis folder}
 

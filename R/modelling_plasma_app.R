@@ -213,7 +213,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
   ui <- fluidPage(theme = shinythemes::shinytheme("flatly"),
     
     # App title ----
-    titlePanel("petfit Kinetic Modelling Configuration (Plasma Input)"),
+    titlePanel("PETFit Kinetic Modelling Configuration (Plasma Input)"),
     
     # Tab panel for all options ----
     tabsetPanel(type = "tabs",
@@ -2539,7 +2539,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       
       # Run the automatic pipeline
       tryCatch({
-        result <- run_automatic_pipeline(
+        result <- petfit_modelling_auto(
           analysis_folder = output_dir,
           bids_dir = bids_dir,
           derivatives_dir = derivatives_dir,

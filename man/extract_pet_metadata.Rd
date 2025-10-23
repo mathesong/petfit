@@ -38,3 +38,6 @@ List with InjectedRadioactivity and units, or NA values if not found
 \description{
 Extract InjectedRadioactivity from matching PET measurements using kinfitr::bids_parse_study
 }
+\note{
+DEPRECATED: Use extract_pet_metadata_from_tacs_json() instead for derivatives-based workflows
+}

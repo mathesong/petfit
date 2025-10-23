@@ -213,7 +213,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
   ui <- fluidPage(theme = shinythemes::shinytheme("flatly"),
     
     # App title ----
-    titlePanel("petfit Modelling App for Reference Tissue Models"),
+    titlePanel("PETFit Modelling App for Reference Tissue Models"),
     
     # Tab panel for all options ----
     tabsetPanel(type = "tabs",
@@ -2063,7 +2063,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       
       # Run the automatic pipeline
       tryCatch({
-        result <- run_automatic_pipeline(
+        result <- petfit_modelling_auto(
           analysis_folder = output_dir,
           bids_dir = bids_dir,
           derivatives_dir = derivatives_dir,

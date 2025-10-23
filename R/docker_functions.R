@@ -136,25 +136,53 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
   return(validation)
 }
 
-#' Run Automatic Pipeline
+#' Run Automatic Modelling Pipeline
 #'
-#' @description Execute the petfit analysis pipeline automatically based on a config file
+#' @description Execute the petfit modelling analysis pipeline automatically based on a config file
 #'
-#' @param analysis_folder Character string path to analysis folder containing config
+#' @param analysis_subfolder Character string name of analysis subfolder within derivatives/petfit/ (default: "Primary_Analysis")
 #' @param bids_dir Character string path to BIDS directory (can be NULL)
 #' @param derivatives_dir Character string path to derivatives directory (can be NULL)
+#' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
 #' @param blood_dir Character string path to blood directory (can be NULL)
 #' @param step Character string specific step to run (NULL for full pipeline)
 #' @return List with execution result and messages
 #' @export
-run_automatic_pipeline <- function(analysis_folder, bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, step = NULL) {
-  
+petfit_modelling_auto <- function(analysis_subfolder = "Primary_Analysis", bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", blood_dir = NULL, step = NULL) {
+
   result <- list(
     success = FALSE,
     messages = character(),
     reports_generated = character()
   )
-  
+
+  # Validate that at least one directory is provided
+  if (is.null(bids_dir) && is.null(derivatives_dir)) {
+    result$messages <- c(result$messages, "At least one of bids_dir or derivatives_dir must be provided")
+    return(result)
+  }
+
+  # Set derivatives directory logic
+  if (is.null(derivatives_dir)) {
+    derivatives_dir <- file.path(bids_dir, "derivatives")
+  }
+
+  # Validate derivatives directory exists
+  if (!dir.exists(derivatives_dir)) {
+    result$messages <- c(result$messages, paste("Derivatives directory does not exist:", derivatives_dir))
+    return(result)
+  }
+
+  # Construct full analysis folder path
+  analysis_folder <- file.path(derivatives_dir, petfit_output_foldername, analysis_subfolder)
+
+  if (!dir.exists(analysis_folder)) {
+    result$messages <- c(result$messages, paste("Analysis folder does not exist:", analysis_folder))
+    return(result)
+  }
+
+  result$messages <- c(result$messages, paste("Using analysis folder:", analysis_folder))
+
   # Load configuration
   config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
   if (!file.exists(config_path)) {
@@ -185,6 +213,7 @@ run_automatic_pipeline <- function(analysis_folder, bids_dir = NULL, derivatives
     # Full pipeline - determine from config
     if (!is.null(config$Subsetting)) steps_to_run <- c(steps_to_run, "datadef")
     if (!is.null(config$Weights)) steps_to_run <- c(steps_to_run, "weights")
+    if (!is.null(config$ReferenceTAC)) steps_to_run <- c(steps_to_run, "reference_tac")
     if (!is.null(config$FitDelay)) steps_to_run <- c(steps_to_run, "delay")
     if (!is.null(config$Model1)) steps_to_run <- c(steps_to_run, "model1")
     if (!is.null(config$Model2)) steps_to_run <- c(steps_to_run, "model2")
@@ -263,7 +292,17 @@ execute_pipeline_step <- function(step, analysis_folder, bids_dir, blood_dir, co
         blood_dir = blood_dir
       )
       result$report_file <- "delay_report.html"
-      
+
+    } else if (step == "reference_tac") {
+      # Generate reference TAC report (no blood_dir needed)
+      generate_step_report(
+        step = "reference_tac",
+        analysis_folder = analysis_folder,
+        bids_dir = bids_dir,
+        blood_dir = NULL
+      )
+      result$report_file <- "reference_tac_report.html"
+
     } else if (step %in% c("model1", "model2", "model3")) {
       # Generate model report
       model_num <- stringr::str_extract(step, "\\\\d+")
@@ -294,6 +333,150 @@ execute_pipeline_step <- function(step, analysis_folder, bids_dir, blood_dir, co
   }, error = function(e) {
     result$message <- paste("Error executing step:", e$message)
   })
-  
+
+  return(result)
+}
+
+#' Run Automatic Region Definition Pipeline
+#'
+#' @description Execute the petfit region definition pipeline automatically based on existing petfit_regions.tsv
+#'
+#' @param bids_dir Character string path to BIDS directory (optional if derivatives_dir provided)
+#' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
+#' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @return List with execution result and messages
+#' @export
+petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit") {
+
+  result <- list(
+    success = FALSE,
+    messages = character(),
+    output_file = NULL
+  )
+
+  # Validate that at least one directory is provided
+  if (is.null(bids_dir) && is.null(derivatives_dir)) {
+    result$messages <- c(result$messages, "At least one of bids_dir or derivatives_dir must be provided")
+    return(result)
+  }
+
+  # Set derivatives directory logic
+  if (is.null(derivatives_dir)) {
+    if (is.null(bids_dir)) {
+      result$messages <- c(result$messages, "Cannot determine derivatives_dir: no bids_dir or derivatives_dir provided")
+      return(result)
+    }
+    derivatives_dir <- file.path(bids_dir, "derivatives")
+  }
+
+  # Validate directories that were provided
+  if (!is.null(bids_dir) && !dir.exists(bids_dir)) {
+    result$messages <- c(result$messages, paste("BIDS directory does not exist:", bids_dir))
+    return(result)
+  }
+
+  if (!dir.exists(derivatives_dir)) {
+    result$messages <- c(result$messages, paste("Derivatives directory does not exist:", derivatives_dir))
+    return(result)
+  }
+
+  # Determine where to find petfit_regions.tsv (check multiple locations)
+  petfit_base_dir <- file.path(derivatives_dir, petfit_output_foldername)
+  config_locations <- c(
+    file.path(petfit_base_dir, "petfit_regions.tsv")
+  )
+
+  # Add bids_dir location only if bids_dir is provided
+  if (!is.null(bids_dir)) {
+    config_locations <- c(config_locations, file.path(bids_dir, "code", "petfit", "petfit_regions.tsv"))
+  }
+
+  petfit_regions_file <- NULL
+  for (loc in config_locations) {
+    if (file.exists(loc)) {
+      petfit_regions_file <- loc
+      break
+    }
+  }
+
+  if (is.null(petfit_regions_file)) {
+    result$messages <- c(result$messages,
+                        "petfit_regions.tsv not found in expected locations:",
+                        paste("  -", config_locations, collapse = "\n"))
+    return(result)
+  }
+
+  result$messages <- c(result$messages, paste("Found petfit_regions.tsv at:", petfit_regions_file))
+
+  # Load participant data if bids_dir is available
+  # NOTE: This is now optional as we'll get metadata from _tacs.json files
+  participant_data <- NULL
+  if (!is.null(bids_dir)) {
+    tryCatch({
+      participant_data <- load_participant_data(bids_dir)
+      if (!is.null(participant_data)) {
+        result$messages <- c(result$messages,
+                            paste("Loaded participant data for", nrow(participant_data$data), "participants"))
+      }
+    }, error = function(e) {
+      result$messages <- c(result$messages, paste("Note: Could not load participant data:", e$message))
+    })
+  } else {
+    result$messages <- c(result$messages, "No BIDS directory provided - using metadata from _tacs.json files only")
+  }
+
+  # Create petfit_regions_files.tsv mapping
+  tryCatch({
+    result$messages <- c(result$messages, "Creating tacs-morph mapping...")
+
+    petfit_regions_files_path <- create_petfit_regions_files(petfit_regions_file, derivatives_dir)
+
+    result$messages <- c(result$messages, paste("Created mapping file:", petfit_regions_files_path))
+
+  }, error = function(e) {
+    result$messages <- c(result$messages, paste("Error creating mapping:", e$message))
+    return(result)
+  })
+
+  # Generate combined TACs
+  tryCatch({
+    result$messages <- c(result$messages, "Generating combined TACs...")
+
+    output_folder <- petfit_base_dir
+    if (!dir.exists(output_folder)) {
+      dir.create(output_folder, recursive = TRUE)
+      result$messages <- c(result$messages, paste("Created output folder:", output_folder))
+    }
+
+    combined_data <- create_petfit_combined_tacs(
+      petfit_regions_files_path,
+      derivatives_dir,
+      output_folder,
+      bids_dir,
+      participant_data
+    )
+
+    # Generate summary
+    total_rows <- nrow(combined_data)
+    total_regions <- length(unique(combined_data$region))
+    total_subjects <- length(unique(combined_data$sub))
+
+    output_file <- file.path(output_folder, "desc-combinedregions_tacs.tsv")
+    result$output_file <- output_file
+
+    result$messages <- c(result$messages,
+                        "Successfully created combined TACs file",
+                        paste("  Total rows:", total_rows),
+                        paste("  Regions:", total_regions),
+                        paste("  Subjects:", total_subjects),
+                        paste("  Output:", output_file))
+
+    result$success <- TRUE
+
+  }, error = function(e) {
+    result$messages <- c(result$messages, paste("Error generating combined TACs:", e$message))
+    return(result)
+  })
+
   return(result)
 }

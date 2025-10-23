@@ -141,53 +141,85 @@ if (opt$mode == "interactive") {
   
 } else if (opt$mode == "automatic") {
   cat("=== Starting Automatic Mode ===\n")
-  
-  # Set up analysis folder path
-  derivatives_path <- dirs$derivatives_dir %||% file.path(dirs$bids_dir, "derivatives")
-  petfit_dir <- file.path(derivatives_path, "petfit")
-  analysis_folder <- file.path(petfit_dir, opt$analysis_foldername)
-  
-  cat("Analysis folder:", analysis_folder, "\n")
-  
-  # Check if analysis folder exists
-  if (!dir.exists(analysis_folder)) {
-    cat("Error: Analysis folder does not exist:", analysis_folder, "\n")
-    quit(status = 2)
-  }
-  
-  # Execute the automatic pipeline
-  tryCatch({
-    result <- run_automatic_pipeline(
-      analysis_folder = analysis_folder,
-      bids_dir = dirs$bids_dir,
-      derivatives_dir = dirs$derivatives_dir,
-      blood_dir = dirs$blood_dir,
-      step = opt$step
-    )
-    
-    # Print all messages
-    for (msg in result$messages) {
-      cat(msg, "\n")
-    }
-    
-    if (result$success) {
-      if (length(result$reports_generated) > 0) {
-        cat("\nReports generated:\n")
-        for (report in result$reports_generated) {
-          cat("  -", report, "\n")
-        }
+
+  # Execute based on function type
+  if (opt$func == "regiondef") {
+    # Region definition automatic mode
+    cat("Executing region definition pipeline...\n")
+
+    tryCatch({
+      result <- petfit_regiondef_auto(
+        bids_dir = dirs$bids_dir,
+        derivatives_dir = dirs$derivatives_dir,
+        petfit_output_foldername = opt$petfit_output_foldername
+      )
+
+      # Print all messages
+      for (msg in result$messages) {
+        cat(msg, "\n")
       }
-      cat("\nAutomatic pipeline completed successfully.\n")
-      quit(status = 0)
-    } else {
-      cat("\nAutomatic pipeline failed.\n")
+
+      if (result$success) {
+        cat("\nRegion definition pipeline completed successfully.\n")
+        quit(status = 0)
+      } else {
+        cat("\nRegion definition pipeline failed.\n")
+        quit(status = 3)
+      }
+
+    }, error = function(e) {
+      cat("Error executing region definition pipeline:", e$message, "\n")
       quit(status = 3)
+    })
+
+  } else {
+    # Modelling automatic mode
+    derivatives_path <- dirs$derivatives_dir %||% file.path(dirs$bids_dir, "derivatives")
+    petfit_dir <- file.path(derivatives_path, "petfit")
+    analysis_folder <- file.path(petfit_dir, opt$analysis_foldername)
+
+    cat("Analysis folder:", analysis_folder, "\n")
+
+    # Check if analysis folder exists
+    if (!dir.exists(analysis_folder)) {
+      cat("Error: Analysis folder does not exist:", analysis_folder, "\n")
+      quit(status = 2)
     }
-    
-  }, error = function(e) {
-    cat("Error executing automatic pipeline:", e$message, "\n")
-    quit(status = 3)
-  })
+
+    # Execute the automatic pipeline
+    tryCatch({
+      result <- petfit_modelling_auto(
+        analysis_folder = analysis_folder,
+        bids_dir = dirs$bids_dir,
+        derivatives_dir = dirs$derivatives_dir,
+        blood_dir = dirs$blood_dir,
+        step = opt$step
+      )
+
+      # Print all messages
+      for (msg in result$messages) {
+        cat(msg, "\n")
+      }
+
+      if (result$success) {
+        if (length(result$reports_generated) > 0) {
+          cat("\nReports generated:\n")
+          for (report in result$reports_generated) {
+            cat("  -", report, "\n")
+          }
+        }
+        cat("\nAutomatic pipeline completed successfully.\n")
+        quit(status = 0)
+      } else {
+        cat("\nAutomatic pipeline failed.\n")
+        quit(status = 3)
+      }
+
+    }, error = function(e) {
+      cat("Error executing automatic pipeline:", e$message, "\n")
+      quit(status = 3)
+    })
+  }
 }
 
 # Clean exit
