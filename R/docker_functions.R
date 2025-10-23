@@ -82,11 +82,11 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
   # Check if any invasive models are configured
   invasive_models <- c("1TCM", "2TCM", "Logan", "MA1")
   invasive_model_present <- FALSE
-  
+
   for (model_num in c("1", "2", "3")) {
     model_key <- paste0("Model", model_num)
-    if (!is.null(config[[model_key]]) && !is.null(config[[model_key]]$model)) {
-      if (config[[model_key]]$model %in% invasive_models) {
+    if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
+      if (config$Models[[model_key]]$type %in% invasive_models) {
         invasive_model_present <- TRUE
         break
       }
@@ -105,8 +105,8 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
       # Check if this specific model is invasive
       model_num <- stringr::str_extract(step, "\\\\d+")
       model_key <- paste0("Model", model_num)
-      if (!is.null(config[[model_key]]) && !is.null(config[[model_key]]$model)) {
-        model_type <- config[[model_key]]$model
+      if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
+        model_type <- config$Models[[model_key]]$type
         validation$required <- model_type %in% invasive_models
       }
     }
@@ -215,9 +215,9 @@ petfit_modelling_auto <- function(analysis_subfolder = "Primary_Analysis", bids_
     if (!is.null(config$Weights)) steps_to_run <- c(steps_to_run, "weights")
     if (!is.null(config$ReferenceTAC)) steps_to_run <- c(steps_to_run, "reference_tac")
     if (!is.null(config$FitDelay)) steps_to_run <- c(steps_to_run, "delay")
-    if (!is.null(config$Model1)) steps_to_run <- c(steps_to_run, "model1")
-    if (!is.null(config$Model2)) steps_to_run <- c(steps_to_run, "model2")
-    if (!is.null(config$Model3)) steps_to_run <- c(steps_to_run, "model3")
+    if (!is.null(config$Models$Model1)) steps_to_run <- c(steps_to_run, "model1")
+    if (!is.null(config$Models$Model2)) steps_to_run <- c(steps_to_run, "model2")
+    if (!is.null(config$Models$Model3)) steps_to_run <- c(steps_to_run, "model3")
   } else {
     steps_to_run <- step
   }
@@ -307,11 +307,11 @@ execute_pipeline_step <- function(step, analysis_folder, bids_dir, blood_dir, co
       # Generate model report
       model_num <- stringr::str_extract(step, "\\\\d+")
       model_key <- paste0("Model", model_num)
-      
-      if (!is.null(config[[model_key]]) && !is.null(config[[model_key]]$model)) {
+
+      if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
         generate_model_report(
           model_number = model_num,
-          model_type = config[[model_key]]$model,
+          model_type = config$Models[[model_key]]$type,
           analysis_folder = analysis_folder,
           bids_dir = bids_dir,
           blood_dir = blood_dir
