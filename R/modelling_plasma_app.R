@@ -515,12 +515,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step=.001)),
@@ -553,12 +553,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -606,7 +606,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -768,12 +768,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step=.001)),
@@ -814,12 +814,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -875,7 +875,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -1046,12 +1046,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step=.001)),
@@ -1095,12 +1095,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -1159,7 +1159,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                fluidRow(
                                  column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
                                ),
                                fluidRow(
                                  column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1,min = 0, step=.001)),
@@ -1449,12 +1449,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             if (!is.null(model_config$K1)) {
               updateNumericInput(session, paste0("K1.start", suffix), value = model_config$K1$start %||% 0.1)
               updateNumericInput(session, paste0("K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
-              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 0.5)
+              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 1)
             }
             if (!is.null(model_config$k2)) {
               updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
               updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
+              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 1)
             }
             if (!is.null(model_config$vB)) {
               updateNumericInput(session, paste0("vB.start", suffix), value = model_config$vB$start %||% 0.05)
@@ -1481,12 +1481,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             if (!is.null(model_config$K1)) {
               updateNumericInput(session, paste0("K1.start", suffix), value = model_config$K1$start %||% 0.1)
               updateNumericInput(session, paste0("K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
-              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 0.5)
+              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 1)
             }
             if (!is.null(model_config$k2)) {
               updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
               updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
+              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 1)
             }
             if (!is.null(model_config$k3)) {
               updateNumericInput(session, paste0("k3.start", suffix), value = model_config$k3$start %||% 0.1)
@@ -1528,7 +1528,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             if (!is.null(model_config$k2)) {
               updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
               updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
+              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 1)
             }
             if (!is.null(model_config$k3)) {
               updateNumericInput(session, paste0("k3.start", suffix), value = model_config$k3$start %||% 0.1)
@@ -1927,12 +1927,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           model_params$K1 = list(
             start = input[[paste0("K1.start", suffix)]] %||% 0.1,
             lower = input[[paste0("K1.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("K1.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("K1.upper", suffix)]] %||% 1
           )
           model_params$k2 = list(
             start = input[[paste0("k2.start", suffix)]] %||% 0.1,
             lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("k2.upper", suffix)]] %||% 1
           )
           
           # Handle vB parameter based on model number (suffix)
@@ -1958,12 +1958,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           model_params$K1 = list(
             start = input[[paste0("K1.start", suffix)]] %||% 0.1,
             lower = input[[paste0("K1.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("K1.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("K1.upper", suffix)]] %||% 1
           )
           model_params$k2 = list(
             start = input[[paste0("k2.start", suffix)]] %||% 0.1,
             lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("k2.upper", suffix)]] %||% 1
           )
           model_params$k3 = list(
             start = input[[paste0("k3.start", suffix)]] %||% 0.1,
@@ -2003,7 +2003,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           model_params$k2 = list(
             start = input[[paste0("k2.start", suffix)]] %||% 0.1,
             lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("k2.upper", suffix)]] %||% 1
           )
           model_params$k3 = list(
             start = input[[paste0("k3.start", suffix)]] %||% 0.1,
@@ -2540,7 +2540,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       # Run the automatic pipeline
       tryCatch({
         result <- petfit_modelling_auto(
-          analysis_folder = output_dir,
+          analysis_subfolder = subfolder,
           bids_dir = bids_dir,
           derivatives_dir = derivatives_dir,
           blood_dir = blood_dir,

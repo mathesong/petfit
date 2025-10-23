@@ -2064,7 +2064,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       # Run the automatic pipeline
       tryCatch({
         result <- petfit_modelling_auto(
-          analysis_folder = output_dir,
+          analysis_subfolder = subfolder,
           bids_dir = bids_dir,
           derivatives_dir = derivatives_dir,
           blood_dir = blood_dir,
