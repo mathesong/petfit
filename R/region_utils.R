@@ -880,22 +880,29 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
 
     # Extract BIDS attributes from filename
     bids_attributes <- extract_bids_attributes_from_filename(tacs_file)
-    
-    # Extract PET metadata using pre-parsed study data if available
-    pet_metadata <- list(InjectedRadioactivity = NA_real_, InjectedRadioactivityUnits = NA_character_)
-    if (!is.null(study_data) || !is.null(bids_dir)) {
-      pet_metadata <- extract_pet_metadata(
-        bids_dir, 
-        bids_attributes$sub, 
-        bids_attributes$ses, 
-        bids_attributes$trc, 
-        bids_attributes$rec, 
-        bids_attributes$task, 
+
+    # Extract PET metadata from _tacs.json sidecar file (preferred method)
+    pet_metadata <- extract_pet_metadata_from_tacs_json(derivatives_folder, tacs_file)
+
+    # If metadata not found in _tacs.json and BIDS directory available, try legacy method
+    if (is.na(pet_metadata$InjectedRadioactivity) && (!is.null(study_data) || !is.null(bids_dir))) {
+      legacy_metadata <- extract_pet_metadata(
+        bids_dir,
+        bids_attributes$sub,
+        bids_attributes$ses,
+        bids_attributes$trc,
+        bids_attributes$rec,
+        bids_attributes$task,
         bids_attributes$run,
         study_data  # Pass pre-parsed data for efficiency
       )
+      # Use legacy data only if _tacs.json didn't have it
+      if (!is.na(legacy_metadata$InjectedRadioactivity)) {
+        pet_metadata$InjectedRadioactivity <- legacy_metadata$InjectedRadioactivity
+        pet_metadata$InjectedRadioactivityUnits <- legacy_metadata$InjectedRadioactivityUnits
+      }
     }
-    
+
     # Add BIDS attributes to each row and ensure they stay as character
     combined_results_with_bids <- combined_results %>%
       dplyr::mutate(
@@ -908,7 +915,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
         segmentation = segmentation_value,
         pet = as.character(bids_attributes$pet),
         InjectedRadioactivity = as.numeric(pet_metadata$InjectedRadioactivity),
-        bodyweight = NA_real_  # Always include bodyweight column, initially NA
+        bodyweight = as.numeric(pet_metadata$bodyweight)  # Get from _tacs.json if available
       )
     
     # Add segmentation mean TAC to the combined results
@@ -934,25 +941,40 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     }
     
     # Add participant data if available
+    weight_column_found <- NULL
     if (!is.null(participant_data) && !is.null(participant_data$data)) {
-      # Check for weight column duplication (participant data might have "weight" which maps to bodyweight)
+      # Check for weight column with multiple possible names
       participant_columns_to_add <- participant_data$data
-      if ("weight" %in% colnames(participant_columns_to_add)) {
-        # Use participant weight data for bodyweight column
+      possible_weight_columns <- c("bodyweight", "body_weight", "BodyWeight", "weight", "Weight", "Body_Weight")
+
+      # Find the first matching weight column
+      for (col_name in possible_weight_columns) {
+        if (col_name %in% colnames(participant_columns_to_add)) {
+          weight_column_found <- col_name
+          break
+        }
+      }
+
+      if (!is.null(weight_column_found)) {
+        # Use _tacs.json bodyweight as primary, participants.tsv as fallback
         combined_results_with_bids <- combined_results_with_bids %>%
           dplyr::left_join(participant_columns_to_add, by = "sub") %>%
-          dplyr::mutate(bodyweight = weight) %>%
-          dplyr::select(-weight)  # Remove the participant weight column, keep bodyweight
+          dplyr::mutate(bodyweight = dplyr::coalesce(bodyweight, .data[[weight_column_found]])) %>%
+          dplyr::select(-dplyr::all_of(weight_column_found))  # Remove the participant weight column, keep bodyweight
       } else {
-        # Keep our bodyweight column and add other participant data
+        # Keep our bodyweight column (from _tacs.json) and add other participant data
         combined_results_with_bids <- combined_results_with_bids %>%
           dplyr::left_join(participant_columns_to_add, by = "sub")
       }
     }
-    
-    # Determine participant columns (excluding sub and weight if it was in original data)
+
+    # Determine participant columns (excluding sub and any weight columns found)
     participant_columns <- if (!is.null(participant_data) && !is.null(participant_data$data)) {
-      setdiff(colnames(participant_data$data), c("sub", "weight"))  # Exclude both sub and weight
+      exclude_cols <- c("sub")
+      if (!is.null(weight_column_found)) {
+        exclude_cols <- c(exclude_cols, weight_column_found)
+      }
+      setdiff(colnames(participant_data$data), exclude_cols)
     } else {
       character(0)
     }
@@ -1304,16 +1326,84 @@ load_participant_data <- function(bids_dir) {
   ))
 }
 
+#' Extract PET Metadata from TACs JSON Sidecar
+#'
+#' @description Extract InjectedRadioactivity and body_weight from _tacs.json sidecar file
+#'
+#' @param derivatives_folder Base derivatives folder
+#' @param tacs_relative_path Relative path to TACs file from derivatives folder
+#' @return List with InjectedRadioactivity, InjectedRadioactivityUnits, and bodyweight (NA if not found)
+#' @export
+extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relative_path) {
+
+  # Convert TSV filename to JSON filename for TACs sidecar file
+  json_relative_path <- stringr::str_replace(tacs_relative_path, "\\.tsv$", ".json")
+  json_full_path <- file.path(derivatives_folder, json_relative_path)
+
+  # Default values
+  result <- list(
+    InjectedRadioactivity = NA_real_,
+    InjectedRadioactivityUnits = NA_character_,
+    bodyweight = NA_real_
+  )
+
+  if (!file.exists(json_full_path)) {
+    return(result)
+  }
+
+  # Try to read the TACs JSON sidecar file
+  tryCatch({
+    json_data <- jsonlite::fromJSON(json_full_path)
+
+    # Extract InjectedRadioactivity
+    if ("InjectedRadioactivity" %in% names(json_data)) {
+      result$InjectedRadioactivity <- as.numeric(json_data$InjectedRadioactivity)
+    }
+
+    # Extract InjectedRadioactivityUnits
+    if ("InjectedRadioactivityUnits" %in% names(json_data)) {
+      result$InjectedRadioactivityUnits <- as.character(json_data$InjectedRadioactivityUnits)
+    }
+
+    # Extract body_weight (if present)
+    if ("body_weight" %in% names(json_data)) {
+      result$bodyweight <- as.numeric(json_data$body_weight)
+    }
+
+    # Convert InjectedRadioactivity to kBq if units are different
+    if (!is.na(result$InjectedRadioactivity) && !is.na(result$InjectedRadioactivityUnits) &&
+        result$InjectedRadioactivityUnits != "kBq") {
+      tryCatch({
+        result$InjectedRadioactivity <- kinfitr::unit_convert(
+          result$InjectedRadioactivity,
+          result$InjectedRadioactivityUnits,
+          "kBq"
+        )
+        result$InjectedRadioactivityUnits <- "kBq"
+      }, error = function(e) {
+        warning(paste("Could not convert injected radioactivity from",
+                     result$InjectedRadioactivityUnits, "to kBq:", e$message))
+      })
+    }
+
+  }, error = function(e) {
+    warning(paste("Error reading _tacs.json file:", e$message))
+  })
+
+  return(result)
+}
+
 #' Extract PET Metadata from BIDS Directory using kinfitr
 #'
 #' @description Extract InjectedRadioactivity from matching PET measurements using kinfitr::bids_parse_study
+#' @note DEPRECATED: Use extract_pet_metadata_from_tacs_json() instead for derivatives-based workflows
 #'
 #' @param bids_dir Path to BIDS directory (can be NULL if study_data provided)
 #' @param sub Subject ID (without 'sub-' prefix)
 #' @param ses Session ID (without 'ses-' prefix, can be NA)
 #' @param trc Tracer ID (can be NA)
 #' @param rec Reconstruction ID (can be NA)
-#' @param task Task ID (can be NA)  
+#' @param task Task ID (can be NA)
 #' @param run Run ID (can be NA)
 #' @param study_data Pre-parsed BIDS study data (optional, for efficiency)
 #' @return List with InjectedRadioactivity and units, or NA values if not found
