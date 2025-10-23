@@ -175,7 +175,7 @@ if (opt$mode == "interactive") {
   } else {
     # Modelling automatic mode
     derivatives_path <- dirs$derivatives_dir %||% file.path(dirs$bids_dir, "derivatives")
-    petfit_dir <- file.path(derivatives_path, "petfit")
+    petfit_dir <- file.path(derivatives_path, opt$petfit_output_foldername)
     analysis_folder <- file.path(petfit_dir, opt$analysis_foldername)
 
     cat("Analysis folder:", analysis_folder, "\n")
@@ -189,9 +189,10 @@ if (opt$mode == "interactive") {
     # Execute the automatic pipeline
     tryCatch({
       result <- petfit_modelling_auto(
-        analysis_folder = analysis_folder,
+        analysis_subfolder = opt$analysis_foldername,
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
+        petfit_output_foldername = opt$petfit_output_foldername,
         blood_dir = dirs$blood_dir,
         step = opt$step
       )
