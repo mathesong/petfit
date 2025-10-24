@@ -13,9 +13,9 @@ It can be used in two ways:
 **NOTE:** PETFit is currently in active development, and there may be bugs. Please report these to me on the Github issues. They are extremely valuable for making this pipeline robust for application to all datasets.
 
 
-## Web Apps
+## Interactive Web Apps
 
-The web apps allow users to interactively define configurations for the analysis.
+The web apps allow users to graphically define configurations for the analysis.
 
 - **Region Definition App**: Creates combined regional TACs from PET Preprocessing Derivative data
 - **Modelling App with Plasma Input**: Configures invasive kinetic models (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak) requiring blood input
@@ -130,7 +130,7 @@ petfit_modelling_auto(
 
 # Specify a custom analysis subfolder
 petfit_modelling_auto(
-  analysis_subfolder = "Custom_Analysis",
+  analysis_subfolder = "Baseline_only",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )
@@ -241,6 +241,16 @@ docker run --rm \
   --func modelling_plasma \
   --mode automatic \
   --step weights
+
+# Use a custom analysis folder
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --mode automatic \
+  --analysis_folder Baseline_only
 ```
 
 
@@ -250,6 +260,7 @@ docker run --rm \
 - `--func`: Application to run (`regiondef`, `modelling_plasma`, `modelling_ref`)
 - `--mode`: Execution mode (`interactive` [default] or `automatic`)
 - `--step`: Specific analysis step for automatic mode (optional)
+- `--analysis_folder`: Analysis subfolder name for modelling outputs (default: `Primary_Analysis`)
 
 ### Docker Mount Points
 
@@ -286,8 +297,18 @@ The modelling apps generate the following outputs in `derivatives/petfit/<analys
 
 ## Directory Structure
 
+PETFit uses a hierarchical directory structure:
+
+- **bids_dir**: Your raw BIDS dataset containing source data
+- **derivatives_dir**: The top-level derivatives folder (default: `{bids_dir}/derivatives`)
+- **petfit directory**: `{derivatives_dir}/petfit/`
+- **analysis_folder**: Analysis-specific subfolders within `{derivatives_dir}/petfit/{analysis_folder}` for modelling app outputs (default: `Primary_Analysis`).
+
+The idea of the analysis folders is that the region definition app produces combined region TACs which are common to all analyses, and the analysis folders allow for using different data subsets (e.g. baseline-only), or measurement properties (e.g. restricting the TACs to a shorter duration) or different modelling approaches (e.g. plasma vs. reference tissue).
+This allows the user to be flexible within the petfit directory and produce analyses with descriptive names.
+
 ```
-bids_directory/                    # Raw BIDS data
+bids_directory/                         # Raw BIDS data (bids_dir)
 ├── participants.tsv
 ├── code/petfit/
 │   └── petfit_regions.tsv        # Region definitions
@@ -298,8 +319,9 @@ derivatives/                       # Processed outputs
     ├── desc-combinedregions_tacs.tsv  # Combined TACs
     └── Analysis_Name/             # Analysis-specific folder
         ├── desc-petfitoptions_config.json
-        ├── *_desc-combinedregions_tacs.tsv
-        ├── *_desc-weights_weights.tsv
+        ├── sub-01/sub-01_desc-combinedregions_tacs.tsv
+        ├── sub-01/sub-01_model-1TCM_kinpar.tsv
+        ├── ...
         └── reports/               # HTML reports
 ```
 
