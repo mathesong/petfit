@@ -1347,7 +1347,9 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                       br(),
                                       actionButton("run_all", "▶ Run All", class = "btn-success btn-lg"),
                                       br(), br(),
-                                      actionButton("save_config", "💾 Save Config", class = "btn-primary btn-lg")
+                                      actionButton("save_config", "💾 Save Config", class = "btn-primary btn-lg"),
+                                      br(), br(),
+                                      actionButton("close_app", "✖ Close App", class = "btn-danger btn-lg")
                                )
                              ),
                              
@@ -2221,7 +2223,13 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     observeEvent(input$save_config, {
       save_config()
     })
-    
+
+    # Close app button handler
+    observeEvent(input$close_app, {
+      showNotification("Closing app...", type = "message", duration = 2)
+      stopApp()
+    })
+
     # Run button handlers - each saves config then executes step
     observeEvent(input$run_subset, {
       save_config()
@@ -2549,17 +2557,22 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         if (result$success) {
           # Show success message with reports generated
-          success_msg <- "All pipeline steps completed successfully!"
+          success_msg <- "All pipeline steps completed successfully! Closing app..."
           if (length(result$reports_generated) > 0) {
-            success_msg <- paste0(success_msg, " Reports generated: ", 
-                                 paste(result$reports_generated, collapse = ", "))
+            success_msg <- paste0("All pipeline steps completed successfully! Reports generated: ",
+                                 paste(result$reports_generated, collapse = ", "), ". Closing app...")
           }
-          showNotification(success_msg, type = "message", duration = 10)
-          
+          showNotification(success_msg, type = "message", duration = 3)
+
           # Log all messages to console
           for (msg in result$messages) {
             cat("[Run All]", msg, "\n")
           }
+
+          # Close app after brief delay to show success message
+          later::later(function() {
+            stopApp()
+          }, delay = 3)
         } else {
           # Show error message
           error_msg <- paste("Pipeline execution failed:", 

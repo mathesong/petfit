@@ -103,7 +103,7 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
       validation$required <- TRUE
     } else if (step %in% c("model1", "model2", "model3")) {
       # Check if this specific model is invasive
-      model_num <- stringr::str_extract(step, "\\\\d+")
+      model_num <- stringr::str_extract(step, "\\d+")
       model_key <- paste0("Model", model_num)
       if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
         model_type <- config$Models[[model_key]]$type
@@ -123,7 +123,7 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
       }
     } else {
       # Check for blood files
-      blood_files <- list.files(blood_dir, pattern = "_(blood|inputfunction)\\\\.tsv$", recursive = TRUE)
+      blood_files <- list.files(blood_dir, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
       if (length(blood_files) == 0) {
         validation$valid <- FALSE
         validation$messages <- c(validation$messages, "No blood data files found in blood directory")
@@ -305,12 +305,12 @@ execute_pipeline_step <- function(step, analysis_folder, bids_dir, blood_dir, co
 
     } else if (step %in% c("model1", "model2", "model3")) {
       # Generate model report
-      model_num <- stringr::str_extract(step, "\\\\d+")
+      model_num <- stringr::str_extract(step, "\\d+")
       model_key <- paste0("Model", model_num)
 
       if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
         generate_model_report(
-          model_number = model_num,
+          model_number = paste("Model", model_num),
           model_type = config$Models[[model_key]]$type,
           analysis_folder = analysis_folder,
           bids_dir = bids_dir,
