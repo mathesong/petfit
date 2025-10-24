@@ -1,13 +1,13 @@
-#' Minify Derivatives Directory for Debugging
+#' Minify Directory for Debugging
 #'
-#' Creates a lightweight copy of a derivatives directory by replacing files
-#' larger than 1MB with empty files, then zips the result. Useful for creating
-#' shareable directory structures for debugging without large data files.
+#' Creates a lightweight copy of a directory by replacing files larger than 1MB
+#' with empty files, then zips the result. Useful for creating shareable directory
+#' structures for debugging without large data files.
 #'
-#' @param derivatives_dir Character string. Path to the derivatives directory
-#'   to minify.
-#' @param output_zip Character string. Path for the output zip file. Defaults
-#'   to "mini_derivatives.zip" in the current working directory.
+#' @param dir Character string. Path to the directory to minify (can be a BIDS
+#'   directory, derivatives directory, or any other directory).
+#' @param output_zip Character string. Path for the output zip file. If NULL
+#'   (default), creates "{basename(dir)}_mini.zip" in the current working directory.
 #' @param size_threshold Numeric. File size threshold in MB above which files
 #'   will be replaced with empty files. Default is 1 MB.
 #'
@@ -16,7 +16,7 @@
 #' @details
 #' This function:
 #' \itemize{
-#'   \item Creates a temporary copy of the derivatives directory structure
+#'   \item Creates a temporary copy of the directory structure
 #'   \item Identifies all files larger than the size threshold (default 1MB)
 #'   \item Replaces large files with empty files of the same name
 #'   \item Creates a zip archive of the minified directory
@@ -29,31 +29,42 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Create minified version of derivatives directory
-#' minify_derivatives_dir("/path/to/derivatives")
+#' # Create minified version of a derivatives directory
+#' # Output: derivatives_mini.zip
+#' minify_dir("/path/to/derivatives")
+#'
+#' # Create minified version of a BIDS directory
+#' # Output: bids_mini.zip
+#' minify_dir("/path/to/bids")
 #'
 #' # Custom output location and size threshold
-#' minify_derivatives_dir(
-#'   derivatives_dir = "/path/to/derivatives",
-#'   output_zip = "~/debug_derivatives.zip",
+#' minify_dir(
+#'   dir = "/path/to/directory",
+#'   output_zip = "~/debug_dir.zip",
 #'   size_threshold = 0.5  # 500KB threshold
 #' )
 #' }
 #'
 #' @export
-minify_derivatives_dir <- function(derivatives_dir,
-                                   output_zip = "mini_derivatives.zip",
-                                   size_threshold = 1) {
+minify_dir <- function(dir,
+                       output_zip = NULL,
+                       size_threshold = 1) {
 
   # Validate inputs
-  if (!dir.exists(derivatives_dir)) {
-    stop("derivatives_dir does not exist: ", derivatives_dir)
+  if (!dir.exists(dir)) {
+    stop("Directory does not exist: ", dir)
   }
 
-  derivatives_dir <- normalizePath(derivatives_dir)
+  dir <- normalizePath(dir)
+
+  # Set default output_zip if not provided
+  if (is.null(output_zip)) {
+    output_zip <- paste0(basename(dir), "_mini.zip")
+  }
+
   size_threshold_bytes <- size_threshold * 1024 * 1024
 
-  message("Starting minification of: ", derivatives_dir)
+  message("Starting minification of: ", dir)
   message("Size threshold: ", size_threshold, " MB")
 
   # Create temporary directory for the minified copy
@@ -62,13 +73,13 @@ minify_derivatives_dir <- function(derivatives_dir,
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
   # Copy directory structure
-  temp_copy <- file.path(temp_dir, basename(derivatives_dir))
+  temp_copy <- file.path(temp_dir, basename(dir))
   message("Creating temporary copy...")
   dir.create(temp_copy, recursive = TRUE)
 
-  # Get all files in the derivatives directory
+  # Get all files in the directory
   all_files <- list.files(
-    derivatives_dir,
+    dir,
     full.names = TRUE,
     recursive = TRUE,
     include.dirs = FALSE,
@@ -76,7 +87,7 @@ minify_derivatives_dir <- function(derivatives_dir,
   )
 
   if (length(all_files) == 0) {
-    warning("No files found in derivatives_dir")
+    warning("No files found in directory")
     return(invisible(NULL))
   }
 
@@ -88,7 +99,7 @@ minify_derivatives_dir <- function(derivatives_dir,
 
   for (file_path in all_files) {
     # Calculate relative path
-    rel_path <- sub(paste0("^", derivatives_dir, "/?"), "", file_path)
+    rel_path <- sub(paste0("^", dir, "/?"), "", file_path)
     dest_path <- file.path(temp_copy, rel_path)
 
     # Create parent directory if needed
