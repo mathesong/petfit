@@ -393,7 +393,6 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
-  group_by(pet) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -423,7 +422,6 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
-  group_by(pet) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -453,7 +451,6 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
-  group_by(pet, region) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -485,7 +482,6 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
-  group_by(pet, region) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
