@@ -363,7 +363,7 @@ model_data <- inner_join(tac_data_nested, blood_data) %>%
 <!-- use_weights <- config$FitDelay$use_weights %||% FALSE -->
 
 <!-- model_data <- model_data %>%  -->
-<!--   group_by(output_stem) %>%  -->
+<!--   group_by(pet) %>%  -->
 <!--   mutate(delayFit = map2(tacs, input,  -->
 <!--                          ~lin2tcm_inpshiftProfile(t_tac = .x$frame_mid, tac = .x$TAC,  -->
 <!--                                  input = .y, dur = .x$frame_dur, -->
@@ -393,6 +393,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
+  group_by(pet) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -422,6 +423,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
+  group_by(pet) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -451,6 +453,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
+  group_by(pet, region) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -482,6 +485,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
+  group_by(pet, region) %>% 
   mutate(delayFit = map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
@@ -558,7 +562,7 @@ walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
 fit_again_with_newdelay <- model_data %>% 
   select(-delayFit) %>% 
   inner_join(delay_out) %>% 
-  group_by(output_stem) %>% 
+  group_by(pet) %>% 
   mutate(delayFit2 = pmap(list(tacs, input, inpshift),
                          ~safe_onetcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
                                  input = ..2, 
@@ -621,7 +625,7 @@ pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input,
 fit_again_with_newdelay <- model_data %>% 
   select(-delayFit) %>% 
   inner_join(delay_out) %>% 
-  group_by(output_stem) %>% 
+  group_by(pet) %>% 
   mutate(delayFit2 = pmap(list(tacs, input, inpshift),
                          ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
                                  input = ..2, 
