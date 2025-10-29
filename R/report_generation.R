@@ -147,7 +147,12 @@ get_model_template <- function(model_type) {
     "Logan" = "logan_report.Rmd",
     "MA1" = "ma1_report.Rmd",
     "Patlak" = "patlak_report.Rmd",
-    "Fit Delay" = "fit_delay_report.Rmd"
+    "Fit Delay" = "fit_delay_report.Rmd",
+    "SRTM" = "srtm_report.Rmd",
+    "SRTM2" = "srtm2_report.Rmd",
+    "refLogan" = "reflogan_report.Rmd",
+    "MRTM1" = "mrtm1_report.Rmd",
+    "MRTM2" = "mrtm2_report.Rmd"
   )
   
   template_name <- template_map[[model_type]]

@@ -537,6 +537,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              selectInput("button", "Select a model:",
                                          choices = c("No Model 1" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
+                                                     "SRTM2 (Non-linear)" = "SRTM2",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -556,12 +557,63 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2a.start", "k2a.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.lower", "k2a.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.upper", "k2a.upper", value = 0.5,min = 0, step=.001)),
-                               )
+                                 column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+
+                               # TAC Subset Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+                               uiOutput("subset_validation_error")
                              ),
-                             
+
+                            # SRTM2 selection panel
+                            conditionalPanel(
+                              condition = "input.button == 'SRTM2'",
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("R1.start", "R1.start", value = 1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.lower", "R1.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.upper", "R1.upper", value = 5,min = 0, step=.001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5,min = 0, step=.001)),
+                              ),
+
+                              h4("Other Parameters"),
+                              selectInput("k2prime_source", "k2' Parameter Source:",
+                                         choices = list("Set k2'" = "set"),
+                                         selected = "set"),
+                              conditionalPanel(
+                                condition = "input.k2prime_source == 'set'",
+                                numericInput("k2prime_value", "k2' Value", value = 0.1, min = 0, step = 0.001)
+                              ),
+
+                              # TAC Subset Selection
+                              h4("TAC Subset Selection"),
+                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                              radioButtons("subset_type", "Selection Method:",
+                                          choices = list("Frame Numbers" = "frame",
+                                                        "Time Points (minutes)" = "time"),
+                                          selected = "time", inline = TRUE),
+                              fluidRow(
+                                column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                              ),
+                              uiOutput("subset_validation_error")
+                            ),
+
                              # refLogan selection panel  
                              conditionalPanel(
                                condition = "input.button == 'refLogan'",
@@ -649,6 +701,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              ),
                              
                              hr(),
+                             uiOutput("subset_validation_error"),
                              conditionalPanel(
                                condition = "input.button != 'none'",
                                actionButton("run_model1", "▶ Fit Model 1", class = "btn-success btn-lg")
@@ -666,6 +719,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              selectInput("button2", "Select a model:",
                                          choices = c("No Model 2" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
+                                                     "SRTM2 (Non-linear)" = "SRTM2",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -685,13 +739,69 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2a.start2", "k2a.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.lower2", "k2a.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.upper2", "k2a.upper", value = 0.5,min = 0, step=.001)),
-                               )
+                                 column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+
+                               # TAC Subset Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type2", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+                               uiOutput("subset_validation_error2")
                              ),
-                             
-                             # refLogan selection panel  
+
+                            # SRTM2 selection panel
+                            conditionalPanel(
+                              condition = "input.button2 == 'SRTM2'",
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("R1.start2", "R1.start", value = 1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.lower2", "R1.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.upper2", "R1.upper", value = 5,min = 0, step=.001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5,min = 0, step=.001)),
+                              ),
+
+                              h4("Other Parameters"),
+                              selectInput("k2prime_source2", "k2' Parameter Source:",
+                                         choices = list(
+                                           "Set k2'" = "set",
+                                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median"
+                                         ),
+                                         selected = "set"),
+                              conditionalPanel(
+                                condition = "input.k2prime_source2 == 'set'",
+                                numericInput("k2prime_value2", "k2' Value", value = 0.1, min = 0, step = 0.001)
+                              ),
+
+                              # TAC Subset Selection
+                              h4("TAC Subset Selection"),
+                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                              radioButtons("subset_type2", "Selection Method:",
+                                          choices = list("Frame Numbers" = "frame",
+                                                        "Time Points (minutes)" = "time"),
+                                          selected = "time", inline = TRUE),
+                              fluidRow(
+                                column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                              ),
+                              uiOutput("subset_validation_error2")
+                            ),
+
+                             # refLogan selection panel
                              conditionalPanel(
                                condition = "input.button2 == 'refLogan'",
                                h4("t* Definition"),
@@ -794,6 +904,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              ),
                              
                              hr(),
+                             uiOutput("subset_validation_error2"),
                              conditionalPanel(
                                condition = "input.button2 != 'none'",
                                actionButton("run_model2", "▶ Fit Model 2", class = "btn-success btn-lg")
@@ -811,6 +922,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              selectInput("button3", "Select a model:",
                                          choices = c("No Model 3" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
+                                                     "SRTM2 (Non-linear)" = "SRTM2",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -830,12 +942,71 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2a.start3", "k2a.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.lower3", "k2a.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2a.upper3", "k2a.upper", value = 0.5,min = 0, step=.001)),
-                               )
+                                 column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                               ),
+
+                               # TAC Subset Selection
+                               h4("TAC Subset Selection"),
+                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                               radioButtons("subset_type3", "Selection Method:",
+                                           choices = list("Frame Numbers" = "frame",
+                                                         "Time Points (minutes)" = "time"),
+                                           selected = "time", inline = TRUE),
+                               fluidRow(
+                                 column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                 column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                               ),
+                               uiOutput("subset_validation_error3")
                              ),
-                             
+
+                            # SRTM2 selection panel
+                            conditionalPanel(
+                              condition = "input.button3 == 'SRTM2'",
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("R1.start3", "R1.start", value = 1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.lower3", "R1.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.upper3", "R1.upper", value = 5,min = 0, step=.001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5,min = 0, step=.001)),
+                              ),
+
+                              h4("Other Parameters"),
+                              selectInput("k2prime_source3", "k2' Parameter Source:",
+                                         choices = list(
+                                           "Set k2'" = "set",
+                                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                                           "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
+                                           "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+                                           "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median"
+                                         ),
+                                         selected = "set"),
+                              conditionalPanel(
+                                condition = "input.k2prime_source3 == 'set'",
+                                numericInput("k2prime_value3", "k2' Value", value = 0.1, min = 0, step = 0.001)
+                              ),
+
+                              # TAC Subset Selection
+                              h4("TAC Subset Selection"),
+                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
+                              radioButtons("subset_type3", "Selection Method:",
+                                          choices = list("Frame Numbers" = "frame",
+                                                        "Time Points (minutes)" = "time"),
+                                          selected = "time", inline = TRUE),
+                              fluidRow(
+                                column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
+                                column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                              ),
+                              uiOutput("subset_validation_error3")
+                            ),
+
                              # refLogan selection panel  
                              conditionalPanel(
                                condition = "input.button3 == 'refLogan'",
@@ -945,6 +1116,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              ),
                              
                              hr(),
+                             uiOutput("subset_validation_error3"),
                              conditionalPanel(
                                condition = "input.button3 != 'none'",
                                actionButton("run_model3", "▶ Fit Model 3", class = "btn-success btn-lg")
@@ -1189,10 +1361,44 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
               updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
             }
-            if (!is.null(model_config$k2a)) {
-              updateNumericInput(session, paste0("k2a.start", suffix), value = model_config$k2a$start %||% 0.1)
-              updateNumericInput(session, paste0("k2a.lower", suffix), value = model_config$k2a$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2a.upper", suffix), value = model_config$k2a$upper %||% 0.5)
+            # Support both new BPnd configs and old k2a configs (backward compatibility)
+            if (!is.null(model_config$BPnd)) {
+              updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
+              updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 0.5)
+            } else if (!is.null(model_config$k2a)) {
+              updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$k2a$start %||% 0.1)
+              updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$k2a$lower %||% 0.0001)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$k2a$upper %||% 0.5)
+            }
+            # TAC Subset Selection restoration
+            if (!is.null(model_config$subset)) {
+              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
+              updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
+            }
+          } else if (!is.null(model_type) && model_type == "SRTM2") {
+            if (!is.null(model_config$R1)) {
+              updateNumericInput(session, paste0("R1.start", suffix), value = model_config$R1$start %||% 1)
+              updateNumericInput(session, paste0("R1.lower", suffix), value = model_config$R1$lower %||% 0.0001)
+              updateNumericInput(session, paste0("R1.upper", suffix), value = model_config$R1$upper %||% 5)
+            }
+            if (!is.null(model_config$BPnd)) {
+              updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
+              updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 0.5)
+            }
+            if (!is.null(model_config$k2prime_source)) {
+              updateSelectInput(session, paste0("k2prime_source", suffix), selected = model_config$k2prime_source %||% "set")
+            }
+            if (!is.null(model_config$k2prime_value)) {
+              updateNumericInput(session, paste0("k2prime_value", suffix), value = model_config$k2prime_value %||% 0.1)
+            }
+            # TAC Subset Selection restoration
+            if (!is.null(model_config$subset)) {
+              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
+              updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
           } else if (!is.null(model_type) && model_type == "MRTM1") {
             if (!is.null(model_config$tstar)) {
@@ -1628,11 +1834,54 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
             upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
           )
-          model_params$k2a = list(
-            start = input[[paste0("k2a.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("k2a.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2a.upper", suffix)]] %||% 0.5
+          model_params$BPnd = list(
+            start = input[[paste0("BPnd.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("BPnd.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("BPnd.upper", suffix)]] %||% 0.5
           )
+
+          # TAC Subset Selection
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          start_point <- input[[paste0("start_point", suffix)]]
+          end_point <- input[[paste0("end_point", suffix)]]
+
+          if (!is.null(start_point) || !is.null(end_point)) {
+            model_params$subset = list(
+              type = subset_type,
+              start = start_point,
+              end = end_point
+            )
+          }
+        } else if (model_type == "SRTM2") {
+          model_params$R1 = list(
+            start = input[[paste0("R1.start", suffix)]] %||% 1,
+            lower = input[[paste0("R1.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("R1.upper", suffix)]] %||% 5
+          )
+          model_params$BPnd = list(
+            start = input[[paste0("BPnd.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("BPnd.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("BPnd.upper", suffix)]] %||% 5
+          )
+
+          # k2prime parameter
+          model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
+          if (input[[paste0("k2prime_source", suffix)]] == "set" || is.null(input[[paste0("k2prime_source", suffix)]])) {
+            model_params$k2prime_value = input[[paste0("k2prime_value", suffix)]] %||% 0.1
+          }
+
+          # TAC Subset Selection
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          start_point <- input[[paste0("start_point", suffix)]]
+          end_point <- input[[paste0("end_point", suffix)]]
+
+          if (!is.null(start_point) || !is.null(end_point)) {
+            model_params$subset = list(
+              type = subset_type,
+              start = start_point,
+              end = end_point
+            )
+          }
         } else if (model_type == "MRTM1") {
           model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
@@ -1948,10 +2197,42 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       })
     })
 
+    # Reactive values for TAC subset validation errors
+    subset_error <- reactiveVal(NULL)
+    subset_error2 <- reactiveVal(NULL)
+    subset_error3 <- reactiveVal(NULL)
+
     observeEvent(input$run_model1, {
+      # Validate TAC subset selection
+      start <- input$start_point
+      end <- input$end_point
+      type <- input$subset_type
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button %||% "SRTM"
       showNotification(paste("Fitting Model 1 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model1")
@@ -1985,9 +2266,36 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     })
     
     observeEvent(input$run_model2, {
+      # Validate TAC subset selection
+      start <- input$start_point2
+      end <- input$end_point2
+      type <- input$subset_type2
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error2(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error2(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button2 %||% "SRTM"
       showNotification(paste("Fitting Model 2 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model2")
@@ -2021,9 +2329,36 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     })
     
     observeEvent(input$run_model3, {
+      # Validate TAC subset selection
+      start <- input$start_point3
+      end <- input$end_point3
+      type <- input$subset_type3
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error3(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error3(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button3 %||% "SRTM"
       showNotification(paste("Fitting Model 3 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model3")
@@ -2126,7 +2461,29 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     output$json_preview <- renderText({
       config_json()
     })
-    
+
+    # TAC subset validation error messages
+    output$subset_validation_error <- renderUI({
+      error_msg <- subset_error()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
+    output$subset_validation_error2 <- renderUI({
+      error_msg <- subset_error2()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
+    output$subset_validation_error3 <- renderUI({
+      error_msg <- subset_error3()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
     # Interactive tab server logic ----
     
     # Create reactive tibble to store PET files and their info

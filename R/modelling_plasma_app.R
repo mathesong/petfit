@@ -738,6 +738,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              ),
 
                              hr(),
+                             uiOutput("subset_validation_error"),
                              conditionalPanel(
                                condition = "input.button != 'none'",
                                actionButton("run_model1", "▶ Fit Model 1", class = "btn-success btn-lg")
@@ -1016,6 +1017,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              ),
 
                              hr(),
+                             uiOutput("subset_validation_error2"),
                              conditionalPanel(
                                condition = "input.button2 != 'none'",
                                actionButton("run_model2", "▶ Fit Model 2", class = "btn-success btn-lg")
@@ -1325,6 +1327,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                             ),
 
                              hr(),
+                             uiOutput("subset_validation_error3"),
                              conditionalPanel(
                                condition = "input.button3 != 'none'",
                                actionButton("run_model3", "▶ Fit Model 3", class = "btn-success btn-lg")
@@ -2423,11 +2426,43 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         cat("Warning: Could not generate delay report:", e$message, "\n")
       })
     })
-    
+
+    # Reactive values for TAC subset validation errors
+    subset_error <- reactiveVal(NULL)
+    subset_error2 <- reactiveVal(NULL)
+    subset_error3 <- reactiveVal(NULL)
+
     observeEvent(input$run_model1, {
+      # Validate TAC subset selection
+      start <- input$start_point
+      end <- input$end_point
+      type <- input$subset_type
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button %||% "1TCM"
       showNotification(paste("Fitting Model 1 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model1")
@@ -2461,9 +2496,36 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     })
     
     observeEvent(input$run_model2, {
+      # Validate TAC subset selection
+      start <- input$start_point2
+      end <- input$end_point2
+      type <- input$subset_type2
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error2(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error2(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button2 %||% "1TCM"
       showNotification(paste("Fitting Model 2 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model2")
@@ -2497,9 +2559,36 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     })
     
     observeEvent(input$run_model3, {
+      # Validate TAC subset selection
+      start <- input$start_point3
+      end <- input$end_point3
+      type <- input$subset_type3
+
+      # Helper function to check if value is empty (NULL, NA, or length 0)
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start)
+      end_empty <- is_empty(end)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+        subset_error3(error_msg)
+        return()
+      }
+
+      # Clear error if validation passes
+      subset_error3(NULL)
+
       # Save configuration
       save_config()
-      
+
       # Show fitting notification
       model_type <- input$button3 %||% "1TCM"
       showNotification(paste("Fitting Model 3 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model3")
@@ -2602,7 +2691,29 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     output$json_preview <- renderText({
       config_json()
     })
-    
+
+    # TAC subset validation error messages
+    output$subset_validation_error <- renderUI({
+      error_msg <- subset_error()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
+    output$subset_validation_error2 <- renderUI({
+      error_msg <- subset_error2()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
+    output$subset_validation_error3 <- renderUI({
+      error_msg <- subset_error3()
+      if (!is.null(error_msg)) {
+        tags$p(error_msg, style = "color: red; margin-top: 5px;")
+      }
+    })
+
     # Interactive tab server logic ----
     
     # Create reactive tibble to store PET files and their info
