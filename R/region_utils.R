@@ -660,6 +660,8 @@ get_region_volumes_from_morph <- function(morph_path) {
 determine_varying_attributes <- function(all_data, candidate_attrs = c("sub", "ses", "trc", "rec", "task", "run")) {
   varying <- purrr::map_lgl(candidate_attrs, function(attr) {
     if (!attr %in% colnames(all_data)) return(FALSE)
+    # Always include 'sub' regardless of variation
+    if (attr == "sub") return(TRUE)
     unique_vals <- unique(all_data[[attr]])
     unique_vals <- unique_vals[!is.na(unique_vals)]
     length(unique_vals) > 1

@@ -17,8 +17,12 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
   if( !all_attributes ) {
     if(nrow(bidsdata) > 1) {
       # More than one PET measurement
-      bidsdata <- bidsdata[,which(!apply(bidsdata, 2,
-                                         FUN = function(x) length(unique(x))==1))]
+      # Filter out columns where all values are identical, but always keep 'sub'
+      cols_to_keep <- apply(bidsdata, 2, FUN = function(x) length(unique(x)) > 1)
+      if ("sub" %in% colnames(bidsdata)) {
+        cols_to_keep["sub"] <- TRUE  # Always include 'sub'
+      }
+      bidsdata <- bidsdata[, cols_to_keep, drop = FALSE]
     } else {
       # Situation if only one PET
       bidsdata <- dplyr::select(bidsdata, sub, ses, task, filedata)
