@@ -15,7 +15,7 @@ tests/
 │   ├── test-bids_utils.R        # Tests for BIDS parsing functions
 │   ├── test-blood_utils.R       # Tests for blood data management
 │   ├── test-docker_functions.R  # Tests for validation and pipeline functions
-│   ├── test-launch_apps.R       # Tests for app launcher
+│   ├── test-launch_petfit_apps.R # Tests for app launcher
 │   ├── test-region_utils.R      # Tests for region processing functions
 │   ├── test-report_generation.R # Tests for report generation (1TCM/2TCM focus)
 │   └── test-subsetting_utils.R  # Tests for data filtering functions
@@ -61,8 +61,8 @@ tests/
 - **`generate_model_report()`**: Model-specific report generation
 - **`generate_reports_summary()`**: Summary page creation
 
-#### 7. App Integration (test-launch_apps.R)
-- **`launch_apps()`**: Parameter validation and app launching logic
+#### 7. App Integration (test-launch_petfit_apps.R)
+- **`launch_petfit_apps()`**: Parameter validation and app launching logic
 
 ## Test Data Strategy
 

@@ -24,23 +24,23 @@
 #' @examples
 #' \dontrun{
 #' # Launch region definition app
-#' launch_apps(app = "regiondef", bids_dir = "/path/to/bids")
+#' launch_petfit_apps(app = "regiondef", bids_dir = "/path/to/bids")
 #'
 #' # Launch plasma input modelling app
-#' launch_apps(app = "modelling_plasma", bids_dir = "/path/to/bids")
+#' launch_petfit_apps(app = "modelling_plasma", bids_dir = "/path/to/bids")
 #'
 #' # Launch reference tissue modelling app
-#' launch_apps(app = "modelling_ref", bids_dir = "/path/to/bids")
+#' launch_petfit_apps(app = "modelling_ref", bids_dir = "/path/to/bids")
 #' }
 #'
 #' @export
-launch_apps <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"),
-                       bids_dir = NULL,
-                       derivatives_dir = NULL,
-                       blood_dir = NULL,
-                       petfit_output_foldername = "petfit",
-                       subfolder = "Primary_Analysis",
-                       config_file = NULL) {
+launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"),
+                               bids_dir = NULL,
+                               derivatives_dir = NULL,
+                               blood_dir = NULL,
+                               petfit_output_foldername = "petfit",
+                               subfolder = "Primary_Analysis",
+                               config_file = NULL) {
 
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))

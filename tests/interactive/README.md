@@ -21,7 +21,7 @@ These tests are designed to be run **manually** by developers to verify that:
 
 ```r
 # From R console in the package directory:
-source("tests/interactive/test-launch_apps_interactive.R")
+source("tests/interactive/test-launch_petfit_apps_interactive.R")
 
 # Or run individual test functions:
 test_region_definition_app()
@@ -39,7 +39,7 @@ test_docker_functions()  # Docker validation functions (no GUI)
 
 ## Test Coverage
 
-- `test-launch_apps_interactive.R`: Interactive Shiny app launching and Docker function validation
+- `test-launch_petfit_apps_interactive.R`: Interactive Shiny app launching and Docker function validation
 - `test-apps_ui_interactive.R`: UI element verification (future)
 - `test-apps_workflow_interactive.R`: End-to-end workflow testing (future)
 

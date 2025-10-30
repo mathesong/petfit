@@ -38,9 +38,9 @@ The interactive apps allow you to:
 
 | Mode | R Usage | Docker Usage |
 |------|---------|--------------|
-| Interactive - Region Definition | `launch_apps(bids_dir = "/path/to/bids")` | `docker run -p 3838:3838 ... --func regiondef` |
-| Interactive - Modelling with Plasma Input | `launch_apps(app = "modelling_plasma", bids_dir, blood_dir)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
-| Interactive - Modelling with Reference Tissue | `launch_apps(app = "modelling_ref", bids_dir)` | `docker run -p 3838:3838 ... --func modelling_ref` |
+| Interactive - Region Definition | `launch_petfit_apps(bids_dir = "/path/to/bids")` | `docker run -p 3838:3838 ... --func regiondef` |
+| Interactive - Modelling with Plasma Input | `launch_petfit_apps(app = "modelling_plasma", bids_dir, blood_dir)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
+| Interactive - Modelling with Reference Tissue | `launch_petfit_apps(app = "modelling_ref", bids_dir)` | `docker run -p 3838:3838 ... --func modelling_ref` |
 | Automatic - Region Definition | `petfit_regiondef_auto(derivatives_dir = "...")` | `docker run ... --func regiondef --mode automatic` |
 | Automatic - Modelling | `petfit_modelling_auto(derivatives_dir = "...")` | `docker run ... --func modelling_plasma --mode automatic` |
 
@@ -61,20 +61,20 @@ remotes::install_github("mathesong/petfit")
 library(petfit)
 
 # Launch region definition app (default)
-launch_apps(
+launch_petfit_apps(
   app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Launch plasma input modelling app without preprocessing blood data
-launch_apps(
+launch_petfit_apps(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Launch plasma input modelling app after producing derivative blood data
-launch_apps(
+launch_petfit_apps(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives",
@@ -83,7 +83,7 @@ launch_apps(
 
 
 # Launch reference tissue modelling app
-launch_apps(
+launch_petfit_apps(
   app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives",
 )

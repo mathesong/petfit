@@ -27,9 +27,9 @@ The three apps work independently:
 library(petfit)
 
 # Launch specific app using launcher (regiondef is default)
-launch_apps(bids_dir = "/path/to/bids")  # Launches regiondef by default
-launch_apps(app = "modelling_plasma", bids_dir = "/path/to/bids", blood_dir = "/path/to/blood")
-launch_apps(app = "modelling_ref", bids_dir = "/path/to/bids")
+launch_petfit_apps(bids_dir = "/path/to/bids")  # Launches regiondef by default
+launch_petfit_apps(app = "modelling_plasma", bids_dir = "/path/to/bids", blood_dir = "/path/to/blood")
+launch_petfit_apps(app = "modelling_ref", bids_dir = "/path/to/bids")
 
 # Or launch apps directly
 region_definition_app(bids_dir = "/path/to/bids")
@@ -59,7 +59,7 @@ modelling_ref_app(bids_dir = "/path/to/bids")
 - **Package Structure**: Proper R package with R/, man/, data/, and inst/rmd/ directories
 - **UI Layout**: All apps use `fluidPage` with sidebar layout
 - **Server Logic**: Reactive expressions generate JSON configurations and process data
-- **Launcher Function**: `launch_apps()` launches one app at a time with `match.arg()` validation
+- **Launcher Function**: `launch_petfit_apps()` launches one app at a time with `match.arg()` validation
 
 ### Directory Structure
 The system uses a standard BIDS (Brain Imaging Data Structure) directory layout:

@@ -34,7 +34,6 @@ theme_set(theme_light())
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder %||% analysis_folder
 bids_dir <- params$bids_dir %||% NULL
-blood_dir <- params$blood_dir %||% NULL
 
 # Load configuration from standard location
 config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")

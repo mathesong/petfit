@@ -1,10 +1,10 @@
-# Interactive Tests for launch_apps() function
+# Interactive Tests for launch_petfit_apps() function
 # 
 # These tests launch actual Shiny applications and require manual verification
 # DO NOT run these in automated test environments or CI/CD pipelines
 #
 # To run these tests manually:
-# source("tests/interactive/test-launch_apps_interactive.R")
+# source("tests/interactive/test-launch_petfit_apps_interactive.R")
 
 library(petfit)
 
@@ -46,7 +46,7 @@ test_region_definition_app <- function() {
   cat("- Press [Enter] in R console to continue after testing\n\n")
   
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = bids_dir,
       region_definition = TRUE,
       modelling = FALSE
@@ -79,7 +79,7 @@ test_modelling_app <- function() {
   cat("- Press [Enter] in R console to continue after testing\n\n")
   
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = bids_dir,
       region_definition = FALSE,
       modelling = TRUE
@@ -112,7 +112,7 @@ test_both_apps_sequential <- function() {
   cat("- Press [Enter] in R console to continue after testing\n\n")
   
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = bids_dir,
       region_definition = TRUE,
       modelling = TRUE
@@ -156,7 +156,7 @@ test_custom_parameters <- function() {
   cat("- Verify custom subfolder is used for analysis outputs\n\n")
   
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = bids_dir,
       blood_dir = blood_dir,
       subfolder = "Custom_Analysis",
@@ -186,7 +186,7 @@ test_error_conditions <- function() {
   # Test 1: Non-existent directory
   cat("1. Testing with non-existent BIDS directory...\n")
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = "/this/path/does/not/exist",
       region_definition = TRUE,
       modelling = FALSE
@@ -201,7 +201,7 @@ test_error_conditions <- function() {
   bids_dir <- create_interactive_test_data()
   
   tryCatch({
-    launch_apps(
+    launch_petfit_apps(
       bids_dir = bids_dir,
       region_definition = FALSE,
       modelling = FALSE
@@ -268,13 +268,13 @@ run_all_interactive_tests <- function() {
 # Convenience functions for quick testing
 quick_test_region_app <- function() {
   bids_dir <- create_interactive_test_data()
-  launch_apps(bids_dir = bids_dir, region_definition = TRUE, modelling = FALSE)
+  launch_petfit_apps(bids_dir = bids_dir, region_definition = TRUE, modelling = FALSE)
   cleanup_test_dirs(bids_dir)
 }
 
 quick_test_modelling_app <- function() {
   bids_dir <- create_interactive_test_data()  
-  launch_apps(bids_dir = bids_dir, region_definition = FALSE, modelling = TRUE)
+  launch_petfit_apps(bids_dir = bids_dir, region_definition = FALSE, modelling = TRUE)
   cleanup_test_dirs(bids_dir)
 }
 
