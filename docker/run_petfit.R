@@ -113,7 +113,7 @@ if (opt$mode == "interactive") {
   cat("Shiny app will be available at http://localhost:3838\n")
   cat("Container will exit when app is closed\n")
   cat("\n")
-  
+
   # Launch apps interactively
   if (opt$func == "regiondef") {
     region_definition_app(
@@ -136,7 +136,7 @@ if (opt$mode == "interactive") {
       subfolder = opt$analysis_foldername
     )
   }
-  
+
   cat("App closed. Container exiting.\n")
   
 } else if (opt$mode == "automatic") {
