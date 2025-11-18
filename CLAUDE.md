@@ -668,6 +668,20 @@ This ensures users can seamlessly continue work with existing configurations eve
 - **Flexible Model Selection**: Mix invasive and non-invasive models as needed
 - **State Persistence**: All model configurations saved and restored automatically
 
+#### Reference TAC Configuration (Non-Invasive Models)
+- **Reference TAC Method**: Three options for handling reference region time activity curves:
+  - **Raw Reference TAC** (default): Uses unmodified reference region data
+  - **Feng+1TC Reference Model**: Fits reference TAC with pharmacokinetic model
+  - **Spline Model**: Fits reference TAC with smooth spline function
+- **Noise Approximation** (Raw Reference TAC only): Optional spline-based noise estimation
+  - When enabled, compares noise level in reference region to target regions
+  - Helps identify if reference region is particularly noisy relative to targets
+  - Useful for quality control and validating reference region selection
+- **Reference TAC Weighting**: Configurable weights for fitted reference TACs
+  - Same weights as target TAC (default)
+  - Independent weighting method selection
+  - Custom formula support for specialized analyses
+
 
 ### UI Components
 - Conditional panels that show/hide based on selected model

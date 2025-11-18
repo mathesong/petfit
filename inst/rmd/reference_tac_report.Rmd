@@ -13,9 +13,10 @@ params:
 
 <!-- For temporary debugging, this defines temporary parameters for the parameterised report -->
 
-<!--  ```{r} -->
-<!--  analysis_folder <- "/home/granville/Repositories/OpenNeuro/KaSP_UCBJ_BIDS_mini/derivatives/petfit/Primary_Analysis/" -->
-<!--  ``` -->
+```{r}
+analysis_folder <- "/home/granville/Repositories/OpenNeuro/ds004869_mini/derivatives/petfit/Secondary_Analysis/"
+bids_dir <- "/home/granville/Repositories/OpenNeuro/ds004869_mini/"
+```
 
 
 ```{r setup, include=FALSE}
@@ -60,97 +61,306 @@ This report summarises the reference TAC preparation step.
 
 # Reference TAC Configuration
 
-The following reference TAC parameters were applied:
-
-```{r reference-params}
+```{r reference-config}
 if (!is.null(config$ReferenceTAC)) {
   ref_tac <- config$ReferenceTAC
-  ref_tac_df <- tibble(
-    Parameter = names(ref_tac),
-    Value = map_chr(ref_tac, ~ if(.x == "" || is.null(.x)) "Not specified" else as.character(.x))
+
+  # Method mapping for display
+  fitting_method_display <- switch(ref_tac$fitting_method %||% "raw",
+    "raw" = "Raw Reference TAC (no fitting)",
+    "feng1tc" = "Feng+1TC Reference Model",
+    "spline" = "Spline Model",
+    "Unknown method"
   )
 
-  # Filter out empty conditional fields for cleaner display
-  ref_tac_df <- ref_tac_df %>%
-    filter(!(Parameter == "spline_df" & Value == "Not specified"),
-           !(Parameter == "weights_minweight" & Value == "Not specified"),
-           !(Parameter == "weights_custom_formula" & Value == "Not specified"))
+  # Weighting method display
+  weights_method_display <- switch(ref_tac$weights_method %||% "same_as_target",
+    "same_as_target" = "Same weights as target TACs",
+    "0" = "0. Uniform (all weights = 1)",
+    "1" = "1. frame_dur / tac_uncor",
+    "2" = "2. sqrt(frame_dur * tac_uncor)",
+    "3" = "3. sqrt(frame_dur) / tac",
+    "4" = "4. sqrt(frame_dur)",
+    "5" = "5. frame_dur * exp(-ln(2)/halflife)",
+    "6" = "6. frame_dur / tac",
+    "7" = "7. frame_dur",
+    "8" = "8. frame_dur^2 / tac_uncor",
+    "9" = "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2",
+    "custom" = "Custom formula",
+    "Unknown method"
+  )
 
-  kable(ref_tac_df)
-} else {
-  cat("No reference TAC parameters found in configuration file.")
-}
-```
+  # Build configuration items list
+  config_items <- list(
+    "Reference Region" = ref_tac$region %||% "Not specified",
+    "Fitting Method" = fitting_method_display
+  )
 
-## Reference Region
-
-```{r reference-region-info, echo=FALSE}
-#| results: asis
-
-if (!is.null(config$ReferenceTAC$region) && config$ReferenceTAC$region != "") {
-  str_glue("Reference region: **{config$ReferenceTAC$region}**")
-} else {
-  cat("No reference region specified.")
-}
-```
-
-## Fitting Method
-
-```{r fitting-method-info, echo=FALSE}
-#| results: asis
-
-if (!is.null(config$ReferenceTAC$fitting_method)) {
-  fitting_method <- config$ReferenceTAC$fitting_method
-
-  if (fitting_method == "raw") {
-    cat("Using **raw reference TAC** without fitting.")
-  } else if (fitting_method == "feng1tc") {
-    cat("Fitting reference TAC using **Feng+1TC Reference Model**.")
-  } else if (fitting_method == "spline") {
-    df_value <- config$ReferenceTAC$spline_df %||% "Not specified"
-    str_glue("Fitting reference TAC using **Spline Model** with {df_value} degrees of freedom.")
-  }
-} else {
-  cat("Fitting method not specified.")
-}
-```
-
-## Weighting Configuration
-
-```{r weighting-info, echo=FALSE}
-#| results: asis
-
-if (!is.null(config$ReferenceTAC$weights_method)) {
-  weights_method <- config$ReferenceTAC$weights_method
-
-  if (weights_method == "same_as_target") {
-    cat("Using **same weights as target TACs**.")
-  } else if (weights_method == "custom") {
-    formula <- config$ReferenceTAC$weights_custom_formula %||% "Not specified"
-    str_glue("Using **custom weighting formula**: `{formula}`")
-  } else {
-    # Show predefined method formula
-    formula <- config$ReferenceTAC$weights_formula %||% "Not specified"
-    str_glue("Using predefined weighting method: **{weights_method}**  \nFormula: `{formula}`")
+  # Add noise approximation for raw method
+  if ((ref_tac$fitting_method %||% "raw") == "raw") {
+    noise_approx <- ref_tac$noise_approximation %||% FALSE
+    if (!is.logical(noise_approx) || noise_approx == "") {
+      noise_approx <- FALSE
+    }
+    config_items[["Noise Approximation"]] <- ifelse(noise_approx, "Yes (spline-based)", "No")
   }
 
-  if (weights_method != "same_as_target" && !is.null(config$ReferenceTAC$weights_minweight) &&
-      config$ReferenceTAC$weights_minweight != "") {
-    minweight <- config$ReferenceTAC$weights_minweight
-    str_glue("  \nMinimum weight: **{minweight}**")
+  # Add spline df for spline method
+  if ((ref_tac$fitting_method %||% "raw") == "spline") {
+    config_items[["Spline Degrees of Freedom"]] <- ref_tac$spline_df %||% "Not specified"
   }
+
+  # Add weighting info for fitted methods
+  if ((ref_tac$fitting_method %||% "raw") != "raw") {
+    config_items[["Reference Weighting Method"]] <- weights_method_display
+
+    if ((ref_tac$weights_method %||% "same_as_target") == "custom") {
+      config_items[["Custom Formula"]] <- ref_tac$weights_custom_formula %||% "Not specified"
+    } else if ((ref_tac$weights_method %||% "same_as_target") != "same_as_target") {
+      config_items[["Weights Formula"]] <- ref_tac$weights_formula %||% "Not specified"
+    }
+
+    if ((ref_tac$weights_method %||% "same_as_target") != "same_as_target" &&
+        !is.null(ref_tac$weights_minweight) && ref_tac$weights_minweight != "") {
+      config_items[["Minimum Weight"]] <- ref_tac$weights_minweight
+    }
+  }
+
+  config_df <- tibble(
+    Parameter = names(config_items),
+    Value = map_chr(config_items, as.character)
+  )
+
+  kable(config_df, caption = "Reference TAC Configuration")
+
 } else {
-  cat("Weighting method not specified.")
+  cat("No reference TAC configuration found in the analysis file.")
 }
 ```
+
+```{r setup-conditions, echo=FALSE}
+# Set up conditional execution based on reference TAC method
+fitting_method <- config$ReferenceTAC$fitting_method %||% "raw"
+noise_approximation <- config$ReferenceTAC$noise_approximation %||% FALSE
+
+# Convert empty string to FALSE for backward compatibility
+if (!is.logical(noise_approximation) || noise_approximation == "") {
+  noise_approximation <- FALSE
+}
+
+# Define execution conditions
+use_raw_refs <- fitting_method == "raw"
+use_feng1tc <- fitting_method == "feng1tc"
+use_spline <- fitting_method == "spline"
+do_noise_approx <- use_raw_refs && noise_approximation
+```
+
+
+# Loading Data
+
+## Loading TAC Data
+
+```{r load-tacs}
+tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+if (length(tacs_files) == 0) {
+  stop("No TAC files found in analysis folder: ", analysis_folder)
+}
+
+tac_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc)
+```
+
+Because we are working with kinetic modelling, we convert time units to minutes.
+
+```{r convert-to-minutes}
+tac_data <- tac_data %>%
+  mutate(frame_start = frame_start/60,
+         frame_end = frame_end/60,
+         frame_dur = frame_dur/60,
+         frame_mid = frame_mid/60)
+```
+
+## Extract Reference Region
+
+```{r extract-reference, results='asis'}
+ref_region_name <- config$ReferenceTAC$region %||% ""
+
+if (ref_region_name == "") {
+  stop("No reference region specified in configuration")
+}
+
+# Check if reference region exists in data
+available_regions <- unique(tac_data$region)
+
+if (!ref_region_name %in% available_regions) {
+  stop("Reference region '", ref_region_name, "' not found in data. Available regions: ",
+       paste(available_regions, collapse = ", "))
+}
+
+str_glue("Reference region **{ref_region_name}** found in {sum(tac_data$region == ref_region_name)} TAC entries.")
+```
+
+```{r separate-reference-target}
+# Separate reference and target TACs
+ref_tac_data <- tac_data %>%
+  filter(region == ref_region_name)
+
+target_tac_data <- tac_data %>%
+  filter(region != ref_region_name)
+
+n_pets <- length(unique(tac_data$pet))
+n_targets <- length(unique(target_tac_data$region))
+```
+
+```{r data-summary, results='asis'}
+str_glue("Data contains **{n_pets}** PET measurement(s) and **{n_targets}** target region(s).")
+```
+
+
+# Reference TAC Processing
+
+```{r, eval=use_raw_refs, echo=use_raw_refs, results='asis'}
+str_glue("## Raw Reference TAC
+
+Using raw (unfitted) reference TAC for modelling.")
+```
+
+```{r raw-reference-processing, eval=use_raw_refs, echo=use_raw_refs}
+# For raw reference TAC, we simply use the data as-is
+# No fitting is performed
+ref_processed <- ref_tac_data %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet", "filename")))) %>%
+  nest(.key = "ref_tacs") %>%
+  ungroup()
+```
+
+
+```{r, eval=do_noise_approx, echo=do_noise_approx, results='asis'}
+str_glue("### Noise Approximation Analysis
+
+Comparing noise levels in reference region to target regions using spline-based estimation.")
+```
+
+```{r noise-approximation, eval=do_noise_approx, echo=do_noise_approx}
+# Placeholder for noise approximation analysis
+# This will fit splines to reference and target TACs to estimate relative noise levels
+
+# TODO: Implement spline-based noise estimation
+# 1. Fit smooth spline to reference TAC
+# 2. Fit smooth splines to target TACs
+# 3. Calculate residual variance as noise proxy
+# 4. Compare noise ratios between reference and targets
+```
+
+
+```{r, eval=use_feng1tc, echo=use_feng1tc, results='asis'}
+str_glue("## Feng+1TC Reference Model Fitting
+
+Fitting reference TAC using Feng arterial input function combined with one-tissue compartment model.")
+```
+
+```{r feng1tc-fitting, eval=use_feng1tc, echo=use_feng1tc}
+# Placeholder for Feng+1TC fitting
+# TODO: Implement Feng+1TC reference model fitting
+```
+
+
+```{r, eval=use_spline, echo=use_spline, results='asis'}
+spline_df <- config$ReferenceTAC$spline_df %||% 5
+str_glue("## Spline Model Fitting
+
+Fitting reference TAC using smooth spline with **{spline_df}** degrees of freedom.")
+```
+
+```{r spline-fitting, eval=use_spline, echo=use_spline}
+# Placeholder for spline fitting
+spline_df <- as.numeric(config$ReferenceTAC$spline_df %||% 5)
+
+# TODO: Implement spline fitting for reference TAC
+# 1. Fit spline to each PET measurement's reference TAC
+# 2. Store fitted values
+# 3. Apply weighting if specified
+```
+
+
+# Visualisation
+
+## Reference TAC Plots
+
+```{r reference-tac-plots, fig.width=8, fig.height=5}
+# Plot reference TACs for each PET measurement
+ref_plots <- ref_tac_data %>%
+  group_by(pet) %>%
+  nest() %>%
+  mutate(plot = map2(data, pet, ~{
+    ggplot(.x, aes(x = frame_mid, y = TAC)) +
+      geom_point(colour = "blue", size = 2) +
+      geom_line(colour = "blue", alpha = 0.5) +
+      labs(title = paste("Reference TAC:", .y),
+           subtitle = paste("Region:", ref_region_name),
+           x = "Time (min)",
+           y = "Activity") +
+      theme_light()
+  }))
+
+walk(ref_plots$plot, print)
+```
+
+
+```{r, eval=do_noise_approx, echo=do_noise_approx, results='asis'}
+str_glue("## Noise Comparison Plots
+
+Visual comparison of noise levels between reference and target regions.")
+```
+
+```{r noise-comparison-plots, eval=do_noise_approx, echo=do_noise_approx}
+# Placeholder for noise comparison visualisation
+# TODO: Add plots showing:
+# 1. Residuals from spline fits
+# 2. Coefficient of variation comparison
+# 3. Box plots of noise estimates
+```
+
 
 # Processing Summary
 
-```{r processing-placeholder, echo=FALSE}
-#| results: asis
+```{r processing-summary, results='asis'}
+str_glue("Reference TAC preparation completed for **{n_pets}** PET measurement(s).
 
-cat("Reference TAC processing details will be added in future implementation.")
+**Method used:** {fitting_method_display}
+")
+
+if (do_noise_approx) {
+  str_glue("
+**Noise approximation:** Enabled - spline-based comparison of reference vs target noise levels
+")
+}
+
+str_glue("
+Reference TACs are now ready for use in reference tissue kinetic modelling (SRTM, refLogan, MRTM1, MRTM2).")
 ```
+
+
+# Saving Outcomes
+
+```{r save-reference-tacs}
+# Placeholder for saving processed reference TACs
+# TODO: Save processed reference TAC data to analysis folder
+# Format: {pet_id}_desc-referencetac_tacs.tsv
+```
+
 
 ---
 

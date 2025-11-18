@@ -428,7 +428,19 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                    numericInput("ref_spline_df", "Degrees of Freedom:",
                                               value = 5, min = 2, max = 20, step = 1)
                                  )
-                               )
+                               ),
+                              column(5,
+                                conditionalPanel(
+                                  condition = "input.ref_fitting_method == 'raw'",
+                                  div(
+                                    checkboxInput("ref_noise_approximation",
+                                                "Approximate noise in reference region using splines",
+                                                value = FALSE),
+                                    p("If selected, the noise level in the reference region will be compared to target regions. This can help identify if the reference region is particularly noisy.",
+                                      style = "font-size:11px; color:#6c757d; margin-top:0px;")
+                                  )
+                                )
+                              )
                              ),
 
                              # Reference TAC Weighting Method section - only shown when fitting is enabled
@@ -1502,6 +1514,13 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                value = as.numeric(existing_config$ReferenceTAC$spline_df) %||% 5)
             }
           }
+          # Restore noise approximation setting (backward compatible)
+          if (!is.null(existing_config$ReferenceTAC$noise_approximation)) {
+            if (existing_config$ReferenceTAC$noise_approximation != "") {
+              updateCheckboxInput(session, "ref_noise_approximation",
+                                value = existing_config$ReferenceTAC$noise_approximation %||% FALSE)
+            }
+          }
           # Restore reference weighting settings (backward compatible)
           if (!is.null(existing_config$ReferenceTAC$weights_method)) {
             updateSelectInput(session, "ref_weights_method",
@@ -1694,6 +1713,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       ReferenceTAC <- list(
         region = input$ref_region %||% "",
         fitting_method = input$ref_fitting_method %||% "raw",
+        noise_approximation = if(input$ref_fitting_method == "raw") input$ref_noise_approximation %||% FALSE else "",
         spline_df = if(input$ref_fitting_method == "spline") as.character(input$ref_spline_df %||% 5) else "",
         weights_method = ref_weights_method_selected,
         weights_formula = ref_weights_formula,
