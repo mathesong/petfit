@@ -599,7 +599,8 @@ par_table_long <- par_table %>%
 
 ggplot(par_table_long, aes(x=Value, fill=Parameter)) +
   geom_histogram(colour="black") +
-  guides(fill="none")
+  guides(fill="none") +
+  labs(x = expression(V[T]))
 ```
 
 
@@ -607,7 +608,8 @@ ggplot(par_table_long, aes(x=Value, fill=Parameter)) +
 
 ```{r, fig.width=6, fig.height=5}
 ggplot(par_table_long, aes(x=Value, fill=region)) +
-  geom_histogram(colour="black")
+  geom_histogram(colour="black") +
+  labs(x = expression(V[T]))
 ```
 
 
@@ -620,9 +622,7 @@ fitplots <- model_data %>%
   mutate(title = paste(pet, " : ", region)) %>% 
   mutate(fitplot = pmap(list(fit_Logan, region, title), 
                         ~plot(..1, roiname=..2) + 
-                          labs(title = ..3,
-                               y = "Radioactivity (kBq)",
-                               x = "Time (min)"))) %>% 
+                          labs(title = ..3))) %>% 
   pull(fitplot)
 
 walk(fitplots, ~print(.x))
