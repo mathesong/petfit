@@ -29,6 +29,7 @@ library(jsonlite)
 library(plotly)
 library(crosstalk)
 library(htmltools)
+library(scales)
 
 theme_set(theme_light())
 
@@ -181,15 +182,6 @@ tac_data <- tibble(
   select(-basename, -measurement, -desc)
 ```
 
-Because we are working with kinetic modelling, we convert time units to minutes.
-
-```{r convert-to-minutes}
-tac_data <- tac_data %>%
-  mutate(frame_start = frame_start/60,
-         frame_end = frame_end/60,
-         frame_dur = frame_dur/60,
-         frame_mid = frame_mid/60)
-```
 
 ## Extract Reference Region
 
@@ -208,23 +200,202 @@ if (!ref_region_name %in% available_regions) {
        paste(available_regions, collapse = ", "))
 }
 
-str_glue("Reference region **{ref_region_name}** found in {sum(tac_data$region == ref_region_name)} TAC entries.")
+unique_pets <- length(unique(tac_data$pet))
+
+pet_with_refs <- tac_data %>% 
+  filter(region == ref_region_name) %>% 
+  filter(!duplicated(pet)) %>% 
+  pull(pet) %>% 
+  length()
+
+str_glue("Reference region **{ref_region_name}** found for {pet_with_refs} of {unique_pets} PET measurements.")
 ```
 
-```{r separate-reference-target}
-# Separate reference and target TACs
-ref_tac_data <- tac_data %>%
-  filter(region == ref_region_name)
 
-target_tac_data <- tac_data %>%
-  filter(region != ref_region_name)
+```{r}
+ref_tac_data <- tac_data %>% 
+  filter(region == ref_region_name) %>% 
+  select(-filename, -region) %>% 
+  rename(RefTAC = TAC)
 
-n_pets <- length(unique(tac_data$pet))
-n_targets <- length(unique(target_tac_data$region))
+target_tac_data <- tac_data %>% 
+  filter(region != ref_region_name) %>% 
+  select(-filename)
 ```
 
-```{r data-summary, results='asis'}
-str_glue("Data contains **{n_pets}** PET measurement(s) and **{n_targets}** target region(s).")
+
+# Reference Weights Calculation
+
+```{r setup-ref-weights-conditions, echo=FALSE}
+# Determine if we need to calculate reference weights
+# Only needed for fitted methods (feng1tc, spline) and when not using same weights as target
+calculate_ref_weights <- (fitting_method %in% c("feng1tc", "spline")) &&
+                         ((config$ReferenceTAC$weights_method %||% "same_as_target") != "same_as_target")
+
+use_custom_ref_weights <- calculate_ref_weights &&
+                          ((config$ReferenceTAC$weights_method %||% "same_as_target") == "custom")
+use_defined_ref_weights <- calculate_ref_weights &&
+                           ((config$ReferenceTAC$weights_method %||% "same_as_target") != "custom")
+```
+
+```{r, eval=calculate_ref_weights, echo=calculate_ref_weights, results='asis'}
+str_glue("## Reference Region Weighting
+
+Calculating weights for the reference region fitting using method: **{config$ReferenceTAC$weights_formula %||% 'Not specified'}**")
+```
+
+```{r load-weight-files, eval=calculate_ref_weights, echo=calculate_ref_weights}
+# Load existing weight files created by weights_report.Rmd
+weight_files <- list.files(analysis_folder,
+                          pattern = "*_desc-weights_weights.tsv",
+                          recursive = TRUE,
+                          full.names = TRUE)
+
+if (length(weight_files) == 0) {
+  stop("No weight files found. Please run the weights calculation step first.")
+}
+
+# Read weight files and extract TAC data
+ref_weights_tacdata <- tibble(
+  filename = weight_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(weight_data = map(filename, ~read_tsv(.x, show_col_types = FALSE))) %>%
+  unnest(weight_data) %>%
+  select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC)
+```
+
+```{r ref-weights-radioisotope, eval=calculate_ref_weights, echo=calculate_ref_weights}
+# Extract radioisotope and halflife from Weights config (inherited from target weights)
+radioisotope <- config$Weights$radioisotope %||% "C11"
+halflife_raw <- config$Weights$halflife %||% ""
+
+# Convert empty strings back to NULL for function calls
+halflife <- if(halflife_raw == "" || is.null(halflife_raw)) NULL else as.numeric(halflife_raw)
+
+# Prepare radioisotope and half-life
+if (radioisotope == "Other" && !is.null(halflife)) {
+  radionuclide_halflife <- halflife
+  radioisotope_for_uncorrection <- "C11"  # Use as placeholder, actual halflife will override
+} else {
+  radionuclide_halflife <- NULL
+  radioisotope_for_uncorrection <- radioisotope
+}
+```
+
+```{r ref-weights-custom-prep, eval=use_custom_ref_weights, echo=use_custom_ref_weights}
+# Prepare data for custom weights calculation
+ref_weights_data <- ref_weights_tacdata %>%
+  rename(tac = TAC) %>%
+  mutate(tac_uncor = decay_uncorrect(frame_start, frame_end, tac,
+                                     radioisotope = radioisotope_for_uncorrection,
+                                     radionuclide_halflife = radionuclide_halflife)) %>%
+  mutate(corrections = tac_uncor/tac)
+```
+
+```{r gen-ref-weights-custom, eval=use_custom_ref_weights, echo=use_custom_ref_weights}
+# Apply custom weight formula
+apply_weight_formula <- function(data, formula_string) {
+  data %>%
+    mutate(calcweights = eval(parse(text = formula_string)))
+}
+
+ref_weights_output <- apply_weight_formula(ref_weights_data, config$ReferenceTAC$weights_formula) %>%
+  select(-tac_uncor, -corrections) %>%
+  rename(TAC = tac)
+```
+
+```{r minweight-ref-weights-custom, eval=use_custom_ref_weights, echo=use_custom_ref_weights}
+# Apply post-processing for custom weights
+minweight <- as.numeric(config$ReferenceTAC$weights_minweight %||% 0.25)
+
+ref_weights_final <- ref_weights_output %>%
+  mutate(
+    ref_weights = {
+
+      # Outlier protection for max weight
+      maxweight <- max(calcweights, na.rm = TRUE)
+      maxweights <- tail(calcweights[order(calcweights)], 5)
+      if (min(maxweights, na.rm = TRUE) < 0.5 * maxweight) {
+        maxweight <- median(maxweights)
+      }
+
+      # Normalize weights
+      calcweights[calcweights > maxweight] <- maxweight
+      calcweights <- calcweights / maxweight
+
+      # Apply minweight correction
+      minweights <- rep(minweight, length(calcweights))
+      if (any(calcweights < minweights)) {
+        min_calcweight <- min(calcweights[frame_dur != 0], na.rm = TRUE)
+        calcweights <- calcweights - min_calcweight / (1 - min_calcweight)
+        calcweights <- minweights + calcweights * (1 - minweights)
+      }
+
+      calcweights[frame_dur == 0] <- 0
+      calcweights
+    }
+  ) %>%
+  select(-calcweights)
+```
+
+```{r gen-ref-weights-defined, eval=use_defined_ref_weights, echo=use_defined_ref_weights}
+# Use predefined weighting methods
+if (as.numeric(config$ReferenceTAC$weights_method) == 0) {
+
+  # Method 0 (uniform weights)
+  ref_weights_output <- ref_weights_tacdata %>%
+    mutate(ref_weights = 1)
+
+} else {
+
+  # Using pre-defined weighting methods
+  ref_weights_output <- ref_weights_tacdata %>%
+    mutate(ref_weights = weights_create(t_start = frame_start/60,
+                                    t_end = frame_end/60,
+                                    TAC,
+                                    radioisotope = radioisotope_for_uncorrection,
+                                    method = as.numeric(config$ReferenceTAC$weights_method),
+                                    minweight = as.numeric(config$ReferenceTAC$weights_minweight %||% 0.25),
+                                    radionuclide_halflife = radionuclide_halflife))
+
+}
+
+ref_weights_final <- ref_weights_output
+```
+
+```{r normalise-ref-weights, eval=calculate_ref_weights, echo=calculate_ref_weights}
+# Normalise reference weights to mean 1
+ref_weights_final <- ref_weights_final %>%
+  group_by(pet) %>%
+  mutate(ref_weights = ref_weights/mean(ref_weights)) %>%
+  ungroup()
+```
+
+
+```{r, eval=!calculate_ref_weights && fitting_method != "raw", echo=FALSE, results='asis'}
+str_glue("## Reference Region Weighting
+
+Using the same weights as the target TACs for reference region fitting.")
+```
+
+```{r, eval=!calculate_ref_weights && fitting_method != "raw", echo=!calculate_ref_weights && fitting_method != "raw"}
+weights_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+ref_weights_final <- tibble(
+  filename = weights_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc, -TAC, -filename) %>% 
+  rename(ref_weights = weights)
+
+
 ```
 
 
@@ -239,7 +410,7 @@ Using raw (unfitted) reference TAC for modelling.")
 ```{r raw-reference-processing, eval=use_raw_refs, echo=use_raw_refs}
 # For raw reference TAC, we simply use the data as-is
 # No fitting is performed
-ref_processed <- ref_tac_data %>%
+ref_tac_preddata <- ref_tac_data %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet", "filename")))) %>%
   nest(.key = "ref_tacs") %>%
@@ -250,18 +421,66 @@ ref_processed <- ref_tac_data %>%
 ```{r, eval=do_noise_approx, echo=do_noise_approx, results='asis'}
 str_glue("### Noise Approximation Analysis
 
-Comparing noise levels in reference region to target regions using spline-based estimation.")
+Comparing noise levels in reference region to target regions using spline-based estimation. ",
+"Here we can compare whether the reference region has much greater approximated noise compared ",
+"to the target regions. We should be concerned with our reference region if the ",
+"RSS Ratio consistently << 1, implying much more noise in the reference region.")
 ```
 
-```{r noise-approximation, eval=do_noise_approx, echo=do_noise_approx}
-# Placeholder for noise approximation analysis
-# This will fit splines to reference and target TACs to estimate relative noise levels
 
-# TODO: Implement spline-based noise estimation
-# 1. Fit smooth spline to reference TAC
-# 2. Fit smooth splines to target TACs
-# 3. Calculate residual variance as noise proxy
-# 4. Compare noise ratios between reference and targets
+```{r noise-approximation, eval=do_noise_approx, echo=do_noise_approx, fig.height=6, fig.width=9}
+weights_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+weights_data <- tibble(
+  filename = weights_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc, -TAC, -filename)
+
+ref_tac_data_noisecalc <- ref_tac_data %>% 
+  inner_join(weights_data) %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet", "filename")))) %>%
+  nest(.key = "ref_tacs") %>% 
+  mutate(splinefit = map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+                                               tac     = .x$RefTAC,
+                                               weights = .x$weights))) %>% 
+  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) * 
+                                         (.x$tacs$TAC_fitted - .x$tacs$TAC)^2)))
+
+target_tac_data_noisecalc <- target_tac_data %>% 
+  inner_join(weights_data) %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet", "filename", "region")))) %>%
+  nest(.key = "target_tacs") %>% 
+  mutate(splinefit = map(target_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+                                                  tac     = .x$TAC,
+                                                  weights = .x$weights))) %>% 
+  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) * 
+                                         (.x$tacs$TAC_fitted - .x$tacs$TAC)^2)))
+
+RSS_compare <- ref_tac_data_noisecalc %>% 
+  select(-ref_tacs, -splinefit) %>% 
+  rename(RSS_Ref = RSS) %>% 
+  inner_join(target_tac_data_noisecalc %>% select(-target_tacs, -splinefit)) %>% 
+  mutate(RSS_Ratio = RSS / RSS_Ref)
+
+
+ggplot(RSS_compare,
+       aes(x=region, y=RSS_Ratio, colour=region)) + 
+  ggbeeswarm::geom_beeswarm(cex=2) +
+  geom_hline(yintercept=1, linetype="dashed") +
+  labs(x = "Region",
+       y = "RSS Ratio",
+       colour = "Region") +
+  scale_y_log10()
 ```
 
 
@@ -272,9 +491,55 @@ Fitting reference TAC using Feng arterial input function combined with one-tissu
 ```
 
 ```{r feng1tc-fitting, eval=use_feng1tc, echo=use_feng1tc}
-# Placeholder for Feng+1TC fitting
-# TODO: Implement Feng+1TC reference model fitting
+ref_tac_fitdata <- ref_tac_data %>% 
+  inner_join(ref_weights_final) %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key = "ref_tacs") 
+
+ref_tac_fitdata <- ref_tac_fitdata %>% 
+  mutate(ref_fit = map(ref_tacs, ~feng_1tc_tac(t_tac   = .x$frame_mid/60,
+                                              tac     = .x$RefTAC,
+                                              weights = .x$weights)))
+
+ref_tac_preddata <- ref_tac_fitdata %>% 
+  mutate(ref_preds = map(ref_fit, ~.x$tacs %>% 
+                          rename(frame_mid = Time, 
+                                 RefTAC = Reference,
+                                 RefTAC_fitted = Reference_fitted) %>% 
+                           mutate(frame_mid = frame_mid*60))) %>% 
+  select(-ref_fit) %>% 
+  mutate(ref_tacs = map2(ref_tacs, ref_preds, inner_join)) %>% 
+  mutate(ref_tacs = map(ref_tacs, ~.x %>% 
+                          rename(RefTAC_original = RefTAC,
+                                 RefTAC = RefTAC_fitted))) %>% 
+  select(-ref_preds) %>% 
+  mutate(ref_tacs_json = map(1:n(), ~list(RefTAC = "Modelled reference TAC",
+                                  RefTAC_original = "Original reference TAC",
+                                  ref_weights = "Weights used for reference TAC fitting")))
+
+ref_tac_pardata <- ref_tac_fitdata %>% 
+  mutate(ref_pars = map(ref_fit, "par")) %>% 
+  select(-ref_fit)
 ```
+
+
+```{r feng1tc-saving, eval=use_feng1tc, echo=use_feng1tc}
+
+```
+
+
+
+```{r, eval=use_feng1tc, echo=use_feng1tc, results='asis'}
+str_glue("### Feng+1TC Reference Model Plots")
+```
+
+```{r feng1tc-plotting, eval=use_feng1tc, echo=use_feng1tc}
+walk2(ref_tac_fitdata$ref_fit,
+      ref_tac_fitdata$pet, 
+      ~print(plot(.x) + labs(title = .y)))
+```
+
 
 
 ```{r, eval=use_spline, echo=use_spline, results='asis'}
@@ -285,80 +550,81 @@ Fitting reference TAC using smooth spline with **{spline_df}** degrees of freedo
 ```
 
 ```{r spline-fitting, eval=use_spline, echo=use_spline}
-# Placeholder for spline fitting
-spline_df <- as.numeric(config$ReferenceTAC$spline_df %||% 5)
+spline_df <- as.numeric(config$ReferenceTAC$spline_df %||% -1)
 
-# TODO: Implement spline fitting for reference TAC
-# 1. Fit spline to each PET measurement's reference TAC
-# 2. Store fitted values
-# 3. Apply weighting if specified
+ref_tac_fitdata <- ref_tac_data %>% 
+  inner_join(ref_weights_final) %>% 
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key = "ref_tacs") 
+
+ref_tac_fitdata <- ref_tac_fitdata %>% 
+  mutate(ref_fit = map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+                                              tac     = .x$RefTAC,
+                                              weights = .x$weights)))
+
+ref_tac_preddata <- ref_tac_fitdata %>% 
+  mutate(ref_preds = map(ref_fit, ~.x$tacs %>% 
+                          rename(frame_mid = Time, 
+                                 RefTAC = TAC,
+                                 RefTAC_fitted = TAC_fitted) %>% 
+                           mutate(frame_mid = frame_mid*60))) %>% 
+  select(-ref_fit) %>% 
+  mutate(ref_tacs = map2(ref_tacs, ref_preds, inner_join)) %>% 
+  mutate(ref_tacs = map(ref_tacs, ~.x %>% 
+                          rename(RefTAC_original = RefTAC,
+                                 RefTAC = RefTAC_fitted))) %>% 
+  select(-ref_preds) %>% 
+  mutate(ref_tacs_json = map(1:n(), ~list(RefTAC = "Modelled reference TAC",
+                                  RefTAC_original = "Original reference TAC",
+                                  ref_weights = "Weights used for reference TAC fitting")))
+
 ```
 
 
-# Visualisation
-
-## Reference TAC Plots
-
-```{r reference-tac-plots, fig.width=8, fig.height=5}
-# Plot reference TACs for each PET measurement
-ref_plots <- ref_tac_data %>%
-  group_by(pet) %>%
-  nest() %>%
-  mutate(plot = map2(data, pet, ~{
-    ggplot(.x, aes(x = frame_mid, y = TAC)) +
-      geom_point(colour = "blue", size = 2) +
-      geom_line(colour = "blue", alpha = 0.5) +
-      labs(title = paste("Reference TAC:", .y),
-           subtitle = paste("Region:", ref_region_name),
-           x = "Time (min)",
-           y = "Activity") +
-      theme_light()
-  }))
-
-walk(ref_plots$plot, print)
+```{r, eval=use_spline, echo=use_spline, results='asis'}
+str_glue("### Spline Reference Model Plots")
 ```
 
-
-```{r, eval=do_noise_approx, echo=do_noise_approx, results='asis'}
-str_glue("## Noise Comparison Plots
-
-Visual comparison of noise levels between reference and target regions.")
+```{r spline-plotting, eval=use_spline, echo=use_spline}
+walk2(ref_tac_fitdata$ref_fit,
+      ref_tac_fitdata$pet, 
+      ~print(plot(.x) + labs(title = .y)))
 ```
 
-```{r noise-comparison-plots, eval=do_noise_approx, echo=do_noise_approx}
-# Placeholder for noise comparison visualisation
-# TODO: Add plots showing:
-# 1. Residuals from spline fits
-# 2. Coefficient of variation comparison
-# 3. Box plots of noise estimates
-```
-
-
-# Processing Summary
-
-```{r processing-summary, results='asis'}
-str_glue("Reference TAC preparation completed for **{n_pets}** PET measurement(s).
-
-**Method used:** {fitting_method_display}
-")
-
-if (do_noise_approx) {
-  str_glue("
-**Noise approximation:** Enabled - spline-based comparison of reference vs target noise levels
-")
-}
-
-str_glue("
-Reference TACs are now ready for use in reference tissue kinetic modelling (SRTM, refLogan, MRTM1, MRTM2).")
-```
 
 
 # Saving Outcomes
 
 ```{r save-reference-tacs}
-# Placeholder for saving processed reference TACs
-# TODO: Save processed reference TAC data to analysis folder
-# Format: {pet_id}_desc-referencetac_tacs.tsv
+save_files <- tac_data %>% 
+  filter(!duplicated(filename)) %>% 
+  mutate(filename_tsv = str_replace(filename,
+                                "desc-combinedregions_tacs.tsv",
+                                "desc-ref_tacs.tsv")) %>% 
+  mutate(filename_json = str_replace(filename,
+                                "desc-combinedregions_tacs.tsv",
+                                "desc-ref_tacs.json")) %>% 
+  select(-filename) %>% 
+  select((intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                   "run", "pet", 
+                                   "filename_tsv",
+                                   "filename_json")))) %>% 
+  inner_join(ref_tac_preddata)
+
+save_files %>%
+  pwalk(function(ref_tacs, filename_tsv, ...) {
+    write_tsv(ref_tacs, 
+              file = paste0(analysis_folder, "/", filename_tsv))
+  })
+
+
+save_files %>%
+  pwalk(function(ref_tacs_json, filename_json, ...) {
+    write_json(ref_tacs_json, 
+               path = paste0(analysis_folder, "/", filename_json),
+               pretty=TRUE)
+  })
 ```
 
 

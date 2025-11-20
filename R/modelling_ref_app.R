@@ -29,6 +29,9 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     bids_dir <- normalizePath(bids_dir, mustWork = FALSE)
   }
   derivatives_dir <- normalizePath(derivatives_dir, mustWork = FALSE)
+  if (!is.null(blood_dir)) {
+    blood_dir <- normalizePath(blood_dir, mustWork = FALSE)
+  }
   
   # Create derivatives directory if it doesn't exist
   if (!dir.exists(derivatives_dir)) {
@@ -248,7 +251,41 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                          fluidRow(
                            column(12, textInput(inputId = "subset_regions", label = "Regions", value = ""))
                          ),
-                         
+
+                         br(),
+                         h4("TAC Time Range Selection"),
+                         p("Optionally subset TAC data by frame number or time range. This will apply to all models unless overridden by a further reduced subset in individual model configurations.",
+                           style = "font-size:14px;"
+                         ),
+                         fluidRow(
+                           column(4,
+                                  selectInput(inputId = "subset_tac_type",
+                                            label = "Selection Method",
+                                            choices = c("None" = "none",
+                                                      "Frame Number" = "frame",
+                                                      "Time (minutes)" = "time"),
+                                            selected = "none")
+                           ),
+                           column(4,
+                                  conditionalPanel(
+                                    condition = "input.subset_tac_type != 'none'",
+                                    numericInput(inputId = "subset_tac_start",
+                                                label = "Start Point",
+                                                value = NULL,
+                                                min = 0)
+                                  )
+                           ),
+                           column(4,
+                                  conditionalPanel(
+                                    condition = "input.subset_tac_type != 'none'",
+                                    numericInput(inputId = "subset_tac_end",
+                                                label = "End Point",
+                                                value = NULL,
+                                                min = 0)
+                                  )
+                           )
+                         ),
+
                          hr(),
                          h3("Create Data"),
                          p("Generate individual TACs files for each measurement and create a report plotting the selected data.",
@@ -426,7 +463,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  conditionalPanel(
                                    condition = "input.ref_fitting_method == 'spline'",
                                    numericInput("ref_spline_df", "Degrees of Freedom:",
-                                              value = 5, min = 2, max = 20, step = 1)
+                                              value = 10, min = 2, max = 20, step = 1)
                                  )
                                ),
                               column(5,
@@ -576,14 +613,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                               radioButtons("subset_type", "Selection Method:",
-                                           choices = list("Frame Numbers" = "frame",
-                                                         "Time Points (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
+                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
-                                 column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                 column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                                 column(4,
+                                        selectInput("subset_type", "Selection Method:",
+                                                  choices = list("None" = "none",
+                                                               "Frame Numbers" = "frame",
+                                                               "Time Points (minutes)" = "time"),
+                                                  selected = "none")
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type != 'none'",
+                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type != 'none'",
+                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 )
                                ),
                                uiOutput("subset_validation_error")
                              ),
@@ -614,14 +664,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                              radioButtons("subset_type", "Selection Method:",
-                                          choices = list("Frame Numbers" = "frame",
-                                                        "Time Points (minutes)" = "time"),
-                                          selected = "time", inline = TRUE),
+                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                               fluidRow(
-                                column(6, numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                column(6, numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1))
+                                column(4,
+                                       selectInput("subset_type", "Selection Method:",
+                                                 choices = list("None" = "none",
+                                                              "Frame Numbers" = "frame",
+                                                              "Time Points (minutes)" = "time"),
+                                                 selected = "none")
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type != 'none'",
+                                         numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type != 'none'",
+                                         numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                )
                               ),
                               uiOutput("subset_validation_error")
                             ),
@@ -758,14 +821,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                               radioButtons("subset_type2", "Selection Method:",
-                                           choices = list("Frame Numbers" = "frame",
-                                                         "Time Points (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
+                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
-                                 column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                 column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                                 column(4,
+                                        selectInput("subset_type2", "Selection Method:",
+                                                  choices = list("None" = "none",
+                                                               "Frame Numbers" = "frame",
+                                                               "Time Points (minutes)" = "time"),
+                                                  selected = "none")
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type2 != 'none'",
+                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type2 != 'none'",
+                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 )
                                ),
                                uiOutput("subset_validation_error2")
                              ),
@@ -801,14 +877,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                              radioButtons("subset_type2", "Selection Method:",
-                                          choices = list("Frame Numbers" = "frame",
-                                                        "Time Points (minutes)" = "time"),
-                                          selected = "time", inline = TRUE),
+                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                               fluidRow(
-                                column(6, numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                column(6, numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1))
+                                column(4,
+                                       selectInput("subset_type2", "Selection Method:",
+                                                 choices = list("None" = "none",
+                                                              "Frame Numbers" = "frame",
+                                                              "Time Points (minutes)" = "time"),
+                                                 selected = "none")
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type2 != 'none'",
+                                         numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type2 != 'none'",
+                                         numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                )
                               ),
                               uiOutput("subset_validation_error2")
                             ),
@@ -961,14 +1050,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                               radioButtons("subset_type3", "Selection Method:",
-                                           choices = list("Frame Numbers" = "frame",
-                                                         "Time Points (minutes)" = "time"),
-                                           selected = "time", inline = TRUE),
+                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
-                                 column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                 column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                                 column(4,
+                                        selectInput("subset_type3", "Selection Method:",
+                                                  choices = list("None" = "none",
+                                                               "Frame Numbers" = "frame",
+                                                               "Time Points (minutes)" = "time"),
+                                                  selected = "none")
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type3 != 'none'",
+                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 ),
+                                 column(4,
+                                        conditionalPanel(
+                                          condition = "input.subset_type3 != 'none'",
+                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
+                                        )
+                                 )
                                ),
                                uiOutput("subset_validation_error3")
                              ),
@@ -1007,14 +1109,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). Leave blank to use all frames."),
-                              radioButtons("subset_type3", "Selection Method:",
-                                          choices = list("Frame Numbers" = "frame",
-                                                        "Time Points (minutes)" = "time"),
-                                          selected = "time", inline = TRUE),
+                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                               fluidRow(
-                                column(6, numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)),
-                                column(6, numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1))
+                                column(4,
+                                       selectInput("subset_type3", "Selection Method:",
+                                                 choices = list("None" = "none",
+                                                              "Frame Numbers" = "frame",
+                                                              "Time Points (minutes)" = "time"),
+                                                 selected = "none")
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type3 != 'none'",
+                                         numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                ),
+                                column(4,
+                                       conditionalPanel(
+                                         condition = "input.subset_type3 != 'none'",
+                                         numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
+                                       )
+                                )
                               ),
                               uiOutput("subset_validation_error3")
                             ),
@@ -1242,6 +1357,20 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           updateTextInput(session, "subset_rec", value = existing_config$Subsetting$rec %||% "")
           updateTextInput(session, "subset_run", value = existing_config$Subsetting$run %||% "")
           updateTextInput(session, "subset_regions", value = existing_config$Subsetting$Regions %||% "")
+
+          # Restore TAC subset parameters
+          if (!is.null(existing_config$Subsetting$tac_subset)) {
+            updateSelectInput(session, "subset_tac_type",
+                            selected = existing_config$Subsetting$tac_subset$type %||% "none")
+            updateNumericInput(session, "subset_tac_start",
+                             value = existing_config$Subsetting$tac_subset$start)
+            updateNumericInput(session, "subset_tac_end",
+                             value = existing_config$Subsetting$tac_subset$end)
+          } else {
+            updateSelectInput(session, "subset_tac_type", selected = "none")
+            updateNumericInput(session, "subset_tac_start", value = NULL)
+            updateNumericInput(session, "subset_tac_end", value = NULL)
+          }
         }
         
         # Helper function to restore model parameters
@@ -1339,7 +1468,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1358,7 +1487,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1385,7 +1514,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1408,7 +1537,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1421,7 +1550,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1440,7 +1569,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
-              updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
             }
@@ -1511,7 +1640,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           if (!is.null(existing_config$ReferenceTAC$spline_df)) {
             if (existing_config$ReferenceTAC$spline_df != "") {
               updateNumericInput(session, "ref_spline_df",
-                               value = as.numeric(existing_config$ReferenceTAC$spline_df) %||% 5)
+                               value = as.numeric(existing_config$ReferenceTAC$spline_df) %||% 10)
             }
           }
           # Restore noise approximation setting (backward compatible)
@@ -1665,6 +1794,15 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         run = input$subset_run,
         Regions = input$subset_regions
       )
+
+      # Add TAC subset if configured
+      if (!is.null(input$subset_tac_type) && input$subset_tac_type != "none") {
+        Subsetting$tac_subset <- list(
+          type = input$subset_tac_type,
+          start = input$subset_tac_start,
+          end = input$subset_tac_end
+        )
+      }
       
       # Weights Definition  
       # Define method formulas mapping
@@ -1714,7 +1852,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         region = input$ref_region %||% "",
         fitting_method = input$ref_fitting_method %||% "raw",
         noise_approximation = if(input$ref_fitting_method == "raw") input$ref_noise_approximation %||% FALSE else "",
-        spline_df = if(input$ref_fitting_method == "spline") as.character(input$ref_spline_df %||% 5) else "",
+        spline_df = if(input$ref_fitting_method == "spline") as.character(input$ref_spline_df %||% 10) else "",
         weights_method = ref_weights_method_selected,
         weights_formula = ref_weights_formula,
         weights_minweight = if(ref_weights_method_selected != "same_as_target") input$ref_weights_minweight %||% 0.25 else "",
@@ -1812,11 +1950,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           }
           
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
-          
-          if (!is.null(start_point) || !is.null(end_point)) {
+
+          if (!is.null(subset_type) && subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -1832,11 +1970,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           }
           
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
-          
-          if (!is.null(start_point) || !is.null(end_point)) {
+
+          if (!is.null(subset_type) && subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -1907,11 +2045,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
-          
-          if (!is.null(start_point) || !is.null(end_point)) {
+
+          if (!is.null(subset_type) && subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -1927,11 +2065,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           }
           
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
-          
-          if (!is.null(start_point) || !is.null(end_point)) {
+
+          if (!is.null(subset_type) && subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2045,176 +2183,169 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       stopApp()
     })
 
+    # ===========================================================================
+    # Shared Step Execution Functions
+    # ===========================================================================
+    # These thin wrappers save config then delegate to core functions in pipeline_core.R
+    # This allows both interactive (Shiny) and non-interactive (automatic) execution
+    # to use the same business logic
+
+    run_datadef_step <- function() {
+      # Save config first
+      save_config()
+
+      # Config path
+      config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
+
+      # Notification callback for Shiny
+      notify <- function(msg, type) {
+        showNotification(msg, type = type, duration = 5)
+      }
+
+      # Call core function
+      result <- execute_datadef_step(
+        config_path = config_path,
+        output_dir = output_dir,
+        petfit_dir = petfit_dir,
+        bids_dir = bids_dir,
+        blood_dir = NULL,  # Reference tissue models don't use blood data
+        notify = notify
+      )
+
+      return(result$success)
+    }
+
+    run_weights_step <- function() {
+      # Save config first
+      save_config()
+
+      # Config path
+      config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
+
+      # Notification callback for Shiny
+      notify <- function(msg, type) {
+        showNotification(msg, type = type, duration = 5)
+      }
+
+      # Call core function
+      result <- execute_weights_step(
+        config_path = config_path,
+        output_dir = output_dir,
+        bids_dir = bids_dir,
+        blood_dir = NULL,  # Reference tissue models don't use blood data
+        notify = notify
+      )
+
+      return(result$success)
+    }
+
+    run_reference_tac_step <- function() {
+      # Save config first
+      save_config()
+
+      # Config path
+      config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
+
+      # Notification callback for Shiny
+      notify <- function(msg, type) {
+        showNotification(msg, type = type, duration = 5)
+      }
+
+      # Call core function
+      result <- execute_reference_tac_step(
+        config_path = config_path,
+        output_dir = output_dir,
+        bids_dir = bids_dir,
+        notify = notify
+      )
+
+      return(result$success)
+    }
+
+    run_model_step <- function(model_num, subset_error_reactive = NULL) {
+      # Validate TAC subset selection
+      start_input <- switch(as.character(model_num),
+                           "1" = input$start_point,
+                           "2" = input$start_point2,
+                           "3" = input$start_point3)
+
+      end_input <- switch(as.character(model_num),
+                         "1" = input$end_point,
+                         "2" = input$end_point2,
+                         "3" = input$end_point3)
+
+      type_input <- switch(as.character(model_num),
+                          "1" = input$subset_type,
+                          "2" = input$subset_type2,
+                          "3" = input$subset_type3)
+
+      # Helper function to check if value is empty
+      is_empty <- function(x) {
+        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
+      }
+
+      # Check if only one endpoint is provided
+      start_empty <- is_empty(start_input)
+      end_empty <- is_empty(end_input)
+
+      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
+        error_msg <- if (type_input == "frame") {
+          "Please enter both start and end frames, or leave both blank"
+        } else {
+          "Please enter both start and end time points, or leave both blank"
+        }
+
+        if (!is.null(subset_error_reactive)) {
+          subset_error_reactive(error_msg)
+        }
+
+        showNotification(error_msg, type = "error", duration = 5)
+        return(FALSE)
+      }
+
+      # Clear error if validation passes
+      if (!is.null(subset_error_reactive)) {
+        subset_error_reactive(NULL)
+      }
+
+      # Save config first
+      save_config()
+
+      # Config path
+      config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
+
+      # Notification callback for Shiny
+      notify <- function(msg, type) {
+        showNotification(msg, type = type, duration = 5)
+      }
+
+      # Call core function
+      result <- execute_model_step(
+        config_path = config_path,
+        model_num = model_num,
+        output_dir = output_dir,
+        bids_dir = bids_dir,
+        blood_dir = NULL,  # Reference tissue models don't use blood data
+        notify = notify
+      )
+
+      return(result$success)
+    }
+
+    # ===========================================================================
+    # Manual Button Handlers
+    # ===========================================================================
     # Run button handlers - each saves config then executes step
     observeEvent(input$run_subset, {
-      save_config()
-      
-      # Check if combined TACs file exists in petfit folder
-      petfit_folder <- petfit_dir  # derivatives/petfit - contains combined TACs file
-      analysis_folder <- output_dir  # derivatives/petfit/{subfolder} - for individual files
-      combined_tacs_file <- file.path(petfit_folder, "desc-combinedregions_tacs.tsv")
-      
-      if (!file.exists(combined_tacs_file)) {
-        showNotification("Combined TACs file not found. Please run the region definition app first.", 
-                        type = "error", duration = 5)
-        return()
-      }
-      
-      tryCatch({
-        # Read combined TACs data from petfit folder
-        combined_data <- readr::read_tsv(combined_tacs_file, show_col_types = FALSE)
-        
-        if (nrow(combined_data) == 0) {
-          showNotification("Combined TACs file is empty", type = "error", duration = 5)
-          return()
-        }
-        
-        # Parse subsetting parameters
-        subset_params <- list(
-          sub = parse_semicolon_values(input$subset_sub),
-          ses = parse_semicolon_values(input$subset_ses),
-          task = parse_semicolon_values(input$subset_task),
-          trc = parse_semicolon_values(input$subset_trc),
-          rec = parse_semicolon_values(input$subset_rec),
-          run = parse_semicolon_values(input$subset_run),
-          regions = parse_semicolon_values(input$subset_regions)
-        )
-        
-        # Apply subsetting
-        filtered_data <- subset_combined_tacs(combined_data, subset_params)
-        
-        if (nrow(filtered_data) == 0) {
-          showNotification("No data matches the subsetting criteria", type = "warning", duration = 5)
-          return()
-        }
-        
-        # Create individual TACs files in analysis folder
-        result <- create_individual_tacs_files(filtered_data, analysis_folder)
-        
-        # Show generating report notification
-        showNotification("Generating report...", type = "message", duration = NULL, id = "generating_report")
-        
-        cat("=== Data Subsetting Complete ===\n")
-        cat("Files created:", result$files_created, "\n")
-        cat("Analysis folder:", analysis_folder, "\n")
-        cat("Total measurements:", nrow(filtered_data), "\n")  
-        cat("Unique subjects:", length(unique(filtered_data$sub)), "\n")
-        cat("Unique regions:", length(unique(filtered_data$region)), "\n")
-        
-        # Generate data definition report
-        tryCatch({
-          report_file <- generate_step_report(
-            step_name = "data_definition",
-            analysis_folder = analysis_folder,
-            bids_dir = bids_dir,
-            blood_dir = blood_dir
-          )
-          
-          # Remove generating notification and show completion
-          removeNotification(id = "generating_report")
-          
-          if (!is.null(report_file)) {
-            showNotification("Data definition report generated successfully", type = "message", duration = 5)
-          } else {
-            showNotification("Report generation completed", type = "message", duration = 5)
-          }
-          
-        }, error = function(e) {
-          # Remove generating notification and show error
-          removeNotification(id = "generating_report")
-          showNotification("Error generating report", type = "error", duration = 5)
-          cat("Warning: Could not generate data definition report:", e$message, "\n")
-        })
-        
-      }, error = function(e) {
-        error_msg <- paste("Error during data subsetting:", e$message)
-        showNotification(error_msg, type = "error", duration = 10)
-        cat("Error:", e$message, "\n")
-      })
+      run_datadef_step()
     })
     
     observeEvent(input$run_weights, {
-      # Check for combined regions TACs files first
-      tacs_files <- list.files(output_dir, 
-                              pattern = "*_desc-combinedregions_tacs.tsv", 
-                              recursive = TRUE)
-      
-      if (length(tacs_files) == 0) {
-        showNotification("No combined regions TACs files found. Please run Data Definition first to create individual TACs files.", 
-                        type = "error", duration = 8)
-        return()
-      }
-      
-      save_config()
-      # TODO: Add actual weights calculation logic
-      
-      # Generate weights report
-      showNotification("Generating weights report...", type = "message", duration = NULL, id = "generating_weights_report")
-      
-      tryCatch({
-        report_file <- generate_step_report(
-          step_name = "weights",
-          analysis_folder = output_dir,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-        
-        removeNotification(id = "generating_weights_report")
-        
-        if (!is.null(report_file)) {
-          showNotification("Weights report generated", type = "message", duration = 3)
-        } else {
-          showNotification("Weights report generation failed - check console for details", type = "error", duration = 5)
-        }
-        
-      }, error = function(e) {
-        removeNotification(id = "generating_weights_report")
-        error_msg <- paste("Could not generate weights report:", e$message)
-        showNotification(error_msg, type = "error", duration = 8)
-        cat("Error generating weights report:", e$message, "\n")
-      })
+      run_weights_step()
     })
 
     observeEvent(input$run_reference_tac, {
-      # Check for combined regions TACs files first
-      tacs_files <- list.files(output_dir,
-                              pattern = "*_desc-combinedregions_tacs.tsv",
-                              recursive = TRUE)
-
-      if (length(tacs_files) == 0) {
-        showNotification("No combined regions TACs files found. Please run Data Definition first to create individual TACs files.",
-                        type = "error", duration = 8)
-        return()
-      }
-
-      save_config()
-      # TODO: Add actual reference TAC preparation logic
-
-      # Generate reference TAC report
-      showNotification("Generating Reference TAC Report...", type = "message", duration = NULL, id = "generating_reference_tac_report")
-
-      tryCatch({
-        report_file <- generate_step_report(
-          step_name = "reference_tac",
-          analysis_folder = output_dir,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-
-        removeNotification(id = "generating_reference_tac_report")
-
-        if (!is.null(report_file)) {
-          showNotification("Reference TAC report generated", type = "message", duration = 3)
-        } else {
-          showNotification("Reference TAC report generation failed - check console for details", type = "error", duration = 5)
-        }
-
-      }, error = function(e) {
-        removeNotification(id = "generating_reference_tac_report")
-        error_msg <- paste("Could not generate Reference TAC report:", e$message)
-        showNotification(error_msg, type = "error", duration = 8)
-        cat("Error generating Reference TAC report:", e$message, "\n")
-      })
+      run_reference_tac_step()
     })
 
     # Reactive values for TAC subset validation errors
@@ -2223,192 +2354,15 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     subset_error3 <- reactiveVal(NULL)
 
     observeEvent(input$run_model1, {
-      # Validate TAC subset selection
-      start <- input$start_point
-      end <- input$end_point
-      type <- input$subset_type
-
-      # Helper function to check if value is empty (NULL, NA, or length 0)
-      is_empty <- function(x) {
-        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
-      }
-
-      # Check if only one endpoint is provided
-      start_empty <- is_empty(start)
-      end_empty <- is_empty(end)
-
-      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
-        error_msg <- if (type == "frame") {
-          "Please enter both start and end frames, or leave both blank"
-        } else {
-          "Please enter both start and end time points, or leave both blank"
-        }
-        subset_error(error_msg)
-        return()
-      }
-
-      # Clear error if validation passes
-      subset_error(NULL)
-
-      # Save configuration
-      save_config()
-
-      # Show fitting notification
-      model_type <- input$button %||% "SRTM"
-      showNotification(paste("Fitting Model 1 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model1")
-      
-      # Generate model 1 report
-      tryCatch({
-        report_file <- generate_model_report(
-          model_type = model_type,
-          model_number = "Model 1",
-          analysis_folder = output_dir,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-
-        # Remove fitting notification and show completion
-        removeNotification(id = "fitting_model1")
-
-        # Check if report was actually generated
-        if (!is.null(report_file)) {
-          showNotification("Model 1 fitting report generated successfully", type = "message", duration = 5)
-        } else {
-          showNotification("Error fitting Model 1: report generation failed", type = "error", duration = 5)
-        }
-
-      }, error = function(e) {
-        # Remove fitting notification and show error
-        removeNotification(id = "fitting_model1")
-        showNotification("Error fitting Model 1", type = "error", duration = 5)
-        cat("Warning: Could not generate Model 1 report:", e$message, "\n")
-      })
+      run_model_step(1, subset_error)
     })
-    
+
     observeEvent(input$run_model2, {
-      # Validate TAC subset selection
-      start <- input$start_point2
-      end <- input$end_point2
-      type <- input$subset_type2
-
-      # Helper function to check if value is empty (NULL, NA, or length 0)
-      is_empty <- function(x) {
-        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
-      }
-
-      # Check if only one endpoint is provided
-      start_empty <- is_empty(start)
-      end_empty <- is_empty(end)
-
-      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
-        error_msg <- if (type == "frame") {
-          "Please enter both start and end frames, or leave both blank"
-        } else {
-          "Please enter both start and end time points, or leave both blank"
-        }
-        subset_error2(error_msg)
-        return()
-      }
-
-      # Clear error if validation passes
-      subset_error2(NULL)
-
-      # Save configuration
-      save_config()
-
-      # Show fitting notification
-      model_type <- input$button2 %||% "SRTM"
-      showNotification(paste("Fitting Model 2 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model2")
-      
-      # Generate model 2 report
-      tryCatch({
-        report_file <- generate_model_report(
-          model_type = model_type,
-          model_number = "Model 2",
-          analysis_folder = output_dir,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-
-        # Remove fitting notification and show completion
-        removeNotification(id = "fitting_model2")
-
-        # Check if report was actually generated
-        if (!is.null(report_file)) {
-          showNotification("Model 2 fitting report generated successfully", type = "message", duration = 5)
-        } else {
-          showNotification("Error fitting Model 2: report generation failed", type = "error", duration = 5)
-        }
-
-      }, error = function(e) {
-        # Remove fitting notification and show error
-        removeNotification(id = "fitting_model2")
-        showNotification("Error fitting Model 2", type = "error", duration = 5)
-        cat("Warning: Could not generate Model 2 report:", e$message, "\n")
-      })
+      run_model_step(2, subset_error2)
     })
-    
+
     observeEvent(input$run_model3, {
-      # Validate TAC subset selection
-      start <- input$start_point3
-      end <- input$end_point3
-      type <- input$subset_type3
-
-      # Helper function to check if value is empty (NULL, NA, or length 0)
-      is_empty <- function(x) {
-        is.null(x) || length(x) == 0 || (length(x) == 1 && is.na(x))
-      }
-
-      # Check if only one endpoint is provided
-      start_empty <- is_empty(start)
-      end_empty <- is_empty(end)
-
-      if ((!start_empty && end_empty) || (start_empty && !end_empty)) {
-        error_msg <- if (type == "frame") {
-          "Please enter both start and end frames, or leave both blank"
-        } else {
-          "Please enter both start and end time points, or leave both blank"
-        }
-        subset_error3(error_msg)
-        return()
-      }
-
-      # Clear error if validation passes
-      subset_error3(NULL)
-
-      # Save configuration
-      save_config()
-
-      # Show fitting notification
-      model_type <- input$button3 %||% "SRTM"
-      showNotification(paste("Fitting Model 3 (", model_type, ")..."), type = "message", duration = NULL, id = "fitting_model3")
-      
-      # Generate model 3 report
-      tryCatch({
-        report_file <- generate_model_report(
-          model_type = model_type,
-          model_number = "Model 3",
-          analysis_folder = output_dir,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-
-        # Remove fitting notification and show completion
-        removeNotification(id = "fitting_model3")
-
-        # Check if report was actually generated
-        if (!is.null(report_file)) {
-          showNotification("Model 3 fitting report generated successfully", type = "message", duration = 5)
-        } else {
-          showNotification("Error fitting Model 3: report generation failed", type = "error", duration = 5)
-        }
-
-      }, error = function(e) {
-        # Remove fitting notification and show error
-        removeNotification(id = "fitting_model3")
-        showNotification("Error fitting Model 3", type = "error", duration = 5)
-        cat("Warning: Could not generate Model 3 report:", e$message, "\n")
-      })
+      run_model_step(3, subset_error3)
     })
     
     observeEvent(input$run_interactive, {
@@ -2420,51 +2374,95 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     # Run All button handler
     observeEvent(input$run_all, {
       save_config()
-      
-      # Show initial notification
-      showNotification("Starting automatic pipeline execution...", type = "message", duration = 3, id = "run_all_start")
-      
-      # Run the automatic pipeline
-      tryCatch({
-        result <- petfit_modelling_auto(
-          analysis_subfolder = subfolder,
-          bids_dir = bids_dir,
-          derivatives_dir = derivatives_dir,
-          blood_dir = blood_dir,
-          step = NULL  # NULL means full pipeline
-        )
-        
-        if (result$success) {
-          # Show success message with reports generated
-          success_msg <- "All pipeline steps completed successfully! Closing app..."
-          if (length(result$reports_generated) > 0) {
-            success_msg <- paste0("All pipeline steps completed successfully! Reports generated: ",
-                                 paste(result$reports_generated, collapse = ", "), ". Closing app...")
-          }
-          showNotification(success_msg, type = "message", duration = 3)
 
-          # Log all messages to console
-          for (msg in result$messages) {
-            cat("[Run All]", msg, "\n")
+      # Show initial notification
+      showNotification("Starting automatic pipeline execution...", type = "message", duration = 3)
+      cat("[Run All] Starting automatic pipeline execution...\n")
+
+      # Run the automatic pipeline by calling each step function sequentially
+      tryCatch({
+        all_success <- TRUE
+
+        # Step 1: Data Definition
+        cat("[Run All] Executing step: datadef\n")
+        if (run_datadef_step()) {
+          cat("[Run All] Step datadef completed successfully\n")
+        } else {
+          cat("[Run All] Step datadef failed\n")
+          all_success <- FALSE
+        }
+
+        # Step 2: Weights (only if previous step succeeded)
+        if (all_success) {
+          cat("[Run All] Executing step: weights\n")
+          if (run_weights_step()) {
+            cat("[Run All] Step weights completed successfully\n")
+          } else {
+            cat("[Run All] Step weights failed\n")
+            all_success <- FALSE
           }
+        }
+
+        # Step 3: Reference TAC (only if previous steps succeeded)
+        if (all_success) {
+          cat("[Run All] Executing step: reference_tac\n")
+          if (run_reference_tac_step()) {
+            cat("[Run All] Step reference_tac completed successfully\n")
+          } else {
+            cat("[Run All] Step reference_tac failed\n")
+            all_success <- FALSE
+          }
+        }
+
+        # Step 4: Model 1 (only if previous steps succeeded)
+        if (all_success && !is.null(input$button) && input$button != "No Model") {
+          cat("[Run All] Executing step: model1\n")
+          if (run_model_step(1, subset_error)) {
+            cat("[Run All] Step model1 completed successfully\n")
+          } else {
+            cat("[Run All] Step model1 failed\n")
+            all_success <- FALSE
+          }
+        }
+
+        # Step 5: Model 2 (only if previous steps succeeded)
+        if (all_success && !is.null(input$button2) && input$button2 != "No Model") {
+          cat("[Run All] Executing step: model2\n")
+          if (run_model_step(2, subset_error2)) {
+            cat("[Run All] Step model2 completed successfully\n")
+          } else {
+            cat("[Run All] Step model2 failed\n")
+            all_success <- FALSE
+          }
+        }
+
+        # Step 6: Model 3 (only if previous steps succeeded)
+        if (all_success && !is.null(input$button3) && input$button3 != "No Model") {
+          cat("[Run All] Executing step: model3\n")
+          if (run_model_step(3, subset_error3)) {
+            cat("[Run All] Step model3 completed successfully\n")
+          } else {
+            cat("[Run All] Step model3 failed\n")
+            all_success <- FALSE
+          }
+        }
+
+        # Final status
+        if (all_success) {
+          cat("[Run All] Pipeline execution completed successfully\n")
+          showNotification("All pipeline steps completed successfully! Closing app...",
+                          type = "message", duration = 3)
 
           # Close app after brief delay to show success message
           later::later(function() {
             stopApp()
           }, delay = 3)
         } else {
-          # Show error message
-          error_msg <- paste("Pipeline execution failed:", 
-                           paste(result$messages, collapse = "; "))
-          showNotification(error_msg, type = "error", duration = 10)
-          
-          # Log error messages to console
-          cat("[Run All] Error:\n")
-          for (msg in result$messages) {
-            cat("  ", msg, "\n")
-          }
+          cat("[Run All] Pipeline execution failed\n")
+          showNotification("Pipeline execution failed - check console for details",
+                          type = "error", duration = 10)
         }
-        
+
       }, error = function(e) {
         error_msg <- paste("Error executing pipeline:", e$message)
         showNotification(error_msg, type = "error", duration = 10)

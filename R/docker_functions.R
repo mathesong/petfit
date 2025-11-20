@@ -136,207 +136,6 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
   return(validation)
 }
 
-#' Run Automatic Modelling Pipeline
-#'
-#' @description Execute the petfit modelling analysis pipeline automatically based on a config file
-#'
-#' @param analysis_subfolder Character string name of analysis subfolder within derivatives/petfit/ (default: "Primary_Analysis")
-#' @param bids_dir Character string path to BIDS directory (can be NULL)
-#' @param derivatives_dir Character string path to derivatives directory (can be NULL)
-#' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
-#' @param blood_dir Character string path to blood directory (can be NULL)
-#' @param step Character string specific step to run (NULL for full pipeline)
-#' @return List with execution result and messages
-#' @export
-petfit_modelling_auto <- function(analysis_subfolder = "Primary_Analysis", bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", blood_dir = NULL, step = NULL) {
-
-  result <- list(
-    success = FALSE,
-    messages = character(),
-    reports_generated = character()
-  )
-
-  # Validate that at least one directory is provided
-  if (is.null(bids_dir) && is.null(derivatives_dir)) {
-    result$messages <- c(result$messages, "At least one of bids_dir or derivatives_dir must be provided")
-    return(result)
-  }
-
-  # Set derivatives directory logic
-  if (is.null(derivatives_dir)) {
-    derivatives_dir <- file.path(bids_dir, "derivatives")
-  }
-
-  # Validate derivatives directory exists
-  if (!dir.exists(derivatives_dir)) {
-    result$messages <- c(result$messages, paste("Derivatives directory does not exist:", derivatives_dir))
-    return(result)
-  }
-
-  # Construct full analysis folder path
-  analysis_folder <- file.path(derivatives_dir, petfit_output_foldername, analysis_subfolder)
-
-  if (!dir.exists(analysis_folder)) {
-    result$messages <- c(result$messages, paste("Analysis folder does not exist:", analysis_folder))
-    return(result)
-  }
-
-  result$messages <- c(result$messages, paste("Using analysis folder:", analysis_folder))
-
-  # Load configuration
-  config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
-  if (!file.exists(config_path)) {
-    result$messages <- c(result$messages, paste("Config file not found:", config_path))
-    return(result)
-  }
-  
-  tryCatch({
-    config <- jsonlite::fromJSON(config_path)
-    result$messages <- c(result$messages, paste("Loaded config from:", config_path))
-  }, error = function(e) {
-    result$messages <- c(result$messages, paste("Error loading config:", e$message))
-    return(result)
-  })
-  
-  # Validate blood requirements
-  blood_validation <- validate_blood_requirements(config, step, blood_dir)
-  result$messages <- c(result$messages, blood_validation$messages)
-  
-  if (!blood_validation$valid) {
-    result$messages <- c(result$messages, "Blood data validation failed")
-    return(result)
-  }
-  
-  # Determine which steps to run
-  steps_to_run <- character()
-  if (is.null(step)) {
-    # Full pipeline - determine from config
-    if (!is.null(config$Subsetting)) steps_to_run <- c(steps_to_run, "datadef")
-    if (!is.null(config$Weights)) steps_to_run <- c(steps_to_run, "weights")
-    if (!is.null(config$ReferenceTAC)) steps_to_run <- c(steps_to_run, "reference_tac")
-    if (!is.null(config$FitDelay)) steps_to_run <- c(steps_to_run, "delay")
-    if (!is.null(config$Models$Model1)) steps_to_run <- c(steps_to_run, "model1")
-    if (!is.null(config$Models$Model2)) steps_to_run <- c(steps_to_run, "model2")
-    if (!is.null(config$Models$Model3)) steps_to_run <- c(steps_to_run, "model3")
-  } else {
-    steps_to_run <- step
-  }
-  
-  result$messages <- c(result$messages, paste("Steps to run:", paste(steps_to_run, collapse = ", ")))
-  
-  # Execute each step
-  for (current_step in steps_to_run) {
-    result$messages <- c(result$messages, paste("Executing step:", current_step))
-    
-    step_result <- execute_pipeline_step(current_step, analysis_folder, bids_dir, blood_dir, config)
-    
-    if (step_result$success) {
-      result$messages <- c(result$messages, paste("Step", current_step, "completed successfully"))
-      result$reports_generated <- c(result$reports_generated, step_result$report_file)
-    } else {
-      result$messages <- c(result$messages, paste("Step", current_step, "failed:", step_result$message))
-      return(result)
-    }
-  }
-  
-  result$success <- TRUE
-  result$messages <- c(result$messages, "Pipeline execution completed successfully")
-  return(result)
-}
-
-#' Execute Individual Pipeline Step
-#'
-#' @description Execute a single step of the petfit pipeline
-#'
-#' @param step Character string step name
-#' @param analysis_folder Character string path to analysis folder
-#' @param bids_dir Character string path to BIDS directory (can be NULL)
-#' @param blood_dir Character string path to blood directory (can be NULL)
-#' @param config List containing petfit configuration
-#' @return List with step execution result
-execute_pipeline_step <- function(step, analysis_folder, bids_dir, blood_dir, config) {
-  
-  result <- list(
-    success = FALSE,
-    message = "",
-    report_file = NULL
-  )
-  
-  tryCatch({
-    if (step == "datadef") {
-      # Generate data definition report
-      generate_step_report(
-        step = "data_definition",
-        analysis_folder = analysis_folder,
-        bids_dir = bids_dir,
-        blood_dir = blood_dir
-      )
-      result$report_file <- "data_definition_report.html"
-      
-    } else if (step == "weights") {
-      # Generate weights report
-      generate_step_report(
-        step = "weights",
-        analysis_folder = analysis_folder,
-        bids_dir = bids_dir,
-        blood_dir = blood_dir
-      )
-      result$report_file <- "weights_report.html"
-      
-    } else if (step == "delay") {
-      # Generate delay report
-      generate_step_report(
-        step = "delay",
-        analysis_folder = analysis_folder,
-        bids_dir = bids_dir,
-        blood_dir = blood_dir
-      )
-      result$report_file <- "delay_report.html"
-
-    } else if (step == "reference_tac") {
-      # Generate reference TAC report (no blood_dir needed)
-      generate_step_report(
-        step = "reference_tac",
-        analysis_folder = analysis_folder,
-        bids_dir = bids_dir,
-        blood_dir = NULL
-      )
-      result$report_file <- "reference_tac_report.html"
-
-    } else if (step %in% c("model1", "model2", "model3")) {
-      # Generate model report
-      model_num <- stringr::str_extract(step, "\\d+")
-      model_key <- paste0("Model", model_num)
-
-      if (!is.null(config$Models[[model_key]]) && !is.null(config$Models[[model_key]]$type)) {
-        generate_model_report(
-          model_number = paste("Model", model_num),
-          model_type = config$Models[[model_key]]$type,
-          analysis_folder = analysis_folder,
-          bids_dir = bids_dir,
-          blood_dir = blood_dir
-        )
-        result$report_file <- paste0("model", model_num, "_report.html")
-      } else {
-        result$message <- paste("Model", model_num, "not configured in config file")
-        return(result)
-      }
-      
-    } else {
-      result$message <- paste("Unknown step:", step)
-      return(result)
-    }
-    
-    result$success <- TRUE
-    result$message <- "Step completed successfully"
-    
-  }, error = function(e) {
-    result$message <- paste("Error executing step:", e$message)
-  })
-
-  return(result)
-}
-
 #' Run Automatic Region Definition Pipeline
 #'
 #' @description Execute the petfit region definition pipeline automatically based on existing petfit_regions.tsv
@@ -477,6 +276,191 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     result$messages <- c(result$messages, paste("Error generating combined TACs:", e$message))
     return(result)
   })
+
+  return(result)
+}
+
+#' Run Automatic Modelling Pipeline
+#'
+#' @description Execute the petfit modelling pipeline automatically based on existing config file
+#'
+#' @param bids_dir Character string path to BIDS directory (optional if derivatives_dir provided)
+#' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
+#' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param analysis_subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
+#' @param blood_dir Character string path to blood data directory (optional, for invasive models)
+#' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+#' @return List with execution result and messages
+#' @export
+petfit_modelling_auto <- function(bids_dir = NULL,
+                                   derivatives_dir = NULL,
+                                   petfit_output_foldername = "petfit",
+                                   analysis_subfolder = "Primary_Analysis",
+                                   blood_dir = NULL,
+                                   step = NULL) {
+
+  result <- list(
+    success = FALSE,
+    messages = character(),
+    step_results = list()
+  )
+
+  # Validate that at least one directory is provided
+  if (is.null(bids_dir) && is.null(derivatives_dir)) {
+    result$messages <- c(result$messages, "At least one of bids_dir or derivatives_dir must be provided")
+    return(result)
+  }
+
+  # Set derivatives directory logic
+  if (is.null(derivatives_dir)) {
+    if (is.null(bids_dir)) {
+      result$messages <- c(result$messages, "Cannot determine derivatives_dir: no bids_dir or derivatives_dir provided")
+      return(result)
+    }
+    derivatives_dir <- file.path(bids_dir, "derivatives")
+  }
+
+  # Validate directories that were provided
+  if (!is.null(bids_dir) && !dir.exists(bids_dir)) {
+    result$messages <- c(result$messages, paste("BIDS directory does not exist:", bids_dir))
+    return(result)
+  }
+
+  if (!dir.exists(derivatives_dir)) {
+    result$messages <- c(result$messages, paste("Derivatives directory does not exist:", derivatives_dir))
+    return(result)
+  }
+
+  # Normalize paths to absolute paths
+  if (!is.null(bids_dir)) {
+    bids_dir <- normalizePath(bids_dir, mustWork = FALSE)
+  }
+  derivatives_dir <- normalizePath(derivatives_dir, mustWork = FALSE)
+  if (!is.null(blood_dir)) {
+    blood_dir <- normalizePath(blood_dir, mustWork = FALSE)
+  }
+
+  # Determine analysis folder path
+  petfit_base_dir <- file.path(derivatives_dir, petfit_output_foldername)
+  analysis_folder <- file.path(petfit_base_dir, analysis_subfolder)
+
+  if (!dir.exists(analysis_folder)) {
+    result$messages <- c(result$messages, paste("Analysis folder does not exist:", analysis_folder))
+    return(result)
+  }
+
+  # Find config file
+  config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+
+  if (!file.exists(config_path)) {
+    result$messages <- c(result$messages, paste("Config file not found:", config_path))
+    result$messages <- c(result$messages, "Please run the modelling app interactively first to create the configuration")
+    return(result)
+  }
+
+  result$messages <- c(result$messages, paste("Found config file:", config_path))
+
+  # Load config to check what type of analysis this is
+  config <- tryCatch({
+    jsonlite::fromJSON(config_path)
+  }, error = function(e) {
+    result$messages <- c(result$messages, paste("Error reading config file:", e$message))
+    return(NULL)
+  })
+
+  if (is.null(config)) {
+    return(result)
+  }
+
+  # Console-only notification callback (no Shiny in automatic mode)
+  notify <- function(msg, type) {
+    cat(paste0("[", toupper(type), "] ", msg, "\n"))
+  }
+
+  # Determine which steps to run
+  all_steps <- c("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+  steps_to_run <- if (is.null(step)) all_steps else step
+
+  # Execute steps sequentially
+  for (current_step in steps_to_run) {
+
+    step_result <- NULL
+
+    if (current_step == "datadef") {
+      result$messages <- c(result$messages, "\n=== Running Data Definition ===")
+      step_result <- execute_datadef_step(
+        config_path = config_path,
+        output_dir = analysis_folder,
+        petfit_dir = petfit_base_dir,
+        bids_dir = bids_dir,
+        blood_dir = blood_dir,
+        notify = notify
+      )
+
+    } else if (current_step == "weights") {
+      result$messages <- c(result$messages, "\n=== Running Weights Calculation ===")
+      step_result <- execute_weights_step(
+        config_path = config_path,
+        output_dir = analysis_folder,
+        bids_dir = bids_dir,
+        blood_dir = blood_dir,
+        notify = notify
+      )
+
+    } else if (current_step == "delay") {
+      result$messages <- c(result$messages, "\n=== Running Delay Estimation ===")
+      step_result <- execute_delay_step(
+        config_path = config_path,
+        output_dir = analysis_folder,
+        bids_dir = bids_dir,
+        blood_dir = blood_dir,
+        notify = notify
+      )
+
+    } else if (current_step == "reference_tac") {
+      result$messages <- c(result$messages, "\n=== Running Reference TAC ===")
+      step_result <- execute_reference_tac_step(
+        config_path = config_path,
+        output_dir = analysis_folder,
+        bids_dir = bids_dir,
+        notify = notify
+      )
+
+    } else if (current_step %in% c("model1", "model2", "model3")) {
+      model_num <- stringr::str_extract(current_step, "\\d+")
+      result$messages <- c(result$messages, paste0("\n=== Running Model ", model_num, " ==="))
+      step_result <- execute_model_step(
+        config_path = config_path,
+        model_num = model_num,
+        output_dir = analysis_folder,
+        bids_dir = bids_dir,
+        blood_dir = blood_dir,
+        notify = notify
+      )
+    }
+
+    # Store step result
+    if (!is.null(step_result)) {
+      result$step_results[[current_step]] <- step_result
+      result$messages <- c(result$messages, step_result$message)
+
+      # If any step fails and we're running all steps, stop execution
+      if (!step_result$success && is.null(step)) {
+        result$messages <- c(result$messages, paste("Step", current_step, "failed. Stopping pipeline execution."))
+        return(result)
+      }
+    }
+  }
+
+  # Check if all requested steps succeeded
+  all_succeeded <- all(sapply(result$step_results, function(x) x$success))
+
+  if (all_succeeded) {
+    result$success <- TRUE
+    result$messages <- c(result$messages, "\n=== Pipeline Completed Successfully ===")
+  } else {
+    result$messages <- c(result$messages, "\n=== Pipeline Completed with Errors ===")
+  }
 
   return(result)
 }

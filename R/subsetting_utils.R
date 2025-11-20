@@ -77,6 +77,132 @@ subset_combined_tacs <- function(combined_tacs_data, subset_params) {
   return(filtered_data)
 }
 
+#' Subset TACs by Frame or Time Range
+#'
+#' @description Filter TAC data to keep only specified frame range or time window
+#' @param tacs_data Tibble with TAC data
+#' @param subset_type Type of subsetting: "frame", "time", or NULL for no subsetting
+#' @param start_point Start frame number or time in minutes
+#' @param end_point End frame number or time in minutes
+#' @return Filtered tibble with only specified frames
+#' @export
+subset_tacs_by_frames <- function(tacs_data, subset_type = NULL,
+                                  start_point = NULL, end_point = NULL) {
+
+  # If no subsetting specified, return data as-is
+  if (is.null(subset_type) || subset_type == "" ||
+      is.null(start_point) || is.null(end_point)) {
+    return(tacs_data)
+  }
+
+  if (is.null(tacs_data) || nrow(tacs_data) == 0) {
+    return(tibble::tibble())
+  }
+
+  filtered_data <- tacs_data
+
+  if (subset_type == "frame") {
+    # Subset by frame number (assuming frames are numbered sequentially)
+    # Create frame number column if not exists
+    if (!"frame_num" %in% colnames(filtered_data)) {
+      filtered_data <- filtered_data %>%
+        dplyr::group_by(dplyr::across(dplyr::any_of(c("pet", "region")))) %>%
+        dplyr::mutate(frame_num = dplyr::row_number()) %>%
+        dplyr::ungroup()
+    }
+
+    filtered_data <- filtered_data %>%
+      dplyr::filter(frame_num >= start_point & frame_num <= end_point) %>%
+      dplyr::select(-dplyr::any_of("frame_num"))
+
+  } else if (subset_type == "time") {
+    # Subset by time in minutes
+    # Use frame_start for filtering
+    filtered_data <- filtered_data %>%
+      dplyr::filter(frame_start >= start_point & frame_start <= end_point)
+  }
+
+  return(filtered_data)
+}
+
+#' Cleanup Individual TACs Files
+#'
+#' @description Remove all existing individual TACs files before regeneration
+#' @param output_dir Output directory containing individual files
+#' @param pattern File pattern to match (default: "*_desc-combinedregions_tacs.tsv")
+#' @return List with counts of removed files and directories
+#' @export
+cleanup_individual_tacs_files <- function(output_dir,
+                                         pattern = "*_desc-combinedregions_tacs.tsv") {
+
+  files_removed <- 0
+  dirs_removed <- 0
+
+  if (!dir.exists(output_dir)) {
+    return(list(files_removed = 0, dirs_removed = 0,
+                summary = "Output directory does not exist"))
+  }
+
+  # Find all existing TACs files
+  existing_files <- list.files(output_dir, pattern = pattern,
+                               recursive = TRUE, full.names = TRUE)
+
+  # Remove files
+  if (length(existing_files) > 0) {
+    file.remove(existing_files)
+    files_removed <- length(existing_files)
+    cat("Removed", files_removed, "existing TACs files\n")
+  }
+
+  # Clean up empty directories (recursively remove empty sub-*/ses-*/pet directories)
+  # Find all pet directories
+  pet_dirs <- list.dirs(output_dir, recursive = TRUE, full.names = TRUE)
+  pet_dirs <- pet_dirs[grepl("/pet$", pet_dirs)]
+
+  # Remove empty pet directories
+  for (pet_dir in pet_dirs) {
+    if (length(list.files(pet_dir, all.files = FALSE)) == 0) {
+      unlink(pet_dir, recursive = TRUE)
+      dirs_removed <- dirs_removed + 1
+
+      # Also remove parent session directory if empty
+      parent_dir <- dirname(pet_dir)
+      if (grepl("ses-", basename(parent_dir)) &&
+          length(list.files(parent_dir, all.files = FALSE)) == 0) {
+        unlink(parent_dir, recursive = TRUE)
+        dirs_removed <- dirs_removed + 1
+
+        # Also remove parent subject directory if empty
+        grandparent_dir <- dirname(parent_dir)
+        if (grepl("sub-", basename(grandparent_dir)) &&
+            length(list.files(grandparent_dir, all.files = FALSE)) == 0) {
+          unlink(grandparent_dir, recursive = TRUE)
+          dirs_removed <- dirs_removed + 1
+        }
+      }
+      # Remove parent subject directory if empty (for no-session case)
+      else if (grepl("sub-", basename(parent_dir)) &&
+               length(list.files(parent_dir, all.files = FALSE)) == 0) {
+        unlink(parent_dir, recursive = TRUE)
+        dirs_removed <- dirs_removed + 1
+      }
+    }
+  }
+
+  # Return summary
+  summary_msg <- if (files_removed > 0) {
+    paste("Removed", files_removed, "files and", dirs_removed, "empty directories")
+  } else {
+    "No existing TACs files found"
+  }
+
+  return(list(
+    files_removed = files_removed,
+    dirs_removed = dirs_removed,
+    summary = summary_msg
+  ))
+}
+
 #' Create Individual TACs Files
 #'
 #' @description Create individual TACs files for each subject/session/pet combination

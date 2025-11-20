@@ -62,16 +62,40 @@ This report summarises the data subsetting and individual TACs file creation ste
 
 The following subsetting criteria were applied to the combined TACs data:
 
-```{r subsetting-params}
+## Dataset Subsetting
+
+```{r dataset-subsetting-params}
 if (!is.null(config$Subsetting)) {
-  subsetting <- config$Subsetting
+  # Extract basic subsetting parameters (exclude tac_subset which is nested)
+  basic_subsetting <- config$Subsetting
+  basic_subsetting$tac_subset <- NULL  # Remove nested list
+
   subsetting_df <- tibble(
-    Parameter = names(subsetting),
-    Value = map_chr(subsetting, ~ if(.x == "" || is.null(.x)) "All" else as.character(.x))
+    Parameter = names(basic_subsetting),
+    Value = map_chr(basic_subsetting, ~ if(.x == "" || is.null(.x)) "All" else as.character(.x))
   )
   kable(subsetting_df)
 } else {
   cat("No subsetting parameters found in configuration file.")
+}
+```
+
+## TAC Time Range Subsetting
+
+```{r tac-subsetting-params}
+#| results: asis
+
+if (!is.null(config$Subsetting$tac_subset)) {
+  tac_subset <- config$Subsetting$tac_subset
+
+  # Format the subsetting information
+  if (tac_subset$type == "frame") {
+    str_glue("**Frame range:** {tac_subset$start} to {tac_subset$end}")
+  } else if (tac_subset$type == "time") {
+    str_glue("**Time range:** {tac_subset$start} to {tac_subset$end} minutes")
+  }
+} else {
+  cat("**No TAC time range subsetting applied** - all frames included")
 }
 ```
 
