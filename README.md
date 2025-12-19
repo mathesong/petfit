@@ -283,6 +283,80 @@ On Linux systems, if you encounter permission issues where output files are owne
    sudo chown -R $(id -u):$(id -g) /path/to/derivatives
    ```
 
+## Apptainer Usage
+
+PETFit can also be run with Apptainer/Singularity by converting the Docker image into a SIF file and binding the same directorie
+s used in the Docker examples.
+
+### Build SIF from Docker Hub
+
+```bash
+apptainer build petfit_latest.sif docker://mathesong/petfit:latest
+```
+
+### Interactive Mode
+
+**Region Definition App**
+```bash
+apptainer run --cleanenv \
+  -B /path/to/your/bids:/data/bids_dir:ro \
+  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func regiondef
+
+# Then open http://localhost:3838 in your browser
+```
+
+**Modelling App with Plasma Input**
+```bash
+apptainer run --cleanenv \
+  -B /path/to/your/bids:/data/bids_dir:ro \
+  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/your/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma
+
+# Then open http://localhost:3838 in your browser
+```
+
+**Modelling App with Reference Tissue**
+```bash
+apptainer run --cleanenv \
+  -B /path/to/your/bids:/data/bids_dir:ro \
+  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_ref
+
+# Then open http://localhost:3838 in your browser
+```
+
+### Automatic Processing Mode
+
+Use the same two-step workflow as Docker, substituting `apptainer run` and the SIF image:
+
+```bash
+# Step 1: Region Definition
+apptainer run --cleanenv \
+  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func regiondef \
+  --mode automatic
+
+# Step 2: Modelling Pipeline (plasma input example)
+apptainer run --cleanenv \
+  -B /path/to/your/bids:/data/bids_dir:ro \
+  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/your/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --mode automatic
+```
+
 ## Outputs
 
 The region definition apps create files in the main `derivatives/petfit` folder.
