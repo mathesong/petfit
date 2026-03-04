@@ -11,8 +11,8 @@ option_list <- list(
               help="App function to run: 'regiondef', 'modelling_plasma', or 'modelling_ref' [required]"),
   make_option(c("--mode"), type="character", default="interactive", 
               help="Execution mode: 'interactive' or 'automatic' [default: interactive]"),
-  make_option(c("--step"), type="character", default=NULL, 
-              help="Step to run in automatic mode: 'datadef', 'weights', 'delay', 'model1', 'model2', 'model3' [optional]"),
+  make_option(c("--step"), type="character", default=NULL,
+              help="Step to run in automatic mode: 'datadef', 'weights', 'delay', 'reference_tac', 'model1', 'model2', 'model3' [optional]"),
   make_option(c("--petfit_output_foldername"), type="character", default="petfit", 
               help="Name for petfit output folder within derivatives [default: petfit]"),
   make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis", 
@@ -38,8 +38,8 @@ if (!opt$mode %in% c("interactive", "automatic")) {
   stop("--mode must be 'interactive' or 'automatic'", call.=FALSE)
 }
 
-if (!is.null(opt$step) && !opt$step %in% c("datadef", "weights", "delay", "model1", "model2", "model3")) {
-  stop("--step must be one of: 'datadef', 'weights', 'delay', 'model1', 'model2', 'model3'", call.=FALSE)
+if (!is.null(opt$step) && !opt$step %in% c("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")) {
+  stop("--step must be one of: 'datadef', 'weights', 'delay', 'reference_tac', 'model1', 'model2', 'model3'", call.=FALSE)
 }
 
 # Ignore step argument if in interactive mode
@@ -194,7 +194,8 @@ if (opt$mode == "interactive") {
         derivatives_dir = dirs$derivatives_dir,
         petfit_output_foldername = opt$petfit_output_foldername,
         blood_dir = dirs$blood_dir,
-        step = opt$step
+        step = opt$step,
+        pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference"
       )
 
       # Print all messages

@@ -280,6 +280,52 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   return(result)
 }
 
+#' Determine Pipeline Type from Config
+#'
+#' @description Determine whether a config represents a plasma input or reference tissue pipeline
+#'
+#' @param config List containing petfit configuration (parsed JSON)
+#' @param pipeline_type Optional explicit pipeline type ("plasma" or "reference") as override
+#' @return Character string: "plasma" or "reference", or NULL if cannot be determined
+#' @export
+determine_pipeline_type <- function(config, pipeline_type = NULL) {
+  # 1. Explicit parameter takes priority
+  if (!is.null(pipeline_type)) {
+    if (pipeline_type %in% c("plasma", "reference")) {
+      return(pipeline_type)
+    }
+  }
+
+  # 2. Check modelling_configuration_type in config
+  config_type <- config$modelling_configuration_type
+  if (!is.null(config_type)) {
+    if (config_type == "plasma input") return("plasma")
+    if (config_type == "reference tissue") return("reference")
+  }
+
+  # 3. Fallback: inspect config sections
+  if (!is.null(config$FitDelay)) return("plasma")
+  if (!is.null(config$ReferenceTAC)) return("reference")
+
+  # 4. Final fallback: inspect model types
+  invasive_models <- c("1TCM", "2TCM", "Logan", "MA1")
+  reference_models <- c("SRTM", "refLogan", "MRTM1", "MRTM2")
+  for (model_num in c("1", "2", "3")) {
+    model_key <- paste0("Model", model_num)
+    if (!is.null(config$Models[[model_key]]$type)) {
+      if (config$Models[[model_key]]$type %in% invasive_models) {
+        return("plasma")
+      }
+      if (config$Models[[model_key]]$type %in% reference_models) {
+        return("reference")
+      }
+    }
+  }
+
+  # Cannot determine
+  return(NULL)
+}
+
 #' Run Automatic Modelling Pipeline
 #'
 #' @description Execute the petfit modelling pipeline automatically based on existing config file
@@ -290,6 +336,7 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
 #' @param analysis_subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param blood_dir Character string path to blood data directory (optional, for invasive models)
 #' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+#' @param pipeline_type Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)
 #' @return List with execution result and messages
 #' @export
 petfit_modelling_auto <- function(bids_dir = NULL,
@@ -297,7 +344,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
                                    petfit_output_foldername = "petfit",
                                    analysis_subfolder = "Primary_Analysis",
                                    blood_dir = NULL,
-                                   step = NULL) {
+                                   step = NULL,
+                                   pipeline_type = NULL) {
 
   result <- list(
     success = FALSE,
@@ -378,8 +426,27 @@ petfit_modelling_auto <- function(bids_dir = NULL,
   }
 
   # Determine which steps to run
-  all_steps <- c("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
-  steps_to_run <- if (is.null(step)) all_steps else step
+  if (is.null(step)) {
+    # Running full pipeline - determine step list based on pipeline type
+    detected_type <- determine_pipeline_type(config, pipeline_type)
+
+    if (is.null(detected_type)) {
+      result$messages <- c(result$messages, "Cannot determine pipeline type from config or parameters")
+      result$messages <- c(result$messages, "Please specify pipeline_type or ensure config has modelling_configuration_type")
+      return(result)
+    }
+
+    result$messages <- c(result$messages, paste("Pipeline type:", detected_type))
+
+    if (detected_type == "plasma") {
+      steps_to_run <- c("datadef", "weights", "delay", "model1", "model2", "model3")
+    } else {
+      steps_to_run <- c("datadef", "weights", "reference_tac", "model1", "model2", "model3")
+    }
+  } else {
+    # Running a specific step - no filtering needed
+    steps_to_run <- step
+  }
 
   # Execute steps sequentially
   for (current_step in steps_to_run) {
