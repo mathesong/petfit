@@ -404,6 +404,14 @@ execute_model_step <- function(config_path, model_num, output_dir,
 
     model_type <- config$Models[[model_key]]$type
 
+    # Skip if model is set to "No Model"
+    if (model_type == "No Model") {
+      result$success <- TRUE
+      result$message <- paste("Model", model_num, "set to 'No Model' - skipping")
+      notify(result$message, "message")
+      return(result)
+    }
+
     # Show fitting notification
     notify(paste("Fitting Model", model_num, "(", model_type, ")..."), "message")
 

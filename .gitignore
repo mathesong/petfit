@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Integration test data (downloaded via prepare_testdata.sh)
+tests/testthat/fixtures/integration/ds004869_testdata.tar.gz

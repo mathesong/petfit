@@ -1,2 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.github$
+tests/testthat/fixtures/integration/ds004869_testdata\.tar\.gz$
+tests/testthat/fixtures/integration/prepare_testdata\.sh$

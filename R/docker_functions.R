@@ -228,7 +228,9 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   tryCatch({
     result$messages <- c(result$messages, "Creating tacs-morph mapping...")
 
-    petfit_regions_files_path <- create_petfit_regions_files(petfit_regions_file, derivatives_dir)
+    create_petfit_regions_files(petfit_regions_file, derivatives_dir)
+
+    petfit_regions_files_path <- file.path(petfit_base_dir, "petfit_regions_files.tsv")
 
     result$messages <- c(result$messages, paste("Created mapping file:", petfit_regions_files_path))
 
