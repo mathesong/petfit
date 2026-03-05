@@ -107,20 +107,17 @@ test_that("BUG REGRESSION: execute_model_step handles No Model gracefully", {
 })
 
 # ---------------------------------------------------------------------------
-# Issue 3: Plasma model fitting fails when delay is "Set to zero"
-# STATUS: NOT FIXED — this test is expected to FAIL until the fix is implemented
+# Issue 3: Plasma model fitting when delay is "Set to zero"
+# STATUS: NOT A BUG — the model reports' 3-path blood data fallback handles this
 #
-# Bug: Setting FitDelay.model to "Set to zero (i.e. no delay fitting to be
-# performed)" skips the delay step entirely, which also skips creating
-# _inputfunction.tsv files. Model reports need those files and fail with:
-#   "No inputfunction.tsv files found in blood_dir"
+# When FitDelay.model is "Set to zero...", the delay step skips creating
+# _inputfunction.tsv files. However, the model report templates have a
+# 3-path blood loading fallback: (1) blood_dir, (2) analysis_folder,
+# (3) raw BIDS data. Path 3 creates _inputfunction.tsv files on-the-fly
+# from raw _blood.tsv files in bids_dir, so model fitting works without
+# a prior delay step.
 #
-# The fix should decouple _inputfunction.tsv creation from delay estimation,
-# so that input function files are always created for plasma pipelines.
-#
-# Fix needed in: R/pipeline_core.R:246-252, inst/rmd/delay_report.Rmd,
-#   inst/rmd/2tcm_report.Rmd
-# See ISSUES.md "Issue 3" for full details and recommended approach.
+# See ISSUES.md "Issue 3" for full analysis.
 # ---------------------------------------------------------------------------
 
 test_that("BUG REGRESSION: plasma pipeline succeeds with delay set to zero", {
@@ -146,9 +143,8 @@ test_that("BUG REGRESSION: plasma pipeline succeeds with delay set to zero", {
   config$FitDelay$model <- "Set to zero (i.e. no delay fitting to be performed)"
   jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
 
-  # Run full pipeline -- on unfixed code, this fails at model fitting with:
-  #   "No inputfunction.tsv files found in blood_dir"
-  # because the delay step was skipped and never created _inputfunction.tsv files
+  # Run full pipeline -- model reports handle missing _inputfunction.tsv files
+  # by creating them on-the-fly from raw BIDS blood data (3-path fallback)
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir

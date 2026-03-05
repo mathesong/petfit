@@ -21,7 +21,8 @@
       "Bash(git annex:*)",
       "Bash(find:*)",
       "Bash(rev:*)",
-      "Bash(PETFIT_INTEGRATION_TESTS=true PETFIT_TESTDATA_PATH=/tmp/ds004869/../ds004869_testdata.tar.gz Rscript:*)"
+      "Bash(PETFIT_INTEGRATION_TESTS=true PETFIT_TESTDATA_PATH=/tmp/ds004869/../ds004869_testdata.tar.gz Rscript:*)",
+      "Bash(PETFIT_INTEGRATION_TESTS=true Rscript:*)"
     ]
   }
 }
