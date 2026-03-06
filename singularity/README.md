@@ -9,7 +9,7 @@ This directory contains Singularity implementation files for running the PETFit 
 1. Pull the image and create a .sif
 
 ```bash
-apptainer pull docker://matsong/petfit:latest
+apptainer pull name_petfit.sif docker://mathesong/petfit:latest
 ```
 
 2. SSH port forwarding, as Apptainer typically uses the host network (no Docker-style -p host:container port publishing).
