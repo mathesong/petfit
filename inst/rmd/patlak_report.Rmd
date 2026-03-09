@@ -527,13 +527,13 @@ model_res <- model_data %>%
 ### Estimates
 
 ```{r}
-par_table <- model_res %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
+par_table <- model_res %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
   unnest(par)
-  
+
 par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -543,17 +543,17 @@ par_table %>%
 Here is shown the standard error as a fraction of the mean value (i.e. 1 = 100\%).
 
 ```{r}
-par_se_table <- model_data %>% 
-  ungroup() %>% 
-  mutate(par.se = map(fit_Patlak, "par.se")) %>% 
-  select(-fit_Patlak, -tacs, -input) %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
-  unnest(par.se) %>% 
+par_se_table <- model_data %>%
+  ungroup() %>%
+  mutate(par.se = map(fit_Patlak, "par.se")) %>%
+  select(-fit_Patlak, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(par.se) %>%
   select(where(~ mean(is.na(.x)) < 1))
 
-par_se_table %>% 
+par_se_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -569,21 +569,21 @@ reduced_chisq <- function(fit) {
   deviance(fit) / df.residual(fit)
 }
 
-gof_table <- model_data %>% 
-  ungroup() %>% 
+gof_table <- model_data %>%
+  ungroup() %>%
   mutate(gof = map(fit_Patlak, ~tibble(
     AIC = AIC(.x$fit),
     BIC = BIC(.x$fit),
     RSS = RSS(.x$fit),
-    reduced_chisq = reduced_chisq(.x$fit)))) %>% 
-  select(-fit_Patlak, -tacs, -input) %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
-  unnest(gof) %>% 
+    reduced_chisq = reduced_chisq(.x$fit)))) %>%
+  select(-fit_Patlak, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(gof) %>%
   select(where(~ mean(is.na(.x)) < 1))
-  
-gof_table %>% 
+
+gof_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```

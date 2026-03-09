@@ -104,3 +104,16 @@ When a model slot is set to "No Model", `execute_model_step()` tried to generate
 **Status**: Not a bug
 
 When `FitDelay.model` is "Set to zero...", the delay step skips creating `_inputfunction.tsv` files. However, all 7 plasma model report templates (`1tcm`, `2tcm`, `2tcmirr`, `logan`, `ma1`, `patlak`, plus `delay`) have a 3-path blood data fallback that creates `_inputfunction.tsv` files on-the-fly from raw BIDS `_blood.tsv` data. The `bids_dir` parameter is passed through the entire call chain, and the "Loading Delay Information" section handles missing delay files by defaulting `inpshift = 0`. See `test-integration-bug-regressions.R` for verification.
+
+### Issue 4: Single-subject report generation fails — n_distinct drops BIDS columns
+
+**Status**: Fixed (committed on `add_full_tests` branch)
+**Files**: All 11 model report templates in `inst/rmd/` (3 occurrences each, 33 edits total)
+
+In all model report templates, `par_table`, `par_se_table`, and `gof_table` were created with `select(where(~ n_distinct(.x) > 1))` to remove constant columns for cleaner display tables. For single-subject runs, this removed all BIDS identifier columns (`sub`, `ses`, `trc`, `rec`, `task`, `run`, `pet`) since they each had only one unique value. The downstream `inner_join(folder_data)` then failed with `"by must be supplied when x and y have no common variables"` because the join keys had been removed.
+
+**Error message**: `Failed to generate MRTM2 report for Model 1: 'by' must be supplied when 'x' and 'y' have no common variables.`
+
+**Fix**: Moved `select(where(~ n_distinct(.x) > 1))` from the data creation pipeline to the display-only pipeline (before `DT::datatable()`). This preserves BIDS columns in the underlying data for joins while still showing clean tables in reports.
+
+**Affected templates**: `1tcm_report.Rmd`, `2tcm_report.Rmd`, `2tcmirr_report.Rmd`, `logan_report.Rmd`, `ma1_report.Rmd`, `patlak_report.Rmd`, `srtm_report.Rmd`, `srtm2_report.Rmd`, `mrtm1_report.Rmd`, `mrtm2_report.Rmd`, `reflogan_report.Rmd`

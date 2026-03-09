@@ -421,12 +421,12 @@ model_res <- model_data %>%
 ```{r}
 par_table <- model_res %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
-  select(-k2prime) %>% 
-  unnest(par) %>% 
+  select(-k2prime) %>%
+  unnest(par) %>%
   rename(BPnd = bp)
 
 par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -441,13 +441,13 @@ par_se_table <- model_data %>%
   mutate(par.se = map(fit_srtm2, "par.se")) %>%
   select(-fit_srtm2, -tacs) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
-  select(-k2prime) %>% 
+  select(-k2prime) %>%
   unnest(par.se) %>%
   select(where(~ mean(is.na(.x)) < 1)) %>%
   rename(BPnd.se = bp.se)
 
 par_se_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -472,11 +472,11 @@ gof_table <- model_data %>%
     reduced_chisq = reduced_chisq(.x$fit)))) %>%
   select(-fit_srtm2, -tacs) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   unnest(gof) %>%
   select(where(~ mean(is.na(.x)) < 1))
 
 gof_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```

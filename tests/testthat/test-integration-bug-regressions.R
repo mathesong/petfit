@@ -162,3 +162,115 @@ test_that("BUG REGRESSION: plasma pipeline succeeds with delay set to zero", {
   expect_true(file.exists(report_path),
               info = "Model 1 report should be generated even with zero delay")
 })
+
+# ---------------------------------------------------------------------------
+# Issue 4: Single-subject report generation fails — n_distinct drops BIDS cols
+# STATUS: NOT YET FIXED — test expected to fail until fix is implemented
+#
+# Bug: In all 11 model report templates, par_table/par_se_table/gof_table are
+# created with select(where(~ n_distinct(.x) > 1)), which removes columns with
+# only one unique value. For single-subject runs, ALL BIDS identifier columns
+# (sub, ses, trc, rec, task, run, pet) have exactly 1 unique value and get
+# removed. Later, inner_join(folder_data) fails because there are no common
+# columns to join on.
+#
+# Error: "by must be supplied when x and y have no common variables"
+#
+# Fix: Move n_distinct filter from data creation to display-only pipeline.
+# See ISSUES.md "Issue 4" for full details.
+# ---------------------------------------------------------------------------
+
+test_that("BUG REGRESSION: single-subject reference pipeline succeeds", {
+  skip_if_no_integration()
+
+  dataset_dir <- ensure_testdata()
+  ws <- create_integration_workspace(dataset_dir)
+  # Keep workspace for output inspection when PETFIT_KEEP_OUTPUTS is set
+  if (Sys.getenv("PETFIT_KEEP_OUTPUTS") == "") {
+    withr::defer(cleanup_workspace(ws))
+  } else {
+    message("REF workspace preserved at: ", ws$workspace)
+  }
+  setup_regiondef_config(ws)
+
+  # Run regiondef
+  regiondef_result <- petfit_regiondef_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+  if (!regiondef_result$success) {
+    testthat::skip("Regiondef prerequisite failed (see Issue 1)")
+  }
+
+  # Install ref config, then modify it to subset to single subject
+  config_path <- setup_modelling_config(ws, "ds004869_ref_config.json")
+  config <- jsonlite::fromJSON(config_path)
+  config$Subsetting$sub <- "01"
+  jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
+
+  # Run full pipeline -- on unfixed code, this crashes at model report with:
+  #   "by must be supplied when x and y have no common variables"
+  # because select(where(~ n_distinct(.x) > 1)) drops all BIDS columns
+  result <- petfit_modelling_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+
+  expect_true(result$success,
+              info = paste("Single-subject ref pipeline should succeed.",
+                           "If this fails with 'no common variables', see ISSUES.md Issue 4.",
+                           "Messages:", paste(result$messages, collapse = "\n")))
+
+  # Verify model report was generated
+  report_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "reports", "model1_report.html")
+  expect_true(file.exists(report_path),
+              info = "Model 1 report should be generated for single-subject ref run")
+})
+
+test_that("BUG REGRESSION: single-subject plasma pipeline succeeds", {
+  skip_if_no_integration()
+
+  dataset_dir <- ensure_testdata()
+  ws <- create_integration_workspace(dataset_dir)
+  # Keep workspace for output inspection when PETFIT_KEEP_OUTPUTS is set
+  if (Sys.getenv("PETFIT_KEEP_OUTPUTS") == "") {
+    withr::defer(cleanup_workspace(ws))
+  } else {
+    message("PLASMA workspace preserved at: ", ws$workspace)
+  }
+  setup_regiondef_config(ws)
+
+  # Run regiondef
+  regiondef_result <- petfit_regiondef_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+  if (!regiondef_result$success) {
+    testthat::skip("Regiondef prerequisite failed (see Issue 1)")
+  }
+
+  # Install plasma config, then modify it to subset to single subject
+  config_path <- setup_modelling_config(ws, "ds004869_plasma_config.json")
+  config <- jsonlite::fromJSON(config_path)
+  config$Subsetting$sub <- "01"
+  jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
+
+  # Run full pipeline -- on unfixed code, this crashes at model report with:
+  #   "by must be supplied when x and y have no common variables"
+  result <- petfit_modelling_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+
+  expect_true(result$success,
+              info = paste("Single-subject plasma pipeline should succeed.",
+                           "If this fails with 'no common variables', see ISSUES.md Issue 4.",
+                           "Messages:", paste(result$messages, collapse = "\n")))
+
+  # Verify model report was generated
+  report_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "reports", "model1_report.html")
+  expect_true(file.exists(report_path),
+              info = "Model 1 report should be generated for single-subject plasma run")
+})
