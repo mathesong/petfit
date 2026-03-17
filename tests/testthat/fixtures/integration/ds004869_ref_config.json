@@ -1,0 +1,50 @@
+{
+  "modelling_configuration_type": "reference tissue",
+  "Subsetting": {
+    "sub": "01;02",
+    "ses": "",
+    "trc": "",
+    "rec": "",
+    "task": "",
+    "run": "",
+    "Regions": "Frontal;Temporal;Cerebellum"
+  },
+  "Weights": {
+    "region_type": "mean_combined",
+    "region": "",
+    "external_tacs": "",
+    "radioisotope": "C11",
+    "halflife": "",
+    "method": "2",
+    "formula": "sqrt(frame_dur * tac_uncor)",
+    "minweight": 0.25
+  },
+  "ReferenceTAC": {
+    "region": "Cerebellum",
+    "method": "raw",
+    "noise_approximation": false,
+    "weights_method": "same",
+    "custom_formula": ""
+  },
+  "Models": {
+    "Model1": {
+      "type": "SRTM",
+      "R1_lower": 0,
+      "R1_upper": 10,
+      "R1_start": 1,
+      "k2_lower": 0,
+      "k2_upper": 1,
+      "k2_start": 0.1,
+      "k2a_lower": 0,
+      "k2a_upper": 1,
+      "k2a_start": 0.1,
+      "use_weights": true
+    },
+    "Model2": {
+      "type": "No Model"
+    },
+    "Model3": {
+      "type": "No Model"
+    }
+  }
+}

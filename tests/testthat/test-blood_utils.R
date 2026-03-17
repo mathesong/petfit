@@ -1,12 +1,8 @@
 test_that("determine_blood_source identifies blood files correctly", {
-  
-  # Load setup helpers
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
+
   # Create temporary structure with blood data
-  temp_dir <- tempdir()
-  bids_dir <- create_test_bids_structure(temp_dir, n_subjects = 2, n_sessions = 1)
-  analysis_folder <- file.path(bids_dir, "derivatives", "petfit", "Primary_Analysis")
+  temp_dir <- withr::local_tempdir()
+  analysis_folder <- file.path(temp_dir, "analysis")
   dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
   
   # Create blood data files in analysis folder
@@ -24,23 +20,18 @@ test_that("determine_blood_source identifies blood files correctly", {
     readr::write_tsv(blood_data, blood_path)
   }
   
-  result <- determine_blood_source(analysis_folder, bids_dir)
-  
+  result <- determine_blood_source(analysis_folder)
+
   expect_type(result, "character")
   expect_equal(length(result), 1)
-  
-  # Should return one of the expected values
-  expect_true(result %in% c("analysis_folder", "bids_dir", "none"))
-  
-  # Cleanup
-  cleanup_test_dirs(bids_dir)
+
+  # Should find blood data in analysis folder
+  expect_equal(result, "analysis_folder")
 })
 
 test_that("determine_blood_source handles missing blood data", {
-  
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
-  temp_dir <- tempdir()
+
+  temp_dir <- withr::local_tempdir()
   analysis_folder <- file.path(temp_dir, "no_blood")
   dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
   
@@ -57,12 +48,9 @@ test_that("determine_blood_source handles missing blood data", {
 })
 
 test_that("get_blood_data_status provides correct status information", {
-  
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
-  temp_dir <- tempdir()
-  bids_dir <- create_test_bids_structure(temp_dir, n_subjects = 1, n_sessions = 1)
-  analysis_folder <- file.path(bids_dir, "derivatives", "petfit", "Primary_Analysis") 
+
+  temp_dir <- withr::local_tempdir()
+  analysis_folder <- file.path(temp_dir, "analysis")
   dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
   
   # Test with blood data present
@@ -73,18 +61,15 @@ test_that("get_blood_data_status provides correct status information", {
   )
   readr::write_tsv(blood_data, blood_file)
   
-  result <- get_blood_data_status(analysis_folder = analysis_folder, bids_dir = bids_dir)
-  
+  result <- get_blood_data_status(analysis_folder = analysis_folder)
+
   expect_type(result, "list")
   expect_true("has_analysis_blood" %in% names(result))
   expect_true("has_bids_blood" %in% names(result))
   expect_true("priority_source" %in% names(result))
-  
-  # Should find blood data in one of the locations
-  expect_true(result$has_analysis_blood || result$has_bids_blood)
-  
-  # Cleanup
-  cleanup_test_dirs(bids_dir)
+
+  # Should find blood data in analysis folder
+  expect_true(result$has_analysis_blood)
 })
 
 test_that("get_blood_data_status handles no blood data", {
@@ -197,26 +182,25 @@ test_that("blood file pattern matching works", {
 })
 
 test_that("determine_blood_source handles BIDS directory blood data", {
-  
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
-  temp_dir <- tempdir()
-  bids_dir <- create_test_bids_structure(temp_dir, n_subjects = 1, n_sessions = 1)
-  
-  # Blood data should be created by setup function in derivatives
-  analysis_folder <- file.path(bids_dir, "derivatives", "petfit", "test_analysis")
-  dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
-  
+
+  temp_dir <- withr::local_tempdir()
+  bids_dir <- file.path(temp_dir, "bids")
+  dir.create(bids_dir, recursive = TRUE)
+
+  # Create blood file in BIDS directory structure
+  sub_dir <- file.path(bids_dir, "sub-01", "ses-01", "pet")
+  dir.create(sub_dir, recursive = TRUE)
+  blood_data <- tibble::tibble(time = c(0, 1), activity = c(0, 100))
+  readr::write_tsv(blood_data, file.path(sub_dir, "sub-01_ses-01_blood.tsv"))
+
+  analysis_folder <- file.path(temp_dir, "analysis")
+  dir.create(analysis_folder)
+
   result <- determine_blood_source(analysis_folder, bids_dir)
-  
+
   expect_type(result, "character")
   expect_equal(length(result), 1)
-  
-  # Should return one of the valid options
   expect_true(result %in% c("analysis_folder", "bids_dir", "none"))
-  
-  # Cleanup
-  cleanup_test_dirs(bids_dir)
 })
 
 test_that("blood data detection patterns work correctly", {

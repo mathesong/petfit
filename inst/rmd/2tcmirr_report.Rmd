@@ -584,13 +584,13 @@ model_res <- model_data %>%
 ### Estimates
 
 ```{r}
-par_table <- model_res %>% 
-  select(-output_stem) %>% 
-  select(where(~ n_distinct(.x) > 1)) %>% 
-  select(-any_of(c("vB", "inpshift"))) %>% 
+par_table <- model_res %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
   unnest(par)
-  
+
 par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -605,12 +605,12 @@ par_se_table <- model_data %>%
   mutate(par.se = map(fit_2tcm_irr, "par.se")) %>%
   select(-fit_2tcm_irr, -tacs, -input) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   select(-any_of(c("vB", "inpshift"))) %>%
   unnest(par.se) %>%
   select(where(~ mean(is.na(.x)) < 1))
 
 par_se_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -635,12 +635,12 @@ gof_table <- model_data %>%
     reduced_chisq = reduced_chisq(.x$fit)))) %>%
   select(-fit_2tcm_irr, -tacs, -input) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   select(-any_of(c("vB", "inpshift"))) %>%
   unnest(gof) %>%
   select(where(~ mean(is.na(.x)) < 1))
-  
-gof_table %>% 
+
+gof_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```

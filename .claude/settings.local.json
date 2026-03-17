@@ -1,7 +1,36 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(xargs:*)",
+      "Bash(grep:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(conda run:*)",
+      "Bash(R --version:*)",
+      "Bash(Rscript:*)",
+      "Bash(docker --version:*)",
+      "Bash(singularity:*)",
+      "Bash(apptainer --version:*)",
+      "Bash(source:*)",
+      "Bash(ls:*)",
+      "Bash(python3:*)",
+      "Bash(datalad install:*)",
+      "Bash(datalad subdatasets:*)",
+      "Bash(datalad get:*)",
+      "Bash(git annex info:*)",
+      "Bash(git annex:*)",
+      "Bash(find:*)",
+      "Bash(rev:*)",
+      "Bash(PETFIT_INTEGRATION_TESTS=true PETFIT_TESTDATA_PATH=/tmp/ds004869/../ds004869_testdata.tar.gz Rscript:*)",
+      "Bash(PETFIT_INTEGRATION_TESTS=true Rscript:*)",
+      "Bash(Rscript -e \"devtools::test\\(\\)\")",
+      "Bash(Rscript -e \"installed.packages\\(\\)[,''Package'']\")",
+      "Bash(Rscript -e \"packageVersion\\(''devtools''\\)\")",
+      "Bash(Rscript -e \"packageVersion\\(''testthat''\\)\")",
+      "Bash(pkill -f \"devtools::test\")",
+      "Bash(pkill -f \"testthat\")",
+      "Bash(pkill -f \"shiny\")",
+      "Bash(pkill -f \"R.*3838\")"
     ]
   }
 }

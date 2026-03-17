@@ -139,7 +139,11 @@ generate_model_report <- function(model_type, model_number, analysis_folder,
 #' 
 #' @return Character string template filename
 get_model_template <- function(model_type) {
-  
+
+  if (is.null(model_type) || length(model_type) == 0) {
+    stop("Model type must be provided (received NULL)")
+  }
+
   template_map <- list(
     "1TCM" = "1tcm_report.Rmd",
     "2TCM" = "2tcm_report.Rmd",
@@ -158,8 +162,8 @@ get_model_template <- function(model_type) {
   template_name <- template_map[[model_type]]
   
   if (is.null(template_name)) {
-    warning("Unknown model type: ", model_type, ". Using generic template.")
-    template_name <- "model_report.Rmd"  # fallback to existing template
+    stop("Unknown model type: ", model_type,
+         ". Supported types: ", paste(names(template_map), collapse = ", "))
   }
   
   return(template_name)

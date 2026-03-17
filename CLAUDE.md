@@ -700,3 +700,105 @@ This ensures users can seamlessly continue work with existing configurations eve
 **Character Conversion**: Subject IDs as numbers instead of strings - replace `read.table()` with `readr::read_tsv()`
 
 **Report Generation Fails**: Check template files in `inst/rmd/`, verify dependencies (`rmarkdown`, `knitr`), test with `rmarkdown::render()`
+
+## Integration Testing
+
+Integration tests verify petfit pipelines end-to-end using real PET data from OpenNeuro ds004869 (COX-2 PET, 27 subjects, C-11 tracer). Tests are **disabled by default** and gated behind environment variables.
+
+### Test Files
+
+| File | What it tests |
+|---|---|
+| `tests/testthat/helper-integration.R` | Core infrastructure: skip functions, test data management, workspace isolation, container runners |
+| `tests/testthat/test-integration-dataset.R` | Test data extraction, file counts, readability |
+| `tests/testthat/test-integration-regiondef.R` | `petfit_regiondef_auto()`: columns, regions, BIDS metadata, volumes |
+| `tests/testthat/test-integration-modelling-plasma.R` | Plasma pipeline: datadef, weights, delay, 2TCM model |
+| `tests/testthat/test-integration-modelling-ref.R` | Reference pipeline: datadef, reference TAC, SRTM model |
+| `tests/testthat/test-integration-docker.R` | Docker container: regiondef, plasma, reference, error handling |
+| `tests/testthat/test-integration-singularity.R` | Singularity scripts and container execution |
+
+### Config Fixtures
+
+| File | Pipeline | Model |
+|---|---|---|
+| `tests/testthat/fixtures/integration/ds004869_plasma_config.json` | Plasma input | 2TCM (2 subjects, 1TCM delay) |
+| `tests/testthat/fixtures/integration/ds004869_ref_config.json` | Reference tissue | SRTM (2 subjects, Cerebellum ref) |
+| `tests/testthat/fixtures/integration/ds004869_petfit_regions.tsv` | Region definition | 4 regions: Frontal, Temporal, Cerebellum, WhiteMatter |
+
+### Running Integration Tests
+
+```bash
+# R-native tests only
+PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
+
+# Single test file
+PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration-regiondef')"
+
+# With Docker container tests
+PETFIT_INTEGRATION_TESTS=true PETFIT_DOCKER_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
+
+# With Singularity container tests
+PETFIT_INTEGRATION_TESTS=true PETFIT_SINGULARITY_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
+
+# Persistent cache (avoids re-extracting tarball between sessions)
+PETFIT_INTEGRATION_TESTS=true PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache Rscript -e "devtools::test(filter = 'integration')"
+```
+
+### Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `PETFIT_INTEGRATION_TESTS=true` | Enable R-native integration tests |
+| `PETFIT_TESTDATA_PATH` | Explicit path to `ds004869_testdata.tar.gz` |
+| `PETFIT_INTEGRATION_CACHE` | Persistent cache directory for extracted data |
+| `PETFIT_DOCKER_TESTS=true` | Enable Docker container tests |
+| `PETFIT_DOCKER_BUILD=true` | Rebuild Docker image before testing |
+| `PETFIT_SINGULARITY_TESTS=true` | Enable Singularity/Apptainer tests |
+| `PETFIT_SINGULARITY_SIF` | Explicit path to `.sif` container file |
+
+### Test Data
+
+The test data tarball (`ds004869_testdata.tar.gz`, ~2.7 MB) is committed to the repository at `tests/testthat/fixtures/integration/`. It contains real TSV/JSON files from OpenNeuro ds004869 with NIfTI files replaced by empty placeholders. It is excluded from the built R package via `.Rbuildignore`.
+
+At test time, `ensure_testdata()` in `helper-integration.R` extracts the tarball (no datalad needed). It searches for the tarball in order: `PETFIT_TESTDATA_PATH` env var -> local fixtures directory -> GitHub Release download (R-native HTTP, then `gh` CLI fallback).
+
+To regenerate the tarball from scratch (requires datalad): `cd tests/testthat/fixtures/integration && bash prepare_testdata.sh`
+
+### Workspace Isolation
+
+Each test creates an isolated workspace via `create_integration_workspace()`:
+- Symlinks `petprep` derivatives as read-only source data
+- Creates a writable `derivatives/petfit/` directory for outputs
+- Cleaned up via `withr::defer(cleanup_workspace(ws))` after each test
+
+### Adding New Config Fixtures
+
+To test a new model configuration:
+1. Create a JSON config in `tests/testthat/fixtures/integration/` (copy from an existing one)
+2. Create a test file using the template in `tests/README.md`
+3. Run with `PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration-modelling-<name>')"`
+
+See `tests/README.md` for the full guide with templates and tips.
+
+### Key Gotchas for Config Files
+
+- **BIDS description ordering**: `petfit_regions.tsv` description column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-gtm`). The `create_bids_key_value_pairs()` function gives `seg`/`label` priority, then sorts remaining keys alphabetically.
+- **Delay set to zero works for plasma configs**: When `FitDelay.model` is `"Set to zero..."`, the delay step is skipped but model reports independently load blood data from raw BIDS `_blood.tsv` files (via `determine_blood_source()`) and default `inpshift` to 0.
+- **Reference region must be in subsetting**: If `ReferenceTAC.region` is `"Cerebellum"`, then `Subsetting.Regions` must include `"Cerebellum"`.
+- **Reference config field name**: The Rmd templates read `config$ReferenceTAC$region` (not `reference_region`).
+
+### Bugs Fixed During Integration Testing
+
+1. **`petfit_regiondef_auto()` path bug** — `create_petfit_regions_files()` returns a data frame, not a path. Fixed.
+2. **"No Model" crashes pipeline** — `execute_model_step()` doesn't check for "No Model" type, tries to generate report. Fixed.
+3. **Deprecated `cur_data()` warnings** — Replaced with `pick(everything())` in `region_utils.R`. Fixed.
+4. **Many-to-many join warnings** — Added `relationship = "many-to-many"` to `inner_join()` in `region_utils.R`. Fixed.
+
+### GitHub Actions
+
+The workflow at `.github/workflows/integration-tests.yml` runs three parallel jobs:
+1. **R-native**: Uses test data from repo checkout, runs all integration tests
+2. **Docker**: Builds image with GHA layer caching, runs Docker container tests
+3. **Apptainer**: Installs Apptainer, builds Docker image, runs Singularity tests
+
+Triggers on pushes to `main`, pull requests, and manual dispatch.

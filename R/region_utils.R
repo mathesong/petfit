@@ -190,8 +190,8 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
     dplyr::mutate(
       # Create description string from all non-identifier attributes
       description = create_bids_key_value_pairs(
-        dplyr::cur_data(),
-        setdiff(colnames(dplyr::cur_data()), c("tacs_path", "morph_path", "folder", "tacs_basename", "tacs_filename", "morph_filename", "sub", "ses", "trc", "rec", "task", "run", "pet"))
+        dplyr::pick(dplyr::everything()),
+        setdiff(colnames(dplyr::pick(dplyr::everything())), c("tacs_path", "morph_path", "folder", "tacs_basename", "tacs_filename", "morph_filename", "sub", "ses", "trc", "rec", "task", "run", "pet"))
       )$description
     )
 
@@ -199,7 +199,8 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
   regions_files <- regions_config %>%
     dplyr::inner_join(
       all_mappings %>% dplyr::select(folder, description, tacs_filename, morph_filename),
-      by = c("folder", "description")
+      by = c("folder", "description"),
+      relationship = "many-to-many"
     )
 
   if (nrow(regions_files) == 0) {
