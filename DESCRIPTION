@@ -36,7 +36,8 @@ Imports:
     optparse,
     plotly,
     readr,
-    kinfitr
+    kinfitr,
+    tidyverse
 Suggests:
     testthat (>= 3.0.0),
     here

@@ -44,7 +44,7 @@ find_singularity_container <- function() {
   docker_check <- system2("docker", c("image", "inspect", "mathesong/petfit:latest"),
                           stdout = FALSE, stderr = FALSE)
   if (docker_check == 0L) {
-    return("docker-daemon://mathesong/petfit:latest")
+    return("docker-daemon:mathesong/petfit:latest")
   }
 
   NULL

@@ -130,7 +130,7 @@ PETFIT_SINGULARITY_TESTS=true \
 PETFIT_SINGULARITY_SIF=/path/to/petfit_latest.sif \
   Rscript -e "devtools::test(filter = 'integration-singularity')"
 
-# Or with the Docker image available (uses docker-daemon:// reference)
+# Or with the Docker image available (uses docker-daemon: reference)
 PETFIT_INTEGRATION_TESTS=true \
 PETFIT_SINGULARITY_TESTS=true \
   Rscript -e "devtools::test(filter = 'integration-singularity')"
