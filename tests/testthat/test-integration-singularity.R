@@ -125,14 +125,18 @@ test_that("Singularity run-automatic.sh validates arguments", {
   script <- file.path(pkg_root, "singularity", "run-automatic.sh")
 
   # Should fail with invalid step
-  result <- system2("bash", c(script, "--derivatives-dir", "/tmp", "--step", "invalid"),
-                    stdout = TRUE, stderr = TRUE)
+  result <- suppressWarnings(
+    system2("bash", c(script, "--derivatives-dir", "/tmp", "--step", "invalid"),
+            stdout = TRUE, stderr = TRUE)
+  )
   exit_code <- attr(result, "status") %||% 0L
   expect_true(exit_code != 0L, info = "Should reject invalid step")
 
   # Should fail with missing func
-  result2 <- system2("bash", c(script, "--derivatives-dir", "/tmp"),
-                     stdout = TRUE, stderr = TRUE)
+  result2 <- suppressWarnings(
+    system2("bash", c(script, "--derivatives-dir", "/tmp"),
+            stdout = TRUE, stderr = TRUE)
+  )
   exit_code2 <- attr(result2, "status") %||% 0L
   expect_true(exit_code2 != 0L, info = "Should require --func argument")
 })
@@ -144,14 +148,18 @@ test_that("Singularity run-interactive.sh validates arguments", {
   script <- file.path(pkg_root, "singularity", "run-interactive.sh")
 
   # Should fail with invalid function
-  result <- system2("bash", c(script, "--func", "invalid", "--bids-dir", "/tmp"),
-                    stdout = TRUE, stderr = TRUE)
+  result <- suppressWarnings(
+    system2("bash", c(script, "--func", "invalid", "--bids-dir", "/tmp"),
+            stdout = TRUE, stderr = TRUE)
+  )
   exit_code <- attr(result, "status") %||% 0L
   expect_true(exit_code != 0L, info = "Should reject invalid function")
 
   # Should fail with no directories
-  result2 <- system2("bash", c(script, "--func", "regiondef"),
-                     stdout = TRUE, stderr = TRUE)
+  result2 <- suppressWarnings(
+    system2("bash", c(script, "--func", "regiondef"),
+            stdout = TRUE, stderr = TRUE)
+  )
   exit_code2 <- attr(result2, "status") %||% 0L
   expect_true(exit_code2 != 0L, info = "Should require at least one directory")
 })

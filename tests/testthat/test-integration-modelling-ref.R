@@ -170,6 +170,37 @@ test_that("SRTM model fitting generates report", {
 })
 
 # ---------------------------------------------------------------------------
+# Single-subject run
+# ---------------------------------------------------------------------------
+
+test_that("reference tissue pipeline succeeds with single subject", {
+  skip_if_no_integration()
+
+  ws <- setup_ref_workspace()
+  withr::defer(cleanup_workspace(ws))
+
+  # Modify config to subset to single subject
+  config_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "desc-petfitoptions_config.json")
+  config <- jsonlite::fromJSON(config_path)
+  config$Subsetting$sub <- "01"
+  jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
+
+  result <- petfit_modelling_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+
+  expect_true(result$success, info = paste(result$messages, collapse = "\n"))
+
+  # Verify model report was generated
+  report_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "reports", "model1_report.html")
+  expect_true(file.exists(report_path),
+              info = "Model 1 report should be generated for single-subject run")
+})
+
+# ---------------------------------------------------------------------------
 # Pipeline type detection
 # ---------------------------------------------------------------------------
 

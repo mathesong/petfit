@@ -205,10 +205,7 @@ test_that("subset_combined_tacs handles invalid inputs", {
 })
 
 test_that("create_individual_tacs_files creates correct file structure", {
-  
-  # Load setup helpers
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
+
   # Create test data with required columns (sub, ses, pet)
   test_data <- tibble::tibble(
     sub = c("01", "01", "02"),
@@ -264,7 +261,10 @@ test_that("create_individual_tacs_files handles edge cases", {
   temp_dir <- file.path(tempdir(), "test_empty")
   dir.create(temp_dir, showWarnings = FALSE)
   
-  result <- create_individual_tacs_files(empty_data, temp_dir)
+  expect_warning(
+    result <- create_individual_tacs_files(empty_data, temp_dir),
+    "No data to create individual files"
+  )
   expect_type(result, "list")
   expect_true("files_created" %in% names(result))
   expect_equal(result$files_created, 0)
@@ -274,9 +274,7 @@ test_that("create_individual_tacs_files handles edge cases", {
 })
 
 test_that("create_individual_tacs_files creates proper directory structure", {
-  
-  source(here::here("tests/testthat/fixtures/setup.R"))
-  
+
   # Test data with nested directory structure
   test_data <- tibble::tibble(
     sub = "01",

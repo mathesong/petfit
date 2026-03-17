@@ -246,6 +246,68 @@ test_that("2TCM model fitting generates report", {
 })
 
 # ---------------------------------------------------------------------------
+# Single-subject run
+# ---------------------------------------------------------------------------
+
+test_that("plasma pipeline succeeds with single subject", {
+  skip_if_no_integration()
+
+  ws <- setup_plasma_workspace()
+  withr::defer(cleanup_workspace(ws))
+
+  # Modify config to subset to single subject
+  config_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "desc-petfitoptions_config.json")
+  config <- jsonlite::fromJSON(config_path)
+  config$Subsetting$sub <- "01"
+  jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
+
+  result <- petfit_modelling_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+
+  expect_true(result$success, info = paste(result$messages, collapse = "\n"))
+
+  # Verify model report was generated
+  report_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "reports", "model1_report.html")
+  expect_true(file.exists(report_path),
+              info = "Model 1 report should be generated for single-subject run")
+})
+
+# ---------------------------------------------------------------------------
+# Delay set to zero
+# ---------------------------------------------------------------------------
+
+test_that("plasma pipeline succeeds with delay set to zero", {
+  skip_if_no_integration()
+
+  ws <- setup_plasma_workspace()
+  withr::defer(cleanup_workspace(ws))
+
+  # Modify config to skip delay fitting
+  config_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "desc-petfitoptions_config.json")
+  config <- jsonlite::fromJSON(config_path)
+  config$FitDelay$model <- "Set to zero (i.e. no delay fitting to be performed)"
+  jsonlite::write_json(config, config_path, pretty = TRUE, auto_unbox = TRUE)
+
+  result <- petfit_modelling_auto(
+    bids_dir = ws$bids_dir,
+    derivatives_dir = ws$derivatives_dir
+  )
+
+  expect_true(result$success, info = paste(result$messages, collapse = "\n"))
+
+  # Verify model report was generated
+  report_path <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis",
+                           "reports", "model1_report.html")
+  expect_true(file.exists(report_path),
+              info = "Model 1 report should be generated with zero delay")
+})
+
+# ---------------------------------------------------------------------------
 # Pipeline type detection
 # ---------------------------------------------------------------------------
 

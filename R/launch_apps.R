@@ -45,6 +45,17 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
   
+  # Validate directory inputs
+  if (!is.null(bids_dir) && !dir.exists(bids_dir)) {
+    stop("BIDS directory does not exist: ", bids_dir)
+  }
+  if (!is.null(derivatives_dir) && !dir.exists(derivatives_dir)) {
+    stop("Derivatives directory does not exist: ", derivatives_dir)
+  }
+  if (!is.null(blood_dir) && !dir.exists(blood_dir)) {
+    stop("Blood directory does not exist: ", blood_dir)
+  }
+
   # Print configuration
   cat("=== Launching petfit app:", app, "===\n")
   if (!is.null(bids_dir)) {

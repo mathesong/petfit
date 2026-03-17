@@ -11,7 +11,7 @@
 # Test data source (in priority order):
 #   1. PETFIT_TESTDATA_PATH env var (explicit path to .tar.gz)
 #   2. Local file: tests/testthat/fixtures/integration/ds004869_testdata.tar.gz
-#   3. GitHub Release download (requires gh CLI)
+#   3. GitHub Release download (R-native HTTP, then gh CLI fallback)
 
 # GitHub repo for release downloads
 PETFIT_GH_REPO <- "mathesong/petfit"
@@ -80,8 +80,12 @@ get_integration_cache_dir <- function() {
 #'
 #' Searches for the tarball in priority order:
 #' 1. PETFIT_TESTDATA_PATH env var
-#' 2. Local fixtures directory
-#' 3. GitHub Release download
+#' 2. Local fixtures directory (included in the git repo)
+#' 3. GitHub Release download (R-native HTTP, then gh CLI fallback)
+#'
+#' In most cases, the tarball is found at priority 2 since it's committed to
+#' the repository. The download fallback exists for edge cases where someone
+#' has a partial clone or the file was removed locally.
 #'
 #' @return Path to tarball, or NULL if not found
 find_testdata_tarball <- function() {
@@ -91,37 +95,55 @@ find_testdata_tarball <- function() {
     return(explicit_path)
   }
 
-  # Priority 2: Local file in fixtures
+  # Priority 2: Local file in fixtures (the normal case for cloned repos)
   local_path <- testthat::test_path("fixtures", "integration", PETFIT_TESTDATA_FILENAME)
   if (file.exists(local_path)) {
     return(local_path)
   }
 
-  # Priority 3: Download from GitHub Release
-  if (nchar(Sys.which("gh")) > 0) {
-    cache_dir <- get_integration_cache_dir()
-    cached_tarball <- file.path(cache_dir, PETFIT_TESTDATA_FILENAME)
+  # Priority 3: Download from GitHub Release (fallback)
+  cache_dir <- get_integration_cache_dir()
+  cached_tarball <- file.path(cache_dir, PETFIT_TESTDATA_FILENAME)
 
-    if (!file.exists(cached_tarball)) {
-      message("Downloading test data from GitHub Release...")
-      result <- system2(
-        "gh", c(
-          "release", "download", PETFIT_TESTDATA_RELEASE_TAG,
-          "--repo", PETFIT_GH_REPO,
-          "--pattern", PETFIT_TESTDATA_FILENAME,
-          "--dir", cache_dir
-        ),
-        stdout = TRUE, stderr = TRUE
-      )
-      exit_code <- attr(result, "status") %||% 0L
-      if (exit_code != 0L || !file.exists(cached_tarball)) {
-        warning("Failed to download test data from GitHub Release: ",
-                paste(result, collapse = "\n"))
-        return(NULL)
-      }
-      message("Downloaded test data to: ", cached_tarball)
-    }
+  if (file.exists(cached_tarball)) {
     return(cached_tarball)
+  }
+
+  # 3a: R-native HTTP download (no external tools needed)
+  download_url <- sprintf(
+    "https://github.com/%s/releases/download/%s/%s",
+    PETFIT_GH_REPO, PETFIT_TESTDATA_RELEASE_TAG, PETFIT_TESTDATA_FILENAME
+  )
+  tryCatch({
+    message("Test data not found locally. Downloading from GitHub Release...")
+    utils::download.file(download_url, cached_tarball, mode = "wb", quiet = FALSE)
+    if (file.exists(cached_tarball)) {
+      message("Downloaded test data to: ", cached_tarball)
+      return(cached_tarball)
+    }
+  }, error = function(e) {
+    message("R download failed: ", conditionMessage(e))
+    if (file.exists(cached_tarball)) file.remove(cached_tarball)
+  })
+
+  # 3b: gh CLI fallback
+  if (nchar(Sys.which("gh")) > 0) {
+    message("Trying gh CLI download...")
+    result <- system2(
+      "gh", c(
+        "release", "download", PETFIT_TESTDATA_RELEASE_TAG,
+        "--repo", PETFIT_GH_REPO,
+        "--pattern", PETFIT_TESTDATA_FILENAME,
+        "--dir", cache_dir
+      ),
+      stdout = TRUE, stderr = TRUE
+    )
+    exit_code <- attr(result, "status") %||% 0L
+    if (exit_code == 0L && file.exists(cached_tarball)) {
+      message("Downloaded test data to: ", cached_tarball)
+      return(cached_tarball)
+    }
+    warning("gh CLI download failed: ", paste(result, collapse = "\n"))
   }
 
   # No tarball found

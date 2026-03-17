@@ -24,8 +24,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PETFIT_TESTDATA_RELEASE_TAG: testdata-v1.0
-  PETFIT_TESTDATA_FILENAME: ds004869_testdata.tar.gz
   R_LIBS_USER: ${{ github.workspace }}/R-lib
 
 jobs:
@@ -51,28 +49,9 @@ jobs:
         with:
           extra-packages: any::devtools, any::testthat
 
-      - name: Cache test data
-        uses: actions/cache@v4
-        id: cache-testdata
-        with:
-          path: /tmp/petfit_integration
-          key: testdata-${{ env.PETFIT_TESTDATA_RELEASE_TAG }}
-
-      - name: Download test data
-        if: steps.cache-testdata.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p /tmp/petfit_integration
-          gh release download ${{ env.PETFIT_TESTDATA_RELEASE_TAG }} \
-            --repo ${{ github.repository }} \
-            --pattern ${{ env.PETFIT_TESTDATA_FILENAME }} \
-            --dir /tmp/petfit_integration
-
       - name: Run integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"
-          PETFIT_TESTDATA_PATH: /tmp/petfit_integration/${{ env.PETFIT_TESTDATA_FILENAME }}
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
           Rscript -e "devtools::test(filter = 'integration')"
@@ -115,29 +94,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Cache test data
-        uses: actions/cache@v4
-        id: cache-testdata
-        with:
-          path: /tmp/petfit_integration
-          key: testdata-${{ env.PETFIT_TESTDATA_RELEASE_TAG }}
-
-      - name: Download test data
-        if: steps.cache-testdata.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p /tmp/petfit_integration
-          gh release download ${{ env.PETFIT_TESTDATA_RELEASE_TAG }} \
-            --repo ${{ github.repository }} \
-            --pattern ${{ env.PETFIT_TESTDATA_FILENAME }} \
-            --dir /tmp/petfit_integration
-
       - name: Run Docker integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"
           PETFIT_DOCKER_TESTS: "true"
-          PETFIT_TESTDATA_PATH: /tmp/petfit_integration/${{ env.PETFIT_TESTDATA_FILENAME }}
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
           Rscript -e "devtools::test(filter = 'integration-docker')"
@@ -185,29 +145,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Cache test data
-        uses: actions/cache@v4
-        id: cache-testdata
-        with:
-          path: /tmp/petfit_integration
-          key: testdata-${{ env.PETFIT_TESTDATA_RELEASE_TAG }}
-
-      - name: Download test data
-        if: steps.cache-testdata.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p /tmp/petfit_integration
-          gh release download ${{ env.PETFIT_TESTDATA_RELEASE_TAG }} \
-            --repo ${{ github.repository }} \
-            --pattern ${{ env.PETFIT_TESTDATA_FILENAME }} \
-            --dir /tmp/petfit_integration
-
       - name: Run Singularity integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"
           PETFIT_SINGULARITY_TESTS: "true"
-          PETFIT_TESTDATA_PATH: /tmp/petfit_integration/${{ env.PETFIT_TESTDATA_FILENAME }}
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
           Rscript -e "devtools::test(filter = 'integration-singularity')"

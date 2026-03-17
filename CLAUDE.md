@@ -758,9 +758,11 @@ PETFIT_INTEGRATION_TESTS=true PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache Rscript
 
 ### Test Data
 
-Test data is prepared once via `tests/testthat/fixtures/integration/prepare_testdata.sh` (requires datalad), which creates a tarball of ds004869 with NIfTI files replaced by empty placeholders. The tarball is stored as a GitHub Release asset (tag: `testdata-v1.0`).
+The test data tarball (`ds004869_testdata.tar.gz`, ~2.7 MB) is committed to the repository at `tests/testthat/fixtures/integration/`. It contains real TSV/JSON files from OpenNeuro ds004869 with NIfTI files replaced by empty placeholders. It is excluded from the built R package via `.Rbuildignore`.
 
-At test time, `ensure_testdata()` in `helper-integration.R` extracts the tarball (no datalad needed). It searches for the tarball in order: `PETFIT_TESTDATA_PATH` env var -> local fixtures directory -> GitHub Release download via `gh` CLI.
+At test time, `ensure_testdata()` in `helper-integration.R` extracts the tarball (no datalad needed). It searches for the tarball in order: `PETFIT_TESTDATA_PATH` env var -> local fixtures directory -> GitHub Release download (R-native HTTP, then `gh` CLI fallback).
+
+To regenerate the tarball from scratch (requires datalad): `cd tests/testthat/fixtures/integration && bash prepare_testdata.sh`
 
 ### Workspace Isolation
 
@@ -773,29 +775,29 @@ Each test creates an isolated workspace via `create_integration_workspace()`:
 
 To test a new model configuration:
 1. Create a JSON config in `tests/testthat/fixtures/integration/` (copy from an existing one)
-2. Create a test file using the template in `tests/testthat/fixtures/integration/README.md`
+2. Create a test file using the template in `tests/README.md`
 3. Run with `PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration-modelling-<name>')"`
 
-See `tests/testthat/fixtures/integration/README.md` for the full guide with templates and tips.
+See `tests/README.md` for the full guide with templates and tips.
 
 ### Key Gotchas for Config Files
 
 - **BIDS description ordering**: `petfit_regions.tsv` description column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-gtm`). The `create_bids_key_value_pairs()` function gives `seg`/`label` priority, then sorts remaining keys alphabetically.
-- **Delay must run for plasma configs**: Setting `FitDelay.model` to `"Set to zero..."` skips creating `_inputfunction.tsv` files, which model reports need. Use `"1tcm_singletac"` or another actual delay method.
+- **Delay set to zero works for plasma configs**: When `FitDelay.model` is `"Set to zero..."`, the delay step is skipped but model reports independently load blood data from raw BIDS `_blood.tsv` files (via `determine_blood_source()`) and default `inpshift` to 0.
 - **Reference region must be in subsetting**: If `ReferenceTAC.region` is `"Cerebellum"`, then `Subsetting.Regions` must include `"Cerebellum"`.
 - **Reference config field name**: The Rmd templates read `config$ReferenceTAC$region` (not `reference_region`).
 
-### Known Bugs (Found During Integration Testing)
+### Bugs Fixed During Integration Testing
 
-Documented in `tests/testthat/fixtures/integration/ISSUES.md`:
-1. **`petfit_regiondef_auto()` path bug** — `create_petfit_regions_files()` returns a data frame, not a path. Fixed on `add_full_tests` branch.
-2. **"No Model" crashes pipeline** — `execute_model_step()` doesn't check for "No Model" type, tries to generate report. Fixed on `add_full_tests` branch.
-3. **Plasma model fails with no delay** — Skipping delay estimation also skips creating `_inputfunction.tsv` files that model reports require. Design consideration, not yet resolved.
+1. **`petfit_regiondef_auto()` path bug** — `create_petfit_regions_files()` returns a data frame, not a path. Fixed.
+2. **"No Model" crashes pipeline** — `execute_model_step()` doesn't check for "No Model" type, tries to generate report. Fixed.
+3. **Deprecated `cur_data()` warnings** — Replaced with `pick(everything())` in `region_utils.R`. Fixed.
+4. **Many-to-many join warnings** — Added `relationship = "many-to-many"` to `inner_join()` in `region_utils.R`. Fixed.
 
 ### GitHub Actions
 
 The workflow at `.github/workflows/integration-tests.yml` runs three parallel jobs:
-1. **R-native**: Downloads test data from GitHub Release (cached), runs all integration tests
+1. **R-native**: Uses test data from repo checkout, runs all integration tests
 2. **Docker**: Builds image with GHA layer caching, runs Docker container tests
 3. **Apptainer**: Installs Apptainer, builds Docker image, runs Singularity tests
 

@@ -22,7 +22,15 @@
       "Bash(find:*)",
       "Bash(rev:*)",
       "Bash(PETFIT_INTEGRATION_TESTS=true PETFIT_TESTDATA_PATH=/tmp/ds004869/../ds004869_testdata.tar.gz Rscript:*)",
-      "Bash(PETFIT_INTEGRATION_TESTS=true Rscript:*)"
+      "Bash(PETFIT_INTEGRATION_TESTS=true Rscript:*)",
+      "Bash(Rscript -e \"devtools::test\\(\\)\")",
+      "Bash(Rscript -e \"installed.packages\\(\\)[,''Package'']\")",
+      "Bash(Rscript -e \"packageVersion\\(''devtools''\\)\")",
+      "Bash(Rscript -e \"packageVersion\\(''testthat''\\)\")",
+      "Bash(pkill -f \"devtools::test\")",
+      "Bash(pkill -f \"testthat\")",
+      "Bash(pkill -f \"shiny\")",
+      "Bash(pkill -f \"R.*3838\")"
     ]
   }
 }
