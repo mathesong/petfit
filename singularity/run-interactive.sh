@@ -190,14 +190,20 @@ echo "App will be available at: http://localhost:$HOST_PORT"
 echo "Press Ctrl+C to stop the container"
 echo
 
-# Check if Singularity is installed
-if ! command -v singularity &> /dev/null; then
-    echo "Error: Singularity is not installed or not in PATH"
+# Detect Singularity/Apptainer command
+if command -v apptainer &> /dev/null; then
+    SINGULARITY_CMD="apptainer"
+elif command -v singularity &> /dev/null; then
+    SINGULARITY_CMD="singularity"
+else
+    echo "Error: Neither Apptainer nor Singularity is installed or in PATH"
     exit 1
 fi
 
 # Run the container
-echo "Command: singularity run $BIND_MOUNTS $CONTAINER $CMD_ARGS"
+# --cleanenv prevents host environment variables (e.g., R_LIBS_USER) from
+# leaking into the container and hiding the container's own R libraries
+echo "Command: $SINGULARITY_CMD run --cleanenv $BIND_MOUNTS $CONTAINER $CMD_ARGS"
 echo
 
-exec singularity run $BIND_MOUNTS "$CONTAINER" $CMD_ARGS
+exec $SINGULARITY_CMD run --cleanenv $BIND_MOUNTS "$CONTAINER" $CMD_ARGS

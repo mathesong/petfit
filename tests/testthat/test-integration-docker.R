@@ -136,7 +136,7 @@ test_that("Docker: plasma modelling full pipeline succeeds", {
   expect_true(dir.exists(reports_dir), info = "Reports directory should exist")
 
   report_files <- list.files(reports_dir, pattern = "\\.html$")
-  expect_gt(length(report_files), 0, info = "At least one HTML report should be generated")
+  expect_gt(length(report_files), 0, label = "At least one HTML report should be generated")
 })
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ test_that("Docker: plasma modelling runs individual steps", {
   tacs_files <- list.files(analysis_dir, pattern = "_desc-combinedregions_tacs\\.tsv$",
                            recursive = TRUE)
   expect_gt(length(tacs_files), 0,
-            info = "Individual TACs files should be created by datadef step")
+            label = "Individual TACs files should be created by datadef step")
 
   # Run weights step
   weights_result <- run_petfit_docker(
@@ -236,7 +236,7 @@ test_that("Docker: reference tissue modelling full pipeline succeeds", {
   expect_true(dir.exists(reports_dir), info = "Reports directory should exist")
 
   report_files <- list.files(reports_dir, pattern = "\\.html$")
-  expect_gt(length(report_files), 0, info = "At least one HTML report should be generated")
+  expect_gt(length(report_files), 0, label = "At least one HTML report should be generated")
 })
 
 # ---------------------------------------------------------------------------

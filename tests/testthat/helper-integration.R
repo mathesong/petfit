@@ -369,7 +369,10 @@ run_petfit_singularity <- function(func, mode, workspace_info,
   }
 
   # Build command args
-  cmd_args <- c("run")
+  # --cleanenv prevents host environment variables (e.g., R_LIBS_USER) from
+
+  # leaking into the container and hiding the container's own R libraries
+  cmd_args <- c("run", "--cleanenv")
   for (b in binds) {
     cmd_args <- c(cmd_args, "--bind", b)
   }
