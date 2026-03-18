@@ -7,6 +7,7 @@ output:
     toc_depth: 2
     code_folding: hide
 params:
+  cores: 1
   analysis_folder: NULL
   bids_dir: NULL
   blood_dir: NULL
@@ -20,6 +21,19 @@ library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
+
+library(furrr)
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
 
 theme_set(theme_light())
 
@@ -388,7 +402,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
-  mutate(delayFit = map2(tacs, input,
+  mutate(delayFit = future_map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
@@ -398,7 +412,8 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ))) 
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
 ```
 
 ```{r, eval=do_2tcm_singletac, echo=do_2tcm_singletac, results='asis'}
@@ -417,7 +432,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
-  mutate(delayFit = map2(tacs, input,
+  mutate(delayFit = future_map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
@@ -427,7 +442,8 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ))) 
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
 ```
 
 ```{r, eval=do_1tcm_median, echo=do_1tcm_median, results='asis'}
@@ -446,7 +462,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_onetcm <- possibly(onetcm, otherwise = NA)
 
 model_data <- model_data %>%
-  mutate(delayFit = map2(tacs, input,
+  mutate(delayFit = future_map2(tacs, input,
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
@@ -456,7 +472,8 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ))) 
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
 ```
 
 
@@ -477,7 +494,7 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
 model_data <- model_data %>%
-  mutate(delayFit = map2(tacs, input,
+  mutate(delayFit = future_map2(tacs, input,
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
@@ -487,7 +504,8 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ))) 
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
 ```
 
 ### Extract results
@@ -550,19 +568,19 @@ walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
 
 ```{r, eval=do_1tcm_median, echo=do_1tcm_median}
 # fit again with new delay
-fit_again_with_newdelay <- model_data %>% 
-  select(-delayFit) %>% 
-  inner_join(delay_out) %>% 
-  group_by(pet) %>% 
-  mutate(delayFit2 = pmap(list(tacs, input, inpshift),
-                         ~safe_onetcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
-                                 input = ..2, 
+fit_again_with_newdelay <- model_data %>%
+  select(-delayFit) %>%
+  inner_join(delay_out) %>%
+  mutate(delayFit2 = future_pmap(list(tacs, input, inpshift),
+                         ~safe_onetcm(t_tac = ..1$frame_mid, tac = ..1$TAC,
+                                 input = ..2,
                                  weights = if(use_weights) ..1$weights else NULL,
                                  vB =  if(fit_vB) vB_value else NULL,
-                                 timeStartEnd = c(0,time_window), 
+                                 timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
-                                 inpshift = ..3))) %>% 
+                                 inpshift = ..3),
+                         .options = furrr_options(seed = TRUE))) %>%
   mutate(success =map_lgl(delayFit2, ~{
     if(is.list(.x)) TRUE else FALSE} )) %>% 
   filter(success)
@@ -613,19 +631,19 @@ pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input,
 
 ```{r, eval=do_2tcm_median, echo=do_2tcm_median}
 # fit again with new delay
-fit_again_with_newdelay <- model_data %>% 
-  select(-delayFit) %>% 
-  inner_join(delay_out) %>% 
-  group_by(pet) %>% 
-  mutate(delayFit2 = pmap(list(tacs, input, inpshift),
-                         ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC, 
-                                 input = ..2, 
+fit_again_with_newdelay <- model_data %>%
+  select(-delayFit) %>%
+  inner_join(delay_out) %>%
+  mutate(delayFit2 = future_pmap(list(tacs, input, inpshift),
+                         ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC,
+                                 input = ..2,
                                  weights = if(use_weights) ..1$weights else NULL,
                                  vB =  if(fit_vB) vB_value else NULL,
-                                 timeStartEnd = c(0,time_window), 
+                                 timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
-                                 inpshift = ..3))) %>% 
+                                 inpshift = ..3),
+                         .options = furrr_options(seed = TRUE))) %>%
   mutate(success =map_lgl(delayFit2, ~{
     if(is.list(.x)) TRUE else FALSE} )) %>% 
   filter(success)
@@ -751,6 +769,10 @@ walk2(delay_out$inpshift,
       save_inpshift)
 ```
 
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
+```
 
 # Session Information
 

@@ -8,7 +8,7 @@
 #' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL) {
+modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -2474,6 +2474,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         petfit_dir = petfit_dir,
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
+        cores = cores,
         notify = notify
       )
 
@@ -2498,6 +2499,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
+        cores = cores,
         notify = notify
       )
 
@@ -2521,6 +2523,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         config_path = config_path,
         output_dir = output_dir,
         bids_dir = bids_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -2591,6 +2594,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
+        cores = cores,
         notify = notify
       )
 

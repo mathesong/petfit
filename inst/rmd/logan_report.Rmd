@@ -7,6 +7,7 @@ output:
     toc_depth: 2
     code_folding: hide
 params:
+  cores: 1
   model_number: "Model 1"
   analysis_folder: NULL
   bids_dir: NULL
@@ -21,6 +22,19 @@ library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
+
+library(furrr)
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
 
 theme_set(theme_light())
 
@@ -480,7 +494,6 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 safe_Loganplot <- possibly(Loganplot, otherwise = NA)
 
 model_data <- model_data %>%
-  group_by(output_stem, region) %>%
   mutate(fit_Logan = pmap(list(tacs, input, inpshift, vB),
                          ~safe_Loganplot(
                            t_tac = ..1$frame_mid,
@@ -623,28 +636,74 @@ ggplot(par_table_long, aes(x=Value, fill=region)) +
 
 ### Plots
 
-```{r, fig.height=4, fig.width=6}
-fitplots <- model_data %>% 
-  mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(fitplot = pmap(list(fit_Logan, region, title), 
-                        ~plot(..1, roiname=..2) + 
-                          labs(title = ..3))) %>% 
-  pull(fitplot)
+```{r fit-plots, results='asis'}
+n_fit_plots <- nrow(model_data %>% filter(success))
+embed_fit_plots <- n_fit_plots <= 200
 
-walk(fitplots, ~print(.x))
+if (embed_fit_plots) {
+  fit_plot_dir <- tempdir()
+} else {
+  fit_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "fit")
+  dir.create(fit_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+fit_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(title = paste(pet, " : ", region),
+         safe_filename = str_replace_all(
+           paste(pet, region, sep = "_"), "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap_chr(
+    list(.$fit_Logan, .$region, .$title, .$safe_filename),
+    function(fit, region, title, fname) {
+      p <- plot(fit, roiname = region) +
+        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)")
+      filepath <- file.path(fit_plot_dir, paste0(fname, ".png"))
+      ggsave(filepath, p, width = 6, height = 4, dpi = 96)
+      filepath
+    }, .options = furrr_options(seed = TRUE))}
+
+if (embed_fit_plots) {
+  walk(fit_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** {n_fit_plots} fit plots saved to: `reports/{desc}_report_plots/fit/`\n\n"))
+}
 ```
 
 ### Residuals
 
-```{r, fig.height=4, fig.width=6}
-resplots <- model_data %>% 
-  mutate(title = paste(pet, " : ", region)) %>% 
-  mutate(resplot = pmap(list(fit_Logan, title), 
-                        ~plot_residuals(..1) + 
-                          labs(title = ..2))) %>% 
-  pull(resplot)
+```{r residual-plots, results='asis'}
+n_res_plots <- nrow(model_data %>% filter(success))
+embed_res_plots <- n_res_plots <= 200
 
-walk(resplots, ~print(.x))
+if (embed_res_plots) {
+  res_plot_dir <- tempdir()
+} else {
+  res_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "residuals")
+  dir.create(res_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+res_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(title = paste(pet, " : ", region),
+         safe_filename = str_replace_all(
+           paste(pet, region, sep = "_"), "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap_chr(
+    list(.$fit_Logan, .$title, .$safe_filename),
+    function(fit, title, fname) {
+      p <- plot_residuals(fit) +
+        labs(title = title)
+      filepath <- file.path(res_plot_dir, paste0(fname, ".png"))
+      ggsave(filepath, p, width = 6, height = 4, dpi = 96)
+      filepath
+    }, .options = furrr_options(seed = TRUE))}
+
+if (embed_res_plots) {
+  walk(res_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** {n_res_plots} residual plots saved to: `reports/{desc}_report_plots/residuals/`\n\n"))
+}
 ```
 
 
@@ -778,6 +837,10 @@ walk2(savefits_pet$jsondat,
       ~writeLines(.x, .y))
 ```
 
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
+```
 
 # Session Information
 

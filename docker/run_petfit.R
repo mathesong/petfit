@@ -15,8 +15,10 @@ option_list <- list(
               help="Step to run in automatic mode: 'datadef', 'weights', 'delay', 'reference_tac', 'model1', 'model2', 'model3' [optional]"),
   make_option(c("--petfit_output_foldername"), type="character", default="petfit", 
               help="Name for petfit output folder within derivatives [default: petfit]"),
-  make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis", 
-              help="Name for analysis subfolder [default: Primary_Analysis]")
+  make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis",
+              help="Name for analysis subfolder [default: Primary_Analysis]"),
+  make_option(c("--cores"), type="integer", default=1L,
+              help="Number of cores for parallel processing [default: 1]")
 )
 
 # Parse arguments
@@ -119,21 +121,24 @@ if (opt$mode == "interactive") {
     region_definition_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
-      petfit_output_foldername = opt$petfit_output_foldername
+      petfit_output_foldername = opt$petfit_output_foldername,
+      cores = opt$cores
     )
   } else if (opt$func == "modelling_plasma") {
     modelling_plasma_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername
+      subfolder = opt$analysis_foldername,
+      cores = opt$cores
     )
   } else if (opt$func == "modelling_ref") {
     modelling_ref_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername
+      subfolder = opt$analysis_foldername,
+      cores = opt$cores
     )
   }
 
@@ -151,7 +156,8 @@ if (opt$mode == "interactive") {
       result <- petfit_regiondef_auto(
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
-        petfit_output_foldername = opt$petfit_output_foldername
+        petfit_output_foldername = opt$petfit_output_foldername,
+        cores = opt$cores
       )
 
       # Print all messages
@@ -195,7 +201,8 @@ if (opt$mode == "interactive") {
         petfit_output_foldername = opt$petfit_output_foldername,
         blood_dir = dirs$blood_dir,
         step = opt$step,
-        pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference"
+        pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference",
+        cores = opt$cores
       )
 
       # Print all messages

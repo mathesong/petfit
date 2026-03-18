@@ -9,59 +9,6 @@
 # Requires: PETFIT_INTEGRATION_TESTS=true, PETFIT_DOCKER_TESTS=true, Docker
 
 # ---------------------------------------------------------------------------
-# Helper: ensure Docker image is available
-# ---------------------------------------------------------------------------
-
-DOCKER_IMAGE <- "mathesong/petfit:latest"
-
-ensure_docker_image <- function() {
-  # Optionally rebuild the image from source
-  if (Sys.getenv("PETFIT_DOCKER_BUILD") == "true") {
-    pkg_root <- testthat::test_path("..", "..")
-    build_result <- system2(
-      "docker",
-      c("build", "-t", DOCKER_IMAGE, "-f", "docker/Dockerfile", "."),
-      stdout = TRUE, stderr = TRUE,
-      env = paste0("DOCKER_BUILDKIT=1")
-    )
-    exit_code <- attr(build_result, "status") %||% 0L
-    if (exit_code != 0L) {
-      testthat::skip(paste("Docker build failed:", paste(build_result, collapse = "\n")))
-    }
-  }
-
-  # Verify image exists
-  check <- system2("docker", c("image", "inspect", DOCKER_IMAGE),
-                    stdout = FALSE, stderr = FALSE)
-  if (check != 0L) {
-    testthat::skip(paste("Docker image not available:", DOCKER_IMAGE,
-                         "\nPull with: docker pull", DOCKER_IMAGE,
-                         "\nOr set PETFIT_DOCKER_BUILD=true to build from source"))
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Helper: set up workspace for Docker tests (resolves symlinks)
-# ---------------------------------------------------------------------------
-
-setup_docker_workspace <- function() {
-  dataset_dir <- ensure_testdata()
-  ws <- create_integration_workspace(dataset_dir)
-
-  # Docker needs real paths, not symlinks -- resolve the petprep symlink
-  petprep_link <- file.path(ws$derivatives_dir, "petprep")
-  if (file.exists(petprep_link) && Sys.readlink(petprep_link) != "") {
-    real_path <- normalizePath(petprep_link)
-    unlink(petprep_link)
-    # Copy petprep into workspace so Docker can access it via bind mount
-    # Use system cp for speed with -a to preserve structure
-    system2("cp", c("-a", real_path, petprep_link))
-  }
-
-  ws
-}
-
-# ---------------------------------------------------------------------------
 # Regiondef: automatic mode
 # ---------------------------------------------------------------------------
 

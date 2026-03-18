@@ -13,6 +13,7 @@ BLOOD_DIR=""
 STEP=""
 PETFIT_FOLDER="petfit"
 ANALYSIS_FOLDER="Primary_Analysis"
+CORES=1
 
 # Help function
 show_help() {
@@ -29,6 +30,7 @@ Options:
     --step STEP              Specific step to run (optional)
     --petfit-folder NAME    Name for petfit output folder (default: $PETFIT_FOLDER)
     --analysis-folder NAME   Name for analysis subfolder (default: $ANALYSIS_FOLDER)
+    --cores N                Number of cores for parallel processing (default: $CORES)
     -h, --help               Show this help message
 
 Step Options:
@@ -100,6 +102,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --analysis-folder)
             ANALYSIS_FOLDER="$2"
+            shift 2
+            ;;
+        --cores)
+            CORES="$2"
             shift 2
             ;;
         -h|--help)
@@ -194,6 +200,7 @@ fi
 if [ -n "$ANALYSIS_FOLDER" ]; then
     CMD_ARGS="$CMD_ARGS --analysis_foldername $ANALYSIS_FOLDER"
 fi
+CMD_ARGS="$CMD_ARGS --cores $CORES"
 
 echo "=== petfit Singularity Automatic Mode ==="
 echo "Container: $CONTAINER"

@@ -6,10 +6,11 @@ output:
     toc_depth: 2
     code_folding: hide
 params:
+  cores: 1
   analysis_folder: NULL
   bids_dir: NULL
   blood_dir: NULL
-  tstar_results: NULL  
+  tstar_results: NULL
   binding_regions: NULL
 ---
 

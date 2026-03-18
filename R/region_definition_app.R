@@ -9,7 +9,7 @@
 #'   - bids_dir/code/petfit if bids_dir provided
 #'   - derivatives_dir/petfit_output_foldername if no bids_dir
 #' @export
-region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit") {
+region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -1005,7 +1005,7 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
         cat("Processing all regions...\n")
         
         # Use consolidated TACs creation instead of separate files
-        combined_data <- create_petfit_combined_tacs(petfit_regions_files_path, derivatives_folder, combined_output_folder, bids_dir, participant_data)
+        combined_data <- create_petfit_combined_tacs(petfit_regions_files_path, derivatives_folder, combined_output_folder, bids_dir, participant_data, cores = cores)
         
         # Show success notification with summary  
         total_rows <- nrow(combined_data)

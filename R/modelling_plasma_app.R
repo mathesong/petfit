@@ -8,7 +8,7 @@
 #' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL) {
+modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -2625,6 +2625,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         petfit_dir = petfit_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -2649,6 +2650,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -2673,6 +2675,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -2743,6 +2746,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 

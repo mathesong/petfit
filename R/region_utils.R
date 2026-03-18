@@ -802,7 +802,7 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
 #' @param participant_data Participant data loaded from BIDS directory (optional)
 #' @return Tibble with all combined TACs data in long format with BIDS attributes
 #' @export
-create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL) {
+create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL, cores = 1L) {
   
   # Validate inputs
   if (!file.exists(petfit_regions_files_path)) {
@@ -850,8 +850,18 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     cat("Detected TAC units from", first_tacs_file, ":", original_tac_units, "\n")
   }
   
+  # Set up parallel processing
+  if (cores > 1L) {
+    if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+    on.exit(future::plan(future::sequential), add = TRUE)
+  }
+
   # Process all file pairs and collect results
-  all_combined_data <- purrr::map_dfr(1:nrow(file_groups), function(i) {
+  all_combined_data <- furrr::future_map_dfr(1:nrow(file_groups), function(i) {
     tacs_file <- file_groups$tacs_filename[i]
     morph_file <- file_groups$morph_filename[i]
     regions_data <- file_groups$regions_data[[i]]
@@ -995,7 +1005,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
       dplyr::select(dplyr::all_of(column_order[column_order %in% colnames(.)]))  # Only select columns that exist
 
     return(combined_results_with_bids)
-  })
+  }, .options = furrr::furrr_options(seed = TRUE))
   
   if (nrow(all_combined_data) == 0) {
     warning("No regions were successfully combined across all files")

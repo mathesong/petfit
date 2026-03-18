@@ -9,67 +9,6 @@
 # Script validation tests run with just PETFIT_INTEGRATION_TESTS=true (no container needed).
 
 # ---------------------------------------------------------------------------
-# Helper: locate singularity/apptainer command
-# ---------------------------------------------------------------------------
-
-get_singularity_cmd <- function() {
-  if (nchar(Sys.which("apptainer")) > 0) return("apptainer")
-  if (nchar(Sys.which("singularity")) > 0) return("singularity")
-  NULL
-}
-
-# ---------------------------------------------------------------------------
-# Helper: find or build container image
-# ---------------------------------------------------------------------------
-
-find_singularity_container <- function() {
-  # Check for explicit path
-  sif_path <- Sys.getenv("PETFIT_SINGULARITY_SIF", unset = "")
-  if (sif_path != "" && file.exists(sif_path)) {
-    return(sif_path)
-  }
-
-  # Check for a SIF in the singularity/ directory
-  pkg_root <- testthat::test_path("..", "..")
-  sif_candidates <- list.files(
-    file.path(pkg_root, "singularity"),
-    pattern = "\\.sif$",
-    full.names = TRUE
-  )
-  if (length(sif_candidates) > 0) {
-    return(sif_candidates[1])
-  }
-
-  # Try docker-daemon reference if Docker image exists
-  docker_check <- system2("docker", c("image", "inspect", "mathesong/petfit:latest"),
-                          stdout = FALSE, stderr = FALSE)
-  if (docker_check == 0L) {
-    return("docker-daemon://mathesong/petfit:latest")
-  }
-
-  NULL
-}
-
-# ---------------------------------------------------------------------------
-# Helper: set up workspace (same as Docker -- resolve symlinks)
-# ---------------------------------------------------------------------------
-
-setup_singularity_workspace <- function() {
-  dataset_dir <- ensure_testdata()
-  ws <- create_integration_workspace(dataset_dir)
-
-  # Singularity needs real paths for bind mounts
-  petprep_link <- file.path(ws$derivatives_dir, "petprep")
-  if (file.exists(petprep_link) && Sys.readlink(petprep_link) != "") {
-    real_path <- normalizePath(petprep_link)
-    unlink(petprep_link)
-    system2("cp", c("-a", real_path, petprep_link))
-  }
-
-  ws
-}
-
-# ---------------------------------------------------------------------------
 # Script validation (no container needed)
 # ---------------------------------------------------------------------------
 

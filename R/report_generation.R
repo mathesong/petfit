@@ -10,7 +10,7 @@
 #' 
 #' @return Character string path to the generated report file
 #' @export
-generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, bids_dir = NULL, blood_dir = NULL) {
+generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, bids_dir = NULL, blood_dir = NULL, cores = 1L) {
   
   # Set default output directory
   if (is.null(output_dir)) {
@@ -36,6 +36,7 @@ generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, 
   
   # Prepare parameters - reports are now self-deriving
   params <- list(
+    cores = cores,
     analysis_folder = analysis_folder,
     bids_dir = bids_dir,
     blood_dir = blood_dir
@@ -75,8 +76,8 @@ generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, 
 #' 
 #' @return Character string path to the generated report file
 #' @export
-generate_model_report <- function(model_type, model_number, analysis_folder, 
-                                 output_dir = NULL, bids_dir = NULL, blood_dir = NULL) {
+generate_model_report <- function(model_type, model_number, analysis_folder,
+                                 output_dir = NULL, bids_dir = NULL, blood_dir = NULL, cores = 1L) {
   
   # Set default output directory
   if (is.null(output_dir)) {
@@ -105,6 +106,7 @@ generate_model_report <- function(model_type, model_number, analysis_folder,
   
   # Prepare parameters
   params <- list(
+    cores = cores,
     model_number = model_number,
     analysis_folder = analysis_folder,
     bids_dir = bids_dir,
@@ -181,7 +183,7 @@ get_model_template <- function(model_type) {
 #' @return Character string path to the generated report file
 #' @export
 generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding_regions = NULL,
-                                 output_dir = NULL) {
+                                 output_dir = NULL, cores = 1L) {
   
   # Set default output directory
   if (is.null(output_dir)) {
@@ -206,6 +208,7 @@ generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding
   
   # Prepare parameters
   params <- list(
+    cores = cores,
     analysis_folder = analysis_folder,
     tstar_results = tstar_results,
     binding_regions = binding_regions
