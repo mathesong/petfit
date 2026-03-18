@@ -39,6 +39,7 @@ Imports:
     kinfitr,
     future,
     furrr,
+    ggbeeswarm,
     tidyverse
 Suggests:
     testthat (>= 3.0.0),
