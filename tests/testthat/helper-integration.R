@@ -308,7 +308,8 @@ setup_modelling_config <- function(workspace_info, config_fixture_name,
 run_petfit_docker <- function(func, mode, workspace_info,
                               blood_dir = NULL, step = NULL,
                               image = "mathesong/petfit:latest",
-                              analysis_foldername = "Primary_Analysis") {
+                              analysis_foldername = "Primary_Analysis",
+                              cores = 1L) {
   # Build volume mounts
   volumes <- c(
     paste0(workspace_info$bids_dir, ":/data/bids_dir:ro"),
@@ -331,6 +332,9 @@ run_petfit_docker <- function(func, mode, workspace_info,
   docker_args <- c(docker_args, "--analysis_foldername", analysis_foldername)
   if (!is.null(step)) {
     docker_args <- c(docker_args, "--step", step)
+  }
+  if (cores > 1L) {
+    docker_args <- c(docker_args, "--cores", as.character(cores))
   }
 
   result <- suppressWarnings(
@@ -357,7 +361,8 @@ run_petfit_docker <- function(func, mode, workspace_info,
 run_petfit_singularity <- function(func, mode, workspace_info,
                                    container = "petfit_latest.sif",
                                    blood_dir = NULL, step = NULL,
-                                   analysis_foldername = "Primary_Analysis") {
+                                   analysis_foldername = "Primary_Analysis",
+                                   cores = 1L) {
   # Detect whether to use singularity or apptainer command
   cmd <- if (nchar(Sys.which("apptainer")) > 0) "apptainer" else "singularity"
 
@@ -384,6 +389,9 @@ run_petfit_singularity <- function(func, mode, workspace_info,
   if (!is.null(step)) {
     cmd_args <- c(cmd_args, "--step", step)
   }
+  if (cores > 1L) {
+    cmd_args <- c(cmd_args, "--cores", as.character(cores))
+  }
 
   result <- suppressWarnings(
     system2(cmd, cmd_args, stdout = TRUE, stderr = TRUE)
@@ -394,4 +402,109 @@ run_petfit_singularity <- function(func, mode, workspace_info,
     output = result,
     exit_code = exit_code
   )
+}
+
+# ---------------------------------------------------------------------------
+# Docker container helpers
+# ---------------------------------------------------------------------------
+
+DOCKER_IMAGE <- "mathesong/petfit:latest"
+
+#' Ensure Docker image is available (build or pull if needed)
+ensure_docker_image <- function() {
+  # Optionally rebuild the image from source
+  if (Sys.getenv("PETFIT_DOCKER_BUILD") == "true") {
+    pkg_root <- testthat::test_path("..", "..")
+    build_result <- system2(
+      "docker",
+      c("build", "-t", DOCKER_IMAGE, "-f", "docker/Dockerfile", "."),
+      stdout = TRUE, stderr = TRUE,
+      env = paste0("DOCKER_BUILDKIT=1")
+    )
+    exit_code <- attr(build_result, "status") %||% 0L
+    if (exit_code != 0L) {
+      testthat::skip(paste("Docker build failed:", paste(build_result, collapse = "\n")))
+    }
+  }
+
+  # Verify image exists
+  check <- system2("docker", c("image", "inspect", DOCKER_IMAGE),
+                    stdout = FALSE, stderr = FALSE)
+  if (check != 0L) {
+    testthat::skip(paste("Docker image not available:", DOCKER_IMAGE,
+                         "\nPull with: docker pull", DOCKER_IMAGE,
+                         "\nOr set PETFIT_DOCKER_BUILD=true to build from source"))
+  }
+}
+
+#' Set up workspace for Docker tests (resolves symlinks)
+setup_docker_workspace <- function() {
+  dataset_dir <- ensure_testdata()
+  ws <- create_integration_workspace(dataset_dir)
+
+  # Docker needs real paths, not symlinks -- resolve the petprep symlink
+  petprep_link <- file.path(ws$derivatives_dir, "petprep")
+  if (file.exists(petprep_link) && Sys.readlink(petprep_link) != "") {
+    real_path <- normalizePath(petprep_link)
+    unlink(petprep_link)
+    system2("cp", c("-a", real_path, petprep_link))
+  }
+
+  ws
+}
+
+# ---------------------------------------------------------------------------
+# Singularity/Apptainer container helpers
+# ---------------------------------------------------------------------------
+
+#' Locate singularity/apptainer command
+get_singularity_cmd <- function() {
+  if (nchar(Sys.which("apptainer")) > 0) return("apptainer")
+  if (nchar(Sys.which("singularity")) > 0) return("singularity")
+  NULL
+}
+
+#' Find or build Singularity container image
+find_singularity_container <- function() {
+  # Check for explicit path
+  sif_path <- Sys.getenv("PETFIT_SINGULARITY_SIF", unset = "")
+  if (sif_path != "" && file.exists(sif_path)) {
+    return(sif_path)
+  }
+
+  # Check for a SIF in the singularity/ directory
+  pkg_root <- testthat::test_path("..", "..")
+  sif_candidates <- list.files(
+    file.path(pkg_root, "singularity"),
+    pattern = "\\.sif$",
+    full.names = TRUE
+  )
+  if (length(sif_candidates) > 0) {
+    return(sif_candidates[1])
+  }
+
+  # Try docker-daemon reference if Docker image exists
+  docker_check <- system2("docker", c("image", "inspect", "mathesong/petfit:latest"),
+                          stdout = FALSE, stderr = FALSE)
+  if (docker_check == 0L) {
+    return("docker-daemon:mathesong/petfit:latest")
+  }
+
+  NULL
+}
+
+#' Set up workspace for Singularity tests (resolves symlinks)
+setup_singularity_workspace <- function() {
+  dataset_dir <- ensure_testdata()
+  ws <- create_integration_workspace(dataset_dir)
+
+  # Singularity needs real paths for bind mounts
+  petprep_link <- file.path(ws$derivatives_dir, "petprep")
+  if (file.exists(petprep_link) && Sys.readlink(petprep_link) != "") {
+    real_path <- normalizePath(petprep_link)
+    unlink(petprep_link)
+    system2("cp", c("-a", real_path, petprep_link))
+  }
+
+  ws
 }

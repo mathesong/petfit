@@ -145,7 +145,7 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
 #' @return List with execution result and messages
 #' @export
-petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit") {
+petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
 
   result <- list(
     success = FALSE,
@@ -254,7 +254,8 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
       derivatives_dir,
       output_folder,
       bids_dir,
-      participant_data
+      participant_data,
+      cores = cores
     )
 
     # Generate summary
@@ -347,7 +348,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
                                    analysis_subfolder = "Primary_Analysis",
                                    blood_dir = NULL,
                                    step = NULL,
-                                   pipeline_type = NULL) {
+                                   pipeline_type = NULL,
+                                   cores = 1L) {
 
   result <- list(
     success = FALSE,
@@ -463,6 +465,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         petfit_dir = petfit_base_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -473,6 +476,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -483,6 +487,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -492,6 +497,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         config_path = config_path,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
+        cores = cores,
         notify = notify
       )
 
@@ -504,6 +510,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
         notify = notify
       )
     }

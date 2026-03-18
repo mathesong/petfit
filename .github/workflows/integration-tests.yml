@@ -52,6 +52,7 @@ jobs:
       - name: Run integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"
+          PETFIT_PARALLEL_TESTS: "true"
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
           Rscript -e "devtools::test(filter = 'integration', stop_on_failure = TRUE)"
@@ -98,9 +99,10 @@ jobs:
         env:
           PETFIT_INTEGRATION_TESTS: "true"
           PETFIT_DOCKER_TESTS: "true"
+          PETFIT_PARALLEL_TESTS: "true"
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
-          Rscript -e "devtools::test(filter = 'integration-docker', stop_on_failure = TRUE)"
+          Rscript -e "devtools::test(filter = 'integration.*docker', stop_on_failure = TRUE)"
 
   # =========================================================================
   # Job 3: Apptainer/Singularity container tests
@@ -149,6 +151,7 @@ jobs:
         env:
           PETFIT_INTEGRATION_TESTS: "true"
           PETFIT_SINGULARITY_TESTS: "true"
+          PETFIT_PARALLEL_TESTS: "true"
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
-          Rscript -e "devtools::test(filter = 'integration-singularity', stop_on_failure = TRUE)"
+          Rscript -e "devtools::test(filter = 'integration.*singularity', stop_on_failure = TRUE)"

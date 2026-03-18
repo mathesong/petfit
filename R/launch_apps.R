@@ -40,7 +40,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
                                blood_dir = NULL,
                                petfit_output_foldername = "petfit",
                                subfolder = "Primary_Analysis",
-                               config_file = NULL) {
+                               config_file = NULL,
+                               cores = 1L) {
 
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
@@ -85,7 +86,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
       region_definition_app(
         bids_dir = bids_dir,
         derivatives_dir = derivatives_dir,
-        petfit_output_foldername = petfit_output_foldername
+        petfit_output_foldername = petfit_output_foldername,
+        cores = cores
       )
     },
     modelling_plasma = {
@@ -94,7 +96,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
         derivatives_dir = derivatives_dir,
         blood_dir = blood_dir,
         subfolder = subfolder,
-        config_file = config_file
+        config_file = config_file,
+        cores = cores
       )
     },
     modelling_ref = {
@@ -103,7 +106,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
         derivatives_dir = derivatives_dir,
         blood_dir = blood_dir,
         subfolder = subfolder,
-        config_file = config_file
+        config_file = config_file,
+        cores = cores
       )
     }
   )
