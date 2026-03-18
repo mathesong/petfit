@@ -233,7 +233,9 @@ test_that("Docker: invalid --func argument fails gracefully", {
     "--mode", "automatic"
   )
 
-  output <- system2("docker", docker_args, stdout = TRUE, stderr = TRUE)
+  output <- suppressWarnings(
+    system2("docker", docker_args, stdout = TRUE, stderr = TRUE)
+  )
   exit_code <- attr(output, "status") %||% 0L
 
   expect_true(exit_code != 0L,
