@@ -11,7 +11,7 @@ Users with many small brain regions get poor delay/k2prime estimates because the
 - **Argument-driven**: `ancillary_analysis_folder` function argument; NOT a UI folder picker
 - **UI integration**: New options in EXISTING dropdowns, hidden when no ancillary folder provided
 - **Sibling folders only**: Must be under same `derivatives/petfit/` directory
-- **Config encoding**: Source strings like `"ancillary_per_pet"`, `"ancillary_model1_median"` — folder path NOT in config
+- **Config encoding**: Source strings like `"ancillary_estimate"`, `"ancillary_model1_median"` — folder path NOT in config
 - **Validation**: Console message at startup (not Shiny notification)
 - **Full analysis includes all regions** (subset regions not excluded)
 
@@ -26,16 +26,15 @@ Users with many small brain regions get poor delay/k2prime estimates because the
 - Add `ancillary_analysis_folder` parameter to `modelling_plasma_app()`
 - **Startup validation**: Resolve ancillary path (`{petfit_dir}/{ancillary_analysis_folder}/`), scan for available files, print console summary via `message()`
 - **Delay dropdown**: Add `"Inherit from ancillary analysis folder"` option to delay model choices (only when ancillary provided)
-  - Config value: `"ancillary_per_pet"`
+  - Config value: `"ancillary_estimate"`
   - UI: Use `updateSelectInput()` on startup to add the option if ancillary is available
-- **Delay step execution**: When `model == "ancillary_per_pet"`, skip delay report generation; instead copy delay files from ancillary folder into current analysis folder (so model templates find them with existing glob patterns)
-- **Config save/restore**: Handle `"ancillary_per_pet"` in FitDelay.model; error on restore if ancillary not provided
-- **k2prime dropdown** (for Models 2/3): Add ancillary options — already has `inherit_model1_mean` etc., add `ancillary_model1_mean`, `ancillary_model1_median`, `ancillary_model2_mean`, `ancillary_model2_median`, `ancillary_model3_mean`, `ancillary_model3_median` (no regional — ancillary has different regions than full analysis)
+- **Delay step execution**: When `model == "ancillary_estimate"`, skip delay report generation; instead copy delay files from ancillary folder into current analysis folder (so model templates find them with existing glob patterns)
+- **Config save/restore**: Handle `"ancillary_estimate"` in FitDelay.model; error on restore if ancillary not provided
 
 ### 3. `R/modelling_ref_app.R` — Reference tissue app changes
 - Same `ancillary_analysis_folder` parameter
-- **k2prime dropdowns** for all 3 models: Add ancillary options (same pattern as plasma)
-  - New options: `"ancillary_model1_mean"`, `"ancillary_model1_median"`, and same for model2/model3 (no regional — ancillary has different regions)
+- **k2prime dropdowns** for all 3 models (Models 1, 2, and 3): Add ancillary options
+  - New options: `"ancillary_model1_mean"`, `"ancillary_model1_median"`, `"ancillary_model2_mean"`, `"ancillary_model2_median"`, `"ancillary_model3_mean"`, `"ancillary_model3_median"` (no regional — ancillary has different regions than full analysis)
   - Only shown when ancillary folder is provided
 - **Startup validation**: Same console summary
 
@@ -53,7 +52,7 @@ Users with many small brain regions get poor delay/k2prime estimates because the
 - `get_ancillary_dropdown_options(scan_result, parameter_type)` — returns named vector of available dropdown options based on what's actually in the ancillary folder
 
 ### 5. `R/pipeline_core.R` — Step execution changes
-- `execute_delay_step()`: When config model is `"ancillary_per_pet"`, skip report generation. Instead, use `read_ancillary_delay()` to copy delay files into current analysis folder (so model templates can find them with existing glob patterns)
+- `execute_delay_step()`: When config model is `"ancillary_estimate"`, skip report generation. Instead, use `read_ancillary_delay()` to copy delay files into current analysis folder (so model templates can find them with existing glob patterns)
 - `execute_model_step()`: Pass `ancillary_analysis_folder` through to report params when k2prime_source starts with `"ancillary_"`
 
 ### 6. `R/docker_functions.R` — Auto pipeline
@@ -80,11 +79,14 @@ Users with many small brain regions get poor delay/k2prime estimates because the
 ### 10. `inst/rmd/reflogan_report.Rmd` — refLogan template (k2prime consumer)
 - Same changes as mrtm2_report.Rmd
 
+### 11. `inst/rmd/srtm2_report.Rmd` — SRTM2 template (k2prime consumer)
+- Same changes as mrtm2_report.Rmd
+
 ## Implementation Strategy
 
 ### Delay: Copy files into current analysis folder
 
-For delay inheritance, **copy the delay kinpar files** from the ancillary folder into the current analysis folder during the delay step:
+For delay inheritance (`"ancillary_estimate"`), **copy the delay kinpar files** from the ancillary folder into the current analysis folder during the delay step:
 - Model report templates need **zero changes** for delay loading (they already glob for `*_desc-delayfit_kinpar.tsv`)
 - The delay step becomes: "copy files from ancillary" instead of "run delay estimation"
 - A simple provenance report can be generated showing where the values came from
@@ -99,7 +101,7 @@ For k2prime, pass the ancillary folder path as an Rmd parameter. The template's 
 ```json
 {
   "FitDelay": {
-    "model": "ancillary_per_pet"
+    "model": "ancillary_estimate"
   }
 }
 ```
@@ -123,7 +125,7 @@ Note: `k2prime` field still holds a fallback/display value. The `k2prime_source`
 
 ### Delay model dropdown (plasma app):
 Existing options plus:
-- `"Inherit from ancillary analysis folder"` → config value: `"ancillary_per_pet"`
+- `"Inherit from ancillary analysis folder"` → config value: `"ancillary_estimate"`
 
 ### k2prime source dropdown (ref app, per model):
 Existing options plus (only showing models that exist in ancillary):
@@ -143,7 +145,7 @@ Only options where the ancillary folder actually has the corresponding kinpar fi
 1. **PET ID mismatch**: Ancillary has sub-01, sub-02; full analysis has sub-01 through sub-10. PET IDs not found in ancillary get delay=0 with a warning.
 2. **Ancillary folder incomplete**: User selects ancillary k2prime from Model 2 but Model 2 wasn't run. Caught at startup scan — option not shown in dropdown.
 3. **Config references ancillary but arg not provided**: Error at app startup / auto pipeline startup with clear message.
-4. **Config restore with ancillary**: If restoring config that has `"ancillary_per_pet"` but no ancillary folder provided, show error and reset to default.
+4. **Config restore with ancillary**: If restoring config that has `"ancillary_estimate"` but no ancillary folder provided, show error and reset to default.
 5. **Ancillary folder deleted after config saved**: Validate at step execution time too, not just startup.
 
 ## Implementation Order
@@ -156,13 +158,14 @@ Only options where the ancillary folder actually has the corresponding kinpar fi
 6. **`R/docker_functions.R`** — Auto pipeline argument
 7. **`inst/rmd/mrtm2_report.Rmd`** — k2prime from ancillary
 8. **`inst/rmd/reflogan_report.Rmd`** — k2prime from ancillary
-9. **`R/report_generation.R`** — Pass ancillary param to reports
-10. **Tests** — Unit tests for ancillary_utils, integration test with two-folder workflow
+9. **`inst/rmd/srtm2_report.Rmd`** — k2prime from ancillary
+10. **`R/report_generation.R`** — Pass ancillary param to reports
+11. **Tests** — Unit tests for ancillary_utils, integration test with two-folder workflow
 
 ## Verification
 
 1. **Unit tests**: Test `parse_ancillary_k2prime_source()`, `validate_ancillary_folder()`, `read_ancillary_delay()`, `read_ancillary_k2prime()`
-2. **Manual Shiny test**: Launch plasma app with ancillary folder, verify dropdown shows option, verify delay inheritance works
-3. **Manual Shiny test**: Launch ref app with ancillary folder, verify k2prime dropdown shows ancillary options
+2. **Manual Shiny test**: Launch plasma app with ancillary folder, verify dropdown shows `"ancillary_estimate"` option, verify delay file copying works
+3. **Manual Shiny test**: Launch ref app with ancillary folder, verify k2prime dropdown shows ancillary options for all three models
 4. **Auto pipeline test**: Run `petfit_modelling_auto()` with ancillary argument, verify it reads delay/k2prime correctly
 5. **Integration test**: Create a two-folder workflow fixture — ancillary config with 2 regions, full config with all regions pointing at ancillary
