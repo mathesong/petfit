@@ -103,7 +103,7 @@ test_that("Singularity: plasma modelling with cores=2 succeeds", {
 
   report_files <- list.files(reports_dir, pattern = "\\.html$")
   expect_gt(length(report_files), 0,
-            info = "At least one HTML report should be generated with cores=2")
+            label = "At least one HTML report should be generated with cores=2")
 })
 
 # ---------------------------------------------------------------------------
@@ -156,5 +156,5 @@ test_that("Singularity: reference modelling with cores=2 succeeds", {
 
   report_files <- list.files(reports_dir, pattern = "\\.html$")
   expect_gt(length(report_files), 0,
-            info = "At least one HTML report should be generated with cores=2")
+            label = "At least one HTML report should be generated with cores=2")
 })
