@@ -1,6 +1,6 @@
 Package: petfit
 Title: PETFit BIDS App Configuration Interface
-Version: 0.0.2
+Version: 0.1.1
 Authors@R: 
     c(person("Granville", "Matheson", , "granville.matheson@ki.se", role = c("aut", "cre")),
     person("Alessio", "Giacomel", , "alessio.giacomel@kcl.ac.uk", role = c("ctb")),
@@ -38,7 +38,8 @@ Imports:
     readr,
     kinfitr,
     future,
-    furrr
+    furrr,
+    tidyverse
 Suggests:
     testthat (>= 3.0.0),
     here

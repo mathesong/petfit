@@ -337,7 +337,9 @@ run_petfit_docker <- function(func, mode, workspace_info,
     docker_args <- c(docker_args, "--cores", as.character(cores))
   }
 
-  result <- system2("docker", docker_args, stdout = TRUE, stderr = TRUE)
+  result <- suppressWarnings(
+    system2("docker", docker_args, stdout = TRUE, stderr = TRUE)
+  )
   exit_code <- attr(result, "status") %||% 0L
 
   list(
@@ -374,7 +376,10 @@ run_petfit_singularity <- function(func, mode, workspace_info,
   }
 
   # Build command args
-  cmd_args <- c("run")
+  # --cleanenv prevents host environment variables (e.g., R_LIBS_USER) from
+
+  # leaking into the container and hiding the container's own R libraries
+  cmd_args <- c("run", "--cleanenv")
   for (b in binds) {
     cmd_args <- c(cmd_args, "--bind", b)
   }
@@ -388,7 +393,9 @@ run_petfit_singularity <- function(func, mode, workspace_info,
     cmd_args <- c(cmd_args, "--cores", as.character(cores))
   }
 
-  result <- system2(cmd, cmd_args, stdout = TRUE, stderr = TRUE)
+  result <- suppressWarnings(
+    system2(cmd, cmd_args, stdout = TRUE, stderr = TRUE)
+  )
   exit_code <- attr(result, "status") %||% 0L
 
   list(
