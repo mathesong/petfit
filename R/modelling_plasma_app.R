@@ -3094,17 +3094,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         }
         
         # Create the plot using stored data and metadata
-        # library(ggplot2)
-        
-        p <- ggplot(region_data, aes(x = frame_mid/60, y = TAC)) +
-          geom_line(color = "#4DAF4A", linewidth = 0.25) +
-          geom_point(color = "#377EB8") +
-          labs(
+        p <- ggplot2::ggplot(region_data, ggplot2::aes(x = frame_mid/60, y = TAC)) +
+          ggplot2::geom_line(color = "#4DAF4A", linewidth = 0.25) +
+          ggplot2::geom_point(color = "#377EB8") +
+          ggplot2::labs(
             title = paste0(plot_info$pet, " : ", plot_info$region ),
             x = "Time (min)",
             y = "Radioactivity"
           ) +
-          theme_light()
+          ggplot2::theme_light()
         
         # Future: Add model fitting and overlay when model1/model2/model3 selected
         # For now, all options show the same TAC plot
