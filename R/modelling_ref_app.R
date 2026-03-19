@@ -8,7 +8,7 @@
 #' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L) {
+modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L, ancillary_analysis_folder = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -142,9 +142,24 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     cat("Created output directory:", output_dir, "\n")
   }
   
+  # Validate and scan ancillary analysis folder if provided
+  ancillary_path <- NULL
+  ancillary_scan <- NULL
+  if (!is.null(ancillary_analysis_folder)) {
+    tryCatch({
+      ancillary_path <- validate_ancillary_folder(petfit_dir, ancillary_analysis_folder)
+      ancillary_scan <- scan_ancillary_contents(ancillary_path)
+      print_ancillary_summary(ancillary_path, ancillary_scan)
+    }, error = function(e) {
+      message("WARNING: Ancillary folder validation failed: ", e$message)
+      ancillary_path <<- NULL
+      ancillary_scan <<- NULL
+    })
+  }
+
   # Fixed filename
   out_filename <- "petfit_config.json"
-  
+
   # Check for combined TACs file first
   combined_tacs_file <- file.path(petfit_dir, "desc-combinedregions_tacs.tsv")
   
@@ -1566,7 +1581,36 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
   
   # Define server logic for config file creation ----
   server <- function(input, output, session) {
-    
+
+    # Add ancillary k2prime options to dropdowns if ancillary folder is available
+    if (!is.null(ancillary_path) && !is.null(ancillary_scan)) {
+      ancillary_k2prime_opts <- get_ancillary_k2prime_options(ancillary_scan)
+      if (!is.null(ancillary_k2prime_opts)) {
+        # Model 1: currently only has "Set k2'"
+        model1_choices <- c("Set k2'" = "set", ancillary_k2prime_opts)
+        updateSelectInput(session, "k2prime_source", choices = model1_choices, selected = "set")
+
+        # Model 2: has "Set k2'" + inherit from Model 1
+        model2_choices <- c("Set k2'" = "set",
+                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                           ancillary_k2prime_opts)
+        updateSelectInput(session, "k2prime_source2", choices = model2_choices, selected = "set")
+
+        # Model 3: has "Set k2'" + inherit from Model 1 and 2
+        model3_choices <- c("Set k2'" = "set",
+                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                           "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
+                           "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+                           "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median",
+                           ancillary_k2prime_opts)
+        updateSelectInput(session, "k2prime_source3", choices = model3_choices, selected = "set")
+      }
+    }
+
     # Load existing config on startup and restore UI state
     observe({
       existing_config <- load_existing_config()
@@ -1708,7 +1752,13 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateSelectInput(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
             }
             if (!is.null(model_config$k2prime_source)) {
-              updateSelectInput(session, paste0("k2prime_source", suffix), selected = model_config$k2prime_source %||% "set")
+              k2prime_src <- model_config$k2prime_source %||% "set"
+              if (grepl("^ancillary_", k2prime_src) && is.null(ancillary_path)) {
+                showNotification("Config references ancillary k2prime but no ancillary folder provided. Resetting to 'set'.",
+                               type = "warning", duration = 5)
+                k2prime_src <- "set"
+              }
+              updateSelectInput(session, paste0("k2prime_source", suffix), selected = k2prime_src)
             }
             if (!is.null(model_config$k2prime_value)) {
               updateNumericInput(session, paste0("k2prime_value", suffix), value = model_config$k2prime_value %||% 0.1)
@@ -1760,7 +1810,13 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 0.5)
             }
             if (!is.null(model_config$k2prime_source)) {
-              updateSelectInput(session, paste0("k2prime_source", suffix), selected = model_config$k2prime_source %||% "set")
+              k2prime_src <- model_config$k2prime_source %||% "set"
+              if (grepl("^ancillary_", k2prime_src) && is.null(ancillary_path)) {
+                showNotification("Config references ancillary k2prime but no ancillary folder provided. Resetting to 'set'.",
+                               type = "warning", duration = 5)
+                k2prime_src <- "set"
+              }
+              updateSelectInput(session, paste0("k2prime_source", suffix), selected = k2prime_src)
             }
             if (!is.null(model_config$k2prime_value)) {
               updateNumericInput(session, paste0("k2prime_value", suffix), value = model_config$k2prime_value %||% 0.1)
@@ -1792,7 +1848,13 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
             }
             if (!is.null(model_config$k2prime_source)) {
-              updateSelectInput(session, paste0("k2prime_source", suffix), selected = model_config$k2prime_source %||% "set")
+              k2prime_src <- model_config$k2prime_source %||% "set"
+              if (grepl("^ancillary_", k2prime_src) && is.null(ancillary_path)) {
+                showNotification("Config references ancillary k2prime but no ancillary folder provided. Resetting to 'set'.",
+                               type = "warning", duration = 5)
+                k2prime_src <- "set"
+              }
+              updateSelectInput(session, paste0("k2prime_source", suffix), selected = k2prime_src)
             }
             if (!is.null(model_config$k2prime_value)) {
               updateNumericInput(session, paste0("k2prime_value", suffix), value = model_config$k2prime_value %||% 0.1)
@@ -2595,7 +2657,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
         cores = cores,
-        notify = notify
+        notify = notify,
+        ancillary_path = ancillary_path
       )
 
       return(result$success)

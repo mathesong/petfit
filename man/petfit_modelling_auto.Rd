@@ -5,30 +5,38 @@
 \title{Run Automatic Modelling Pipeline}
 \usage{
 petfit_modelling_auto(
-  analysis_subfolder = "Primary_Analysis",
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
+  analysis_subfolder = "Primary_Analysis",
   blood_dir = NULL,
-  step = NULL
+  step = NULL,
+  pipeline_type = NULL,
+  cores = 1L,
+  ancillary_analysis_folder = NULL
 )
 }
 \arguments{
-\item{analysis_subfolder}{Character string name of analysis subfolder within derivatives/petfit/ (default: "Primary_Analysis")}
+\item{bids_dir}{Character string path to BIDS directory (optional if derivatives_dir provided)}
 
-\item{bids_dir}{Character string path to BIDS directory (can be NULL)}
-
-\item{derivatives_dir}{Character string path to derivatives directory (can be NULL)}
+\item{derivatives_dir}{Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)}
 
 \item{petfit_output_foldername}{Character string name for petfit output folder within derivatives (default: "petfit")}
 
-\item{blood_dir}{Character string path to blood directory (can be NULL)}
+\item{analysis_subfolder}{Character string name for analysis subfolder (default: "Primary_Analysis")}
 
-\item{step}{Character string specific step to run (NULL for full pipeline)}
+\item{blood_dir}{Character string path to blood data directory (optional, for invasive models)}
+
+\item{step}{Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")}
+
+\item{pipeline_type}{Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)}
+
+\item{ancillary_analysis_folder}{Character string name of a sibling analysis subfolder to inherit
+delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.}
 }
 \value{
 List with execution result and messages
 }
 \description{
-Execute the petfit modelling analysis pipeline automatically based on a config file
+Execute the petfit modelling pipeline automatically based on existing config file
 }

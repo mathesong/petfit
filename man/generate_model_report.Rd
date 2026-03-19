@@ -10,7 +10,9 @@ generate_model_report(
   analysis_folder,
   output_dir = NULL,
   bids_dir = NULL,
-  blood_dir = NULL
+  blood_dir = NULL,
+  cores = 1L,
+  ancillary_path = NULL
 )
 }
 \arguments{

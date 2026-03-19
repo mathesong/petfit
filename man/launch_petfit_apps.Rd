@@ -11,7 +11,9 @@ launch_petfit_apps(
   blood_dir = NULL,
   petfit_output_foldername = "petfit",
   subfolder = "Primary_Analysis",
-  config_file = NULL
+  config_file = NULL,
+  cores = 1L,
+  ancillary_analysis_folder = NULL
 )
 }
 \arguments{
@@ -28,6 +30,10 @@ launch_petfit_apps(
 \item{subfolder}{Character string name for analysis subfolder (default: "Primary_Analysis", for modelling apps)}
 
 \item{config_file}{Character string path to existing config file (optional, for modelling apps)}
+
+\item{ancillary_analysis_folder}{Character string name of a sibling analysis subfolder to inherit
+delay or k2prime estimates from (optional, for modelling apps). Must be a subfolder name
+(e.g., "Ancillary_Analysis"), not a full path.}
 }
 \description{
 Launch a specified petfit application
@@ -43,8 +49,8 @@ This function provides a unified interface to launch petfit applications built o
 Parameter usage:
 \itemize{
 \item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername
-\item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, subfolder, config_file
-\item modelling_ref: Uses bids_dir, derivatives_dir, subfolder, config_file
+\item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, subfolder, config_file, ancillary_analysis_folder
+\item modelling_ref: Uses bids_dir, derivatives_dir, subfolder, config_file, ancillary_analysis_folder
 }
 }
 \examples{

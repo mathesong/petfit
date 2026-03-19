@@ -9,7 +9,8 @@ create_petfit_combined_tacs(
   derivatives_folder,
   output_dir,
   bids_dir = NULL,
-  participant_data = NULL
+  participant_data = NULL,
+  cores = 1L
 )
 }
 \arguments{

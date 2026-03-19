@@ -9,6 +9,9 @@
 #' @param petfit_output_foldername Character string name for the petfit output folder within derivatives (default: "petfit")
 #' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis", for modelling apps)
 #' @param config_file Character string path to existing config file (optional, for modelling apps)
+#' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
+#'   delay or k2prime estimates from (optional, for modelling apps). Must be a subfolder name
+#'   (e.g., "Ancillary_Analysis"), not a full path.
 #'
 #' @details
 #' This function provides a unified interface to launch petfit applications built on kinfitr:
@@ -18,8 +21,8 @@
 #'
 #' Parameter usage:
 #' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername
-#' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, subfolder, config_file
-#' - modelling_ref: Uses bids_dir, derivatives_dir, subfolder, config_file
+#' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, subfolder, config_file, ancillary_analysis_folder
+#' - modelling_ref: Uses bids_dir, derivatives_dir, subfolder, config_file, ancillary_analysis_folder
 #'
 #' @examples
 #' \dontrun{
@@ -41,7 +44,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
                                petfit_output_foldername = "petfit",
                                subfolder = "Primary_Analysis",
                                config_file = NULL,
-                               cores = 1L) {
+                               cores = 1L,
+                               ancillary_analysis_folder = NULL) {
 
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
@@ -55,6 +59,12 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
   }
   if (!is.null(blood_dir) && !dir.exists(blood_dir)) {
     stop("Blood directory does not exist: ", blood_dir)
+  }
+
+  # Validate ancillary_analysis_folder is a simple name, not a path
+  if (!is.null(ancillary_analysis_folder) && grepl("[/\\\\]", ancillary_analysis_folder)) {
+    stop("ancillary_analysis_folder must be a subfolder name (e.g., 'Ancillary_Analysis'), not a full path",
+         call. = FALSE)
   }
 
   # Print configuration
@@ -77,6 +87,9 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
     if (!is.null(config_file)) {
       cat("  Config file:", config_file, "\n")
     }
+    if (!is.null(ancillary_analysis_folder)) {
+      cat("  Ancillary analysis folder:", ancillary_analysis_folder, "\n")
+    }
   }
   cat("\n")
 
@@ -97,7 +110,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
         blood_dir = blood_dir,
         subfolder = subfolder,
         config_file = config_file,
-        cores = cores
+        cores = cores,
+        ancillary_analysis_folder = ancillary_analysis_folder
       )
     },
     modelling_ref = {
@@ -107,7 +121,8 @@ launch_petfit_apps <- function(app = c("regiondef", "modelling_plasma", "modelli
         blood_dir = blood_dir,
         subfolder = subfolder,
         config_file = config_file,
-        cores = cores
+        cores = cores,
+        ancillary_analysis_folder = ancillary_analysis_folder
       )
     }
   )

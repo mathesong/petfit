@@ -9,7 +9,9 @@ modelling_plasma_app(
   derivatives_dir = NULL,
   blood_dir = NULL,
   subfolder = "Primary_Analysis",
-  config_file = NULL
+  config_file = NULL,
+  cores = 1L,
+  ancillary_analysis_folder = NULL
 )
 }
 \arguments{

@@ -232,12 +232,14 @@ execute_weights_step <- function(config_path, output_dir,
 #' @param bids_dir Optional BIDS directory path
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
+#' @param ancillary_path Optional path to ancillary analysis folder for delay inheritance
 #' @return List with success status and message
 #' @export
 execute_delay_step <- function(config_path, output_dir,
                                bids_dir = NULL, blood_dir = NULL,
                                cores = 1L,
-                               notify = function(msg, type) {}) {
+                               notify = function(msg, type) {},
+                               ancillary_path = NULL) {
 
   result <- list(success = FALSE, message = "")
 
@@ -253,6 +255,36 @@ execute_delay_step <- function(config_path, output_dir,
         result$success <- TRUE
         result$message <- "No delay report necessary when delay fitting is disabled"
         notify(result$message, "message")
+        return(result)
+      }
+
+      # Handle ancillary delay inheritance
+      if (config$FitDelay$model == "ancillary_estimate") {
+        if (is.null(ancillary_path)) {
+          result$message <- "Config specifies ancillary delay but no ancillary_path provided"
+          notify(result$message, "error")
+          return(result)
+        }
+
+        if (!dir.exists(ancillary_path)) {
+          result$message <- paste("Ancillary analysis folder not found:", ancillary_path)
+          notify(result$message, "error")
+          return(result)
+        }
+
+        notify("Copying delay files from ancillary analysis folder...", "message")
+
+        copy_result <- copy_ancillary_delay_files(ancillary_path, output_dir)
+
+        if (copy_result$success) {
+          result$success <- TRUE
+          result$message <- copy_result$message
+          notify(result$message, "message")
+        } else {
+          result$message <- paste("Failed to copy ancillary delay files:", copy_result$message)
+          notify(result$message, "error")
+        }
+
         return(result)
       }
     }
@@ -388,12 +420,14 @@ execute_reference_tac_step <- function(config_path, output_dir,
 #' @param bids_dir Optional BIDS directory path
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
+#' @param ancillary_path Optional path to ancillary analysis folder for k2prime inheritance
 #' @return List with success status and message
 #' @export
 execute_model_step <- function(config_path, model_num, output_dir,
                                bids_dir = NULL, blood_dir = NULL,
                                cores = 1L,
-                               notify = function(msg, type) {}) {
+                               notify = function(msg, type) {},
+                               ancillary_path = NULL) {
 
   result <- list(success = FALSE, message = "")
 
@@ -432,7 +466,8 @@ execute_model_step <- function(config_path, model_num, output_dir,
         analysis_folder = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        cores = cores
+        cores = cores,
+        ancillary_path = ancillary_path
       )
     }, error = function(e) {
       cat("Warning: Could not generate Model", model_num, "report:", e$message, "\n")

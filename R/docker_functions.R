@@ -340,6 +340,8 @@ determine_pipeline_type <- function(config, pipeline_type = NULL) {
 #' @param blood_dir Character string path to blood data directory (optional, for invasive models)
 #' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
 #' @param pipeline_type Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)
+#' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
+#'   delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.
 #' @return List with execution result and messages
 #' @export
 petfit_modelling_auto <- function(bids_dir = NULL,
@@ -349,7 +351,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
                                    blood_dir = NULL,
                                    step = NULL,
                                    pipeline_type = NULL,
-                                   cores = 1L) {
+                                   cores = 1L,
+                                   ancillary_analysis_folder = NULL) {
 
   result <- list(
     success = FALSE,
@@ -424,6 +427,45 @@ petfit_modelling_auto <- function(bids_dir = NULL,
     return(result)
   }
 
+  # Validate and resolve ancillary analysis folder if provided
+  ancillary_path <- NULL
+  if (!is.null(ancillary_analysis_folder)) {
+    ancillary_validation_error <- tryCatch({
+      ancillary_path <- validate_ancillary_folder(petfit_base_dir, ancillary_analysis_folder)
+      ancillary_scan <- scan_ancillary_contents(ancillary_path)
+      print_ancillary_summary(ancillary_path, ancillary_scan)
+      NULL
+    }, error = function(e) {
+      e$message
+    })
+
+    if (!is.null(ancillary_validation_error)) {
+      result$messages <- c(result$messages,
+                          paste("Ancillary folder error:", ancillary_validation_error))
+      return(result)
+    }
+  }
+
+  # Check if config references ancillary but no ancillary folder provided
+  if (is.null(ancillary_path)) {
+    delay_model <- config$FitDelay$model
+    if (!is.null(delay_model) && delay_model == "ancillary_estimate") {
+      result$messages <- c(result$messages,
+                          "Config references ancillary delay (ancillary_estimate) but no ancillary_analysis_folder provided")
+      return(result)
+    }
+    for (model_num in c("1", "2", "3")) {
+      model_key <- paste0("Model", model_num)
+      k2prime_src <- config$Models[[model_key]]$k2prime_source
+      if (!is.null(k2prime_src) && grepl("^ancillary_", k2prime_src)) {
+        result$messages <- c(result$messages,
+                            paste0("Config references ancillary k2prime (", k2prime_src,
+                                   ") for ", model_key, " but no ancillary_analysis_folder provided"))
+        return(result)
+      }
+    }
+  }
+
   # Console-only notification callback (no Shiny in automatic mode)
   notify <- function(msg, type) {
     cat(paste0("[", toupper(type), "] ", msg, "\n"))
@@ -488,7 +530,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
-        notify = notify
+        notify = notify,
+        ancillary_path = ancillary_path
       )
 
     } else if (current_step == "reference_tac") {
@@ -511,7 +554,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
-        notify = notify
+        notify = notify,
+        ancillary_path = ancillary_path
       )
     }
 

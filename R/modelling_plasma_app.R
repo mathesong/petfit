@@ -8,7 +8,7 @@
 #' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L) {
+modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L, ancillary_analysis_folder = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -142,6 +142,21 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     cat("Created output directory:", output_dir, "\n")
   }
   
+  # Validate and scan ancillary analysis folder if provided
+  ancillary_path <- NULL
+  ancillary_scan <- NULL
+  if (!is.null(ancillary_analysis_folder)) {
+    tryCatch({
+      ancillary_path <- validate_ancillary_folder(petfit_dir, ancillary_analysis_folder)
+      ancillary_scan <- scan_ancillary_contents(ancillary_path)
+      print_ancillary_summary(ancillary_path, ancillary_scan)
+    }, error = function(e) {
+      message("WARNING: Ancillary folder validation failed: ", e$message)
+      ancillary_path <<- NULL
+      ancillary_scan <<- NULL
+    })
+  }
+
   # Fixed filename
   out_filename <- "petfit_config.json"
   
@@ -1754,6 +1769,23 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
   # Define server logic for config file creation ----
   server <- function(input, output, session) {
 
+    # Add ancillary delay option to dropdown if ancillary folder is available
+    if (!is.null(ancillary_path) && !is.null(ancillary_scan)) {
+      ancillary_delay_opts <- get_ancillary_delay_options(ancillary_scan)
+      if (!is.null(ancillary_delay_opts)) {
+        # Rebuild choices with ancillary option added
+        delay_choices <- c("None (no delay fitting)" = "none",
+                          "1TCM Delay from Single Representative TAC (Quick)" = "1tcm_singletac",
+                          "2TCM Delay from Single Representative TAC (Less Quick)" = "2tcm_singletac",
+                          "1TCM Median Delay from Multiple Regions (Recommended, Slow)" = "1tcm_median",
+                          "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median",
+                          ancillary_delay_opts)
+        updateSelectInput(session, "delay_model",
+                         choices = delay_choices,
+                         selected = "1tcm_median")
+      }
+    }
+
     # Load existing config on startup and restore UI state
     observe({
       existing_config <- load_existing_config()
@@ -2054,8 +2086,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         }
         # Restore FitDelay settings
         if (!is.null(existing_config$FitDelay)) {
-          updateSelectInput(session, "delay_model", 
-                           selected = existing_config$FitDelay$model %||% "1tcm_median")
+          delay_model_value <- existing_config$FitDelay$model %||% "1tcm_median"
+          # Check if config references ancillary but no ancillary folder provided
+          if (delay_model_value == "ancillary_estimate" && is.null(ancillary_path)) {
+            showNotification("Config references ancillary delay but no ancillary folder provided. Resetting to default.",
+                           type = "warning", duration = 5)
+            delay_model_value <- "1tcm_median"
+          }
+          updateSelectInput(session, "delay_model",
+                           selected = delay_model_value)
           updateNumericInput(session, "delay_time_window", 
                            value = existing_config$FitDelay$time_window %||% 5)
           updateTextInput(session, "delay_regions", 
@@ -2676,7 +2715,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
-        notify = notify
+        notify = notify,
+        ancillary_path = ancillary_path
       )
 
       return(result$success)
