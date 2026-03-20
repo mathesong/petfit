@@ -49,6 +49,10 @@ jobs:
         with:
           extra-packages: any::devtools, any::testthat
 
+      - name: Install petfit package
+        run: |
+          Rscript -e "devtools::install()"
+
       - name: Run integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"

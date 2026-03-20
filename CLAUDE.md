@@ -26,10 +26,10 @@ The three apps work independently:
 # Load the package and launch apps
 library(petfit)
 
-# Launch specific app using launcher (regiondef is default)
-launch_petfit_apps(bids_dir = "/path/to/bids")  # Launches regiondef by default
-launch_petfit_apps(app = "modelling_plasma", bids_dir = "/path/to/bids", blood_dir = "/path/to/blood")
-launch_petfit_apps(app = "modelling_ref", bids_dir = "/path/to/bids")
+# Launch specific app interactively (regiondef is default)
+petfit_interactive(bids_dir = "/path/to/bids")  # Launches regiondef by default
+petfit_interactive(app = "modelling_plasma", bids_dir = "/path/to/bids", blood_dir = "/path/to/blood")
+petfit_interactive(app = "modelling_ref", bids_dir = "/path/to/bids")
 
 # Or launch apps directly
 region_definition_app(bids_dir = "/path/to/bids")
@@ -59,7 +59,8 @@ modelling_ref_app(bids_dir = "/path/to/bids")
 - **Package Structure**: Proper R package with R/, man/, data/, and inst/rmd/ directories
 - **UI Layout**: All apps use `fluidPage` with sidebar layout
 - **Server Logic**: Reactive expressions generate JSON configurations and process data
-- **Launcher Function**: `launch_petfit_apps()` launches one app at a time with `match.arg()` validation
+- **Interactive Launcher**: `petfit_interactive()` launches one app at a time with `match.arg()` validation
+- **Automatic Launcher**: `petfit_auto()` dispatches to `petfit_regiondef_auto()` or `petfit_modelling_auto()` based on `app` parameter
 
 ### Directory Structure
 The system uses a standard BIDS (Brain Imaging Data Structure) directory layout:
@@ -78,12 +79,12 @@ The system uses a standard BIDS (Brain Imaging Data Structure) directory layout:
   - Contains volume-weighted mean TAC for entire segmentations (seg_meanTAC column)
   - Shared across all analyses and accessed by modelling apps
   
-- **analysis folder**: `{derivatives_dir}/petfit/{subfolder}/` - Analysis-specific outputs
+- **analysis folder**: `{derivatives_dir}/petfit/{analysis_foldername}/` - Analysis-specific outputs
   - Individual TACs files created by modelling apps subsetting
   - Configuration files for specific analyses (e.g., `desc-petfitoptions_config.json`)
-  - **reports/** subfolder: Contains parameterised HTML reports for each analysis step
-  - Default subfolder: "Primary_Analysis"
-  - Each analysis gets its own subfolder to keep configurations separate
+  - **reports/**: Contains parameterised HTML reports for each analysis step
+  - Default analysis_foldername: "Primary_Analysis"
+  - Each analysis gets its own folder to keep configurations separate
 
 ### Key Dependencies
 - `shiny`: Core web application framework

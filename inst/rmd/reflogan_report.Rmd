@@ -12,6 +12,7 @@ params:
   analysis_folder: NULL
   bids_dir: NULL
   blood_dir: NULL
+  ancillary_path: NULL
 ---
 
 ```{r setup, include=FALSE}
@@ -38,9 +39,9 @@ if (cores > 1) {
 theme_set(theme_light())
 
 # Use parameters (from params or debugging section above)
-analysis_folder <- params$analysis_folder %||% analysis_folder
-model_number <- params$model_number %||% model_number
-bids_dir <- params$bids_dir %||% bids_dir %||% NULL
+analysis_folder <- params$analysis_folder
+model_number <- params$model_number
+bids_dir <- params$bids_dir
 ```
 
 ```{r load-config, include=FALSE}
@@ -111,6 +112,10 @@ if (!is.null(model_config) && model_config$type == "refLogan") {
 
     if (k2prime_source == "set") {
       k2prime_source_display <- "Set to fixed value"
+    } else if (str_detect(k2prime_source, "^ancillary_model")) {
+      parsed <- parse_ancillary_k2prime_source(k2prime_source)
+      k2prime_source_display <- paste0("From ancillary analysis: Model ", parsed$model_num,
+                                       " (", str_to_title(parsed$aggregation), ")")
     } else if (str_detect(k2prime_source, "inherit_model1")) {
       inherit_method <- str_split(k2prime_source, "_")[[1]][3]
       k2prime_source_display <- paste0("Inherited from Model 1 (", str_to_title(inherit_method), ")")
@@ -250,11 +255,16 @@ ref_data <- tibble(
 
 ```{r k2prime-loading-setup, echo=FALSE}
 # Determine inheritance for k2prime
-if(!is.null(model_config$k2prime_source) &&
-   str_detect(model_config$k2prime_source, "inherit")) {
+k2prime_source_val <- model_config$k2prime_source %||% "set"
+if(str_detect(k2prime_source_val, "^inherit")) {
   k2prime_inheritance <- TRUE
+  k2prime_ancillary <- FALSE
+} else if(str_detect(k2prime_source_val, "^ancillary_model")) {
+  k2prime_inheritance <- FALSE
+  k2prime_ancillary <- TRUE
 } else {
   k2prime_inheritance <- FALSE
+  k2prime_ancillary <- FALSE
 }
 ```
 
@@ -325,6 +335,37 @@ if( nrow(k2prime_data)==0 ) {
 ```
 
 
+```{r heading-k2prime-ancillary, echo=k2prime_ancillary, eval=k2prime_ancillary, results='asis'}
+str_glue("## Loading k2prime from Ancillary Analysis
+
+         The model has been defined to use a k2prime value from an ancillary analysis folder.
+         ")
+```
+
+
+```{r load-k2prime-ancillary, echo=k2prime_ancillary, eval=k2prime_ancillary}
+ancillary_path <- params$ancillary_path
+
+if (is.null(ancillary_path) || !dir.exists(ancillary_path)) {
+  cat("WARNING: Ancillary path not available. Using k2prime = 0.1 as fallback.\n")
+  k2prime_data <- tac_data %>%
+    select(any_of(c("sub", "ses", "trc", "rec", "task", "run", "pet"))) %>%
+    distinct() %>%
+    mutate(k2prime = 0.1)
+} else {
+  parsed <- parse_ancillary_k2prime_source(model_config$k2prime_source)
+  k2prime_data <- read_ancillary_k2prime(
+    ancillary_path = ancillary_path,
+    model_num = parsed$model_num,
+    aggregation = parsed$aggregation,
+    pet_ids = unique(tac_data$pet)
+  )
+  cat(str_glue("Loaded k2prime from ancillary Model {parsed$model_num} ({parsed$aggregation}):\n"))
+  print(k2prime_data)
+}
+```
+
+
 # Combining Data
 
 ```{r}
@@ -346,6 +387,11 @@ model_data <- tac_data %>%
 ```
 
 ```{r combine-k2prime, echo=k2prime_inheritance, eval=k2prime_inheritance}
+model_data <- model_data %>%
+  left_join(k2prime_data)
+```
+
+```{r combine-k2prime-ancillary, echo=k2prime_ancillary, eval=k2prime_ancillary}
 model_data <- model_data %>%
   left_join(k2prime_data)
 ```
@@ -556,8 +602,9 @@ fit_plot_files <- model_data %>%
     list(.$fit_refLogan, .$region, .$title, .$safe_filename),
     function(fit, region, title, fname) {
       p <- plot(fit, roiname = region) +
-        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)")
-      filepath <- file.path(fit_plot_dir, paste0(fname, ".png"))
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(fit_plot_dir, paste0("fit_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}
@@ -592,8 +639,9 @@ res_plot_files <- model_data %>%
     list(.$fit_refLogan, .$title, .$safe_filename),
     function(fit, title, fname) {
       p <- plot_residuals(fit) +
-        labs(title = title)
-      filepath <- file.path(res_plot_dir, paste0(fname, ".png"))
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(res_plot_dir, paste0("res_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}
@@ -656,7 +704,8 @@ tstar_desc <- paste0("t* = ", tstar, " (", tstar_type, ")")
 
 # Determine k2prime source for JSON metadata
 k2prime_source_desc <- if (!is.null(model_config$k2prime_source) &&
-                           str_detect(model_config$k2prime_source, "inherit")) {
+                           (str_detect(model_config$k2prime_source, "inherit") ||
+                            str_detect(model_config$k2prime_source, "^ancillary_"))) {
   config_items[["k2prime Parameter Source"]]
 } else {
   paste0("Set to fixed value: ", model_config$k2prime %||% 0.1)

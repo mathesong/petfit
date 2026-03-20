@@ -9,7 +9,8 @@ generate_step_report(
   analysis_folder,
   output_dir = NULL,
   bids_dir = NULL,
-  blood_dir = NULL
+  blood_dir = NULL,
+  cores = 1L
 )
 }
 \arguments{

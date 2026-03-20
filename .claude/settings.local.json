@@ -30,7 +30,8 @@
       "Bash(pkill -f \"devtools::test\")",
       "Bash(pkill -f \"testthat\")",
       "Bash(pkill -f \"shiny\")",
-      "Bash(pkill -f \"R.*3838\")"
+      "Bash(pkill -f \"R.*3838\")",
+      "Bash(Rscript -e \"devtools::document\\(\\)\")"
     ]
   }
 }
