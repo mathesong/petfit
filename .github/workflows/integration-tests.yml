@@ -51,7 +51,7 @@ jobs:
 
       - name: Install petfit package
         run: |
-          Rscript -e "devtools::install(upgrade = 'never')"
+          Rscript -e "devtools::install(upgrade = FALSE)"
 
       - name: Run integration tests
         env:
