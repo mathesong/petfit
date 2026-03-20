@@ -8,7 +8,7 @@ petfit_modelling_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
-  analysis_subfolder = "Primary_Analysis",
+  analysis_foldername = "Primary_Analysis",
   blood_dir = NULL,
   step = NULL,
   pipeline_type = NULL,
@@ -23,7 +23,7 @@ petfit_modelling_auto(
 
 \item{petfit_output_foldername}{Character string name for petfit output folder within derivatives (default: "petfit")}
 
-\item{analysis_subfolder}{Character string name for analysis subfolder (default: "Primary_Analysis")}
+\item{analysis_foldername}{Character string name for analysis folder (default: "Primary_Analysis")}
 
 \item{blood_dir}{Character string path to blood data directory (optional, for invasive models)}
 

@@ -233,7 +233,8 @@ These test individual functions in isolation with simple inputs. No external dat
 | `test-blood_utils.R` | Blood data file detection, status reporting, pattern matching |
 | `test-subsetting_utils.R` | Semicolon-separated value parsing, data filtering, individual TACs file creation |
 | `test-report_generation.R` | Model-to-template mapping, reports summary generation |
-| `test-launch_petfit_apps.R` | App launcher function signature and directory validation |
+| `test-petfit_interactive.R` | Interactive app launcher function signature and directory validation |
+| `test-petfit_auto.R` | Automatic pipeline launcher function signature and argument validation |
 
 ---
 

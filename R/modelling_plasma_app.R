@@ -5,10 +5,10 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to the derivatives folder (default: bids_dir/derivatives)
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
-#' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
+#' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L, ancillary_analysis_folder = NULL) {
+modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -103,8 +103,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     })
   }
 
-  # Resolve subfolder based on validation
-  if (subfolder == "Primary_Analysis") {
+  # Resolve analysis_foldername based on validation
+  if (analysis_foldername == "Primary_Analysis") {
     primary_check <- validate_folder(file.path(petfit_dir, "Primary_Analysis"))
 
     if (primary_check$exists && !primary_check$compatible) {
@@ -120,23 +120,23 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       }
 
       # Use Secondary_Analysis
-      subfolder <- "Secondary_Analysis"
+      analysis_foldername <- "Secondary_Analysis"
       cat("Using Secondary_Analysis for this analysis.\n")
     }
   } else {
     # User specified custom folder name, validate it
-    folder_check <- validate_folder(file.path(petfit_dir, subfolder))
+    folder_check <- validate_folder(file.path(petfit_dir, analysis_foldername))
 
     if (folder_check$exists && !folder_check$compatible) {
       stop(sprintf("Analysis folder '%s' already exists but contains configuration for %s modelling. Please choose a different folder name.",
-                   subfolder, folder_check$config_type), call. = FALSE)
+                   analysis_foldername, folder_check$config_type), call. = FALSE)
     }
   }
 
-  cat("  Analysis subfolder:", subfolder, "\n")
+  cat("  Analysis folder:", analysis_foldername, "\n")
 
   # Create output directory if it doesn't exist
-  output_dir <- file.path(petfit_dir, subfolder)
+  output_dir <- file.path(petfit_dir, analysis_foldername)
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created output directory:", output_dir, "\n")
@@ -2560,7 +2560,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       
       config_list <- list(
         modelling_configuration_type = "plasma input",
-        analysis_folder = subfolder,
+        analysis_folder = analysis_foldername,
         config_created = format(Sys.time(), "%Y-%m-%d %H:%M"),
         blood_dir = blood_dir,
         Subsetting = Subsetting,
@@ -2665,6 +2665,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2690,6 +2691,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2715,6 +2717,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
+        save_logs = save_logs,
         notify = notify,
         ancillary_path = ancillary_path
       )
@@ -2787,6 +2790,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2933,7 +2937,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     
     # Output for analysis folder display
     output$analysis_folder <- renderText({
-      subfolder
+      analysis_foldername
     })
     
     # JSON preview output

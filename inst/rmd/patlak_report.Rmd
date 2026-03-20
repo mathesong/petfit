@@ -656,8 +656,9 @@ fit_plot_files <- model_data %>%
     list(.$fit_Patlak, .$region, .$title, .$safe_filename),
     function(fit, region, title, fname) {
       p <- plot_Patlakfit(fit, roiname = region) +
-        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)")
-      filepath <- file.path(fit_plot_dir, paste0(fname, ".png"))
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(fit_plot_dir, paste0("fit_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}
@@ -692,8 +693,9 @@ res_plot_files <- model_data %>%
     list(.$fit_Patlak, .$title, .$safe_filename),
     function(fit, title, fname) {
       p <- plot_residuals(fit) +
-        labs(title = title)
-      filepath <- file.path(res_plot_dir, paste0(fname, ".png"))
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(res_plot_dir, paste0("res_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}

@@ -54,7 +54,7 @@ test_that("plasma pipeline succeeds with ancillary delay inheritance", {
     result <- petfit_modelling_auto(
       bids_dir = ws$bids_dir,
       derivatives_dir = ws$derivatives_dir,
-      analysis_subfolder = "Ancillary_Analysis",
+      analysis_foldername = "Ancillary_Analysis",
       step = s
     )
     expect_true(result$success,
@@ -84,7 +84,7 @@ test_that("plasma pipeline succeeds with ancillary delay inheritance", {
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     ancillary_analysis_folder = "Ancillary_Analysis"
   )
 
@@ -122,7 +122,7 @@ test_that("delay step copies kinpar files from ancillary folder", {
     petfit_modelling_auto(
       bids_dir = ws$bids_dir,
       derivatives_dir = ws$derivatives_dir,
-      analysis_subfolder = "Ancillary_Analysis",
+      analysis_foldername = "Ancillary_Analysis",
       step = s
     )
   }
@@ -141,7 +141,7 @@ test_that("delay step copies kinpar files from ancillary folder", {
   petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     step = "datadef"
   )
 
@@ -149,7 +149,7 @@ test_that("delay step copies kinpar files from ancillary folder", {
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     step = "delay",
     ancillary_analysis_folder = "Ancillary_Analysis"
   )
@@ -212,7 +212,7 @@ test_that("pipeline errors when config uses ancillary_estimate but no folder pro
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis"
+    analysis_foldername = "Primary_Analysis"
   )
 
   expect_false(result$success)
@@ -242,7 +242,7 @@ test_that("pipeline errors when config uses ancillary k2prime but no folder prov
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis"
+    analysis_foldername = "Primary_Analysis"
   )
 
   expect_false(result$success)
@@ -266,7 +266,7 @@ test_that("pipeline errors when ancillary folder does not exist", {
   result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     ancillary_analysis_folder = "NonExistent_Folder"
   )
 
@@ -293,7 +293,7 @@ test_that("scan_ancillary_contents finds delay and model files", {
     petfit_modelling_auto(
       bids_dir = ws$bids_dir,
       derivatives_dir = ws$derivatives_dir,
-      analysis_subfolder = "Ancillary_Analysis",
+      analysis_foldername = "Ancillary_Analysis",
       step = s
     )
   }
@@ -341,7 +341,7 @@ test_that("read_ancillary_k2prime works with synthetic kinpar files in integrati
   petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     step = "datadef"
   )
 
@@ -449,7 +449,7 @@ test_that("reference pipeline inherits k2prime from ancillary SRTM analysis", {
   ancillary_result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Ancillary_Analysis"
+    analysis_foldername = "Ancillary_Analysis"
   )
   expect_true(ancillary_result$success,
               info = paste("Ancillary SRTM pipeline failed:",
@@ -496,7 +496,7 @@ test_that("reference pipeline inherits k2prime from ancillary SRTM analysis", {
   primary_result <- petfit_modelling_auto(
     bids_dir = ws$bids_dir,
     derivatives_dir = ws$derivatives_dir,
-    analysis_subfolder = "Primary_Analysis",
+    analysis_foldername = "Primary_Analysis",
     ancillary_analysis_folder = "Ancillary_Analysis"
   )
 

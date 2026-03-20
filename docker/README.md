@@ -72,7 +72,7 @@ docker run -it --rm \
 - `--mode`: Execution mode (`interactive` [default] or `automatic`)
 - `--step`: Specific step for automatic mode (`datadef`, `weights`, `delay`, `model1`, `model2`, `model3`)
 - `--petfit_output_foldername`: Output folder name (default: `petfit`)
-- `--analysis_foldername`: Analysis subfolder name (default: `Primary_Analysis`)
+- `--analysis_foldername`: Analysis folder name (default: `Primary_Analysis`)
 
 ## Volume Mounts
 

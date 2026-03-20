@@ -39,6 +39,7 @@ Imports:
     kinfitr,
     future,
     furrr,
+    callr,
     ggbeeswarm,
     tidyverse
 Suggests:

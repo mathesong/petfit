@@ -23,6 +23,7 @@
 execute_datadef_step <- function(config_path, output_dir, petfit_dir,
                                   bids_dir = NULL, blood_dir = NULL,
                                   cores = 1L,
+                                  save_logs = FALSE,
                                   notify = function(msg, type) {}) {
 
   result <- list(success = FALSE, message = "", files_created = 0)
@@ -132,7 +133,8 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
         analysis_folder = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        cores = cores
+        cores = cores,
+        save_logs = save_logs
       )
     }, error = function(e) {
       cat("Warning: Could not generate data definition report:", e$message, "\n")
@@ -172,6 +174,7 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
 execute_weights_step <- function(config_path, output_dir,
                                   bids_dir = NULL, blood_dir = NULL,
                                   cores = 1L,
+                                  save_logs = FALSE,
                                   notify = function(msg, type) {}) {
 
   result <- list(success = FALSE, message = "")
@@ -197,7 +200,8 @@ execute_weights_step <- function(config_path, output_dir,
         analysis_folder = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        cores = cores
+        cores = cores,
+        save_logs = save_logs
       )
     }, error = function(e) {
       cat("Error generating weights report:", e$message, "\n")
@@ -238,6 +242,7 @@ execute_weights_step <- function(config_path, output_dir,
 execute_delay_step <- function(config_path, output_dir,
                                bids_dir = NULL, blood_dir = NULL,
                                cores = 1L,
+                               save_logs = FALSE,
                                notify = function(msg, type) {},
                                ancillary_path = NULL) {
 
@@ -320,7 +325,8 @@ execute_delay_step <- function(config_path, output_dir,
         analysis_folder = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        cores = cores
+        cores = cores,
+        save_logs = save_logs
       )
     }, error = function(e) {
       cat("Warning: Could not generate delay report:", e$message, "\n")
@@ -359,6 +365,7 @@ execute_delay_step <- function(config_path, output_dir,
 execute_reference_tac_step <- function(config_path, output_dir,
                                        bids_dir = NULL,
                                        cores = 1L,
+                                       save_logs = FALSE,
                                        notify = function(msg, type) {}) {
 
   result <- list(success = FALSE, message = "")
@@ -384,7 +391,8 @@ execute_reference_tac_step <- function(config_path, output_dir,
         analysis_folder = output_dir,
         bids_dir = bids_dir,
         blood_dir = NULL,
-        cores = cores
+        cores = cores,
+        save_logs = save_logs
       )
     }, error = function(e) {
       cat("Error generating reference TAC report:", e$message, "\n")
@@ -426,6 +434,7 @@ execute_reference_tac_step <- function(config_path, output_dir,
 execute_model_step <- function(config_path, model_num, output_dir,
                                bids_dir = NULL, blood_dir = NULL,
                                cores = 1L,
+                               save_logs = FALSE,
                                notify = function(msg, type) {},
                                ancillary_path = NULL) {
 
@@ -448,7 +457,7 @@ execute_model_step <- function(config_path, model_num, output_dir,
     model_type <- config$Models[[model_key]]$type
 
     # Skip if model is set to "No Model"
-    if (model_type == "No Model") {
+    if (model_type %in% c("No Model", "none")) {
       result$success <- TRUE
       result$message <- paste("Model", model_num, "set to 'No Model' - skipping")
       notify(result$message, "message")
@@ -467,7 +476,8 @@ execute_model_step <- function(config_path, model_num, output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
         cores = cores,
-        ancillary_path = ancillary_path
+        ancillary_path = ancillary_path,
+        save_logs = save_logs
       )
     }, error = function(e) {
       cat("Warning: Could not generate Model", model_num, "report:", e$message, "\n")

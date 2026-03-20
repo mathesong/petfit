@@ -5,10 +5,10 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to the derivatives folder (default: bids_dir/derivatives)
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
-#' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
+#' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL, cores = 1L, ancillary_analysis_folder = NULL) {
+modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -103,8 +103,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     })
   }
 
-  # Resolve subfolder based on validation
-  if (subfolder == "Primary_Analysis") {
+  # Resolve analysis_foldername based on validation
+  if (analysis_foldername == "Primary_Analysis") {
     primary_check <- validate_folder(file.path(petfit_dir, "Primary_Analysis"))
 
     if (primary_check$exists && !primary_check$compatible) {
@@ -120,23 +120,23 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       }
 
       # Use Secondary_Analysis
-      subfolder <- "Secondary_Analysis"
+      analysis_foldername <- "Secondary_Analysis"
       cat("Using Secondary_Analysis for this analysis.\n")
     }
   } else {
     # User specified custom folder name, validate it
-    folder_check <- validate_folder(file.path(petfit_dir, subfolder))
+    folder_check <- validate_folder(file.path(petfit_dir, analysis_foldername))
 
     if (folder_check$exists && !folder_check$compatible) {
       stop(sprintf("Analysis folder '%s' already exists but contains configuration for %s modelling. Please choose a different folder name.",
-                   subfolder, folder_check$config_type), call. = FALSE)
+                   analysis_foldername, folder_check$config_type), call. = FALSE)
     }
   }
 
-  cat("  Analysis subfolder:", subfolder, "\n")
+  cat("  Analysis folder:", analysis_foldername, "\n")
 
   # Create output directory if it doesn't exist
-  output_dir <- file.path(petfit_dir, subfolder)
+  output_dir <- file.path(petfit_dir, analysis_foldername)
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created output directory:", output_dir, "\n")
@@ -674,15 +674,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                 column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5,min = 0, step=.001)),
                               ),
 
-                              h4("Other Parameters"),
-                              selectInput("k2prime_source", "k2' Parameter Source:",
-                                         choices = list("Set k2'" = "set"),
-                                         selected = "set"),
-                              conditionalPanel(
-                                condition = "input.k2prime_source == 'set'",
-                                numericInput("k2prime_value", "k2' Value", value = 0.1, min = 0, step = 0.001)
-                              ),
-
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -734,12 +725,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                ),
                                
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source", "k2' Parameter Source:",
-                                          choices = list("Set k2'" = "set"),
-                                          selected = "set"),
-                               numericInput("k2prime_value", "k2' Value", value = 0.1, min = 0, step = 0.001),
-
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -834,12 +819,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                ),
 
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source", "k2' Parameter Source:",
-                                          choices = list("Set k2'" = "set"),
-                                          selected = "set"),
-                               numericInput("k2prime_value", "k2' Value (k2a prior)", value = 0.1, min = 0, step = 0.001),
-
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -865,7 +844,20 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                )
                              ),
-                             
+
+                             # Shared k2' section for models that need it (Model 1)
+                             conditionalPanel(
+                               condition = "input.button == 'SRTM2' || input.button == 'refLogan' || input.button == 'MRTM2'",
+                               h4("Other Parameters"),
+                               selectInput("k2prime_source", "k2' Parameter Source:",
+                                          choices = list("Set k2'" = "set"),
+                                          selected = "set"),
+                               conditionalPanel(
+                                 condition = "input.k2prime_source == 'set'",
+                                 numericInput("k2prime_value", "k2' Value", value = 0.1, min = 0, step = 0.001)
+                               )
+                             ),
+
                              hr(),
                              uiOutput("subset_validation_error"),
                              conditionalPanel(
@@ -958,20 +950,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                 column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5,min = 0, step=.001)),
                               ),
 
-                              h4("Other Parameters"),
-                              selectInput("k2prime_source2", "k2' Parameter Source:",
-                                         choices = list(
-                                           "Set k2'" = "set",
-                                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                         ),
-                                         selected = "set"),
-                              conditionalPanel(
-                                condition = "input.k2prime_source2 == 'set'",
-                                numericInput("k2prime_value2", "k2' Value", value = 0.1, min = 0, step = 0.001)
-                              ),
-
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -1021,20 +999,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  column(4,
                                         numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
                                  )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source2", "k2' Parameter Source:",
-                                          choices = list(
-                                            "Set k2'" = "set",
-                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.k2prime_source2 == 'set'",
-                                 numericInput("k2prime_value2", "k2' Value", value = 0.1, min = 0, step = 0.001)
                                ),
 
                                # TAC Subset Selection
@@ -1131,20 +1095,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                ),
 
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source2", "k2' Parameter Source:",
-                                          choices = list(
-                                            "Set k2'" = "set",
-                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.k2prime_source2 == 'set'",
-                                 numericInput("k2prime_value2", "k2' Value (k2a prior)", value = 0.1, min = 0, step = 0.001)
-                               ),
-
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -1170,7 +1120,25 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                )
                              ),
-                             
+
+                             # Shared k2' section for models that need it (Model 2)
+                             conditionalPanel(
+                               condition = "input.button2 == 'SRTM2' || input.button2 == 'refLogan' || input.button2 == 'MRTM2'",
+                               h4("Other Parameters"),
+                               selectInput("k2prime_source2", "k2' Parameter Source:",
+                                          choices = list(
+                                            "Set k2'" = "set",
+                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median"
+                                          ),
+                                          selected = "set"),
+                               conditionalPanel(
+                                 condition = "input.k2prime_source2 == 'set'",
+                                 numericInput("k2prime_value2", "k2' Value", value = 0.1, min = 0, step = 0.001)
+                               )
+                             ),
+
                              hr(),
                              uiOutput("subset_validation_error2"),
                              conditionalPanel(
@@ -1263,23 +1231,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                 column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5,min = 0, step=.001)),
                               ),
 
-                              h4("Other Parameters"),
-                              selectInput("k2prime_source3", "k2' Parameter Source:",
-                                         choices = list(
-                                           "Set k2'" = "set",
-                                           "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                           "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                           "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                           "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
-                                           "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                           "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                         ),
-                                         selected = "set"),
-                              conditionalPanel(
-                                condition = "input.k2prime_source3 == 'set'",
-                                numericInput("k2prime_value3", "k2' Value", value = 0.1, min = 0, step = 0.001)
-                              ),
-
                               # TAC Subset Selection
                               h4("TAC Subset Selection"),
                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -1329,23 +1280,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  column(4,
                                         numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
                                  )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source3", "k2' Parameter Source:",
-                                          choices = list(
-                                            "Set k2'" = "set",
-                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.k2prime_source3 == 'set'",
-                                 numericInput("k2prime_value3", "k2' Value", value = 0.1, min = 0, step = 0.001)
                                ),
 
                                # TAC Subset Selection
@@ -1442,23 +1376,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  )
                                ),
 
-                               h4("Other Parameters"),
-                               selectInput("k2prime_source3", "k2' Parameter Source:",
-                                          choices = list(
-                                            "Set k2'" = "set",
-                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.k2prime_source3 == 'set'",
-                                 numericInput("k2prime_value3", "k2' Value (k2a prior)", value = 0.1, min = 0, step = 0.001)
-                               ),
-
                                # TAC Subset Selection
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
@@ -1482,6 +1399,27 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                           numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
                                         )
                                  )
+                               )
+                             ),
+
+                             # Shared k2' section for models that need it (Model 3)
+                             conditionalPanel(
+                               condition = "input.button3 == 'SRTM2' || input.button3 == 'refLogan' || input.button3 == 'MRTM2'",
+                               h4("Other Parameters"),
+                               selectInput("k2prime_source3", "k2' Parameter Source:",
+                                          choices = list(
+                                            "Set k2'" = "set",
+                                            "Inherit k2' from Model 1 (Regional)" = "inherit_model1_regional",
+                                            "Inherit k2' from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+                                            "Inherit k2' from Model 1 (Median Across Regions)" = "inherit_model1_median",
+                                            "Inherit k2' from Model 2 (Regional)" = "inherit_model2_regional",
+                                            "Inherit k2' from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+                                            "Inherit k2' from Model 2 (Median Across Regions)" = "inherit_model2_median"
+                                          ),
+                                          selected = "set"),
+                               conditionalPanel(
+                                 condition = "input.k2prime_source3 == 'set'",
+                                 numericInput("k2prime_value3", "k2' Value", value = 0.1, min = 0, step = 0.001)
                                )
                              ),
 
@@ -2402,7 +2340,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       
       config_list <- list(
         modelling_configuration_type = "reference tissue",
-        analysis_folder = subfolder,
+        analysis_folder = analysis_foldername,
         config_created = format(Sys.time(), "%Y-%m-%d %H:%M"),
         blood_dir = blood_dir,
         Subsetting = Subsetting,
@@ -2537,6 +2475,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2562,6 +2501,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2586,6 +2526,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         output_dir = output_dir,
         bids_dir = bids_dir,
         cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2657,6 +2598,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         bids_dir = bids_dir,
         blood_dir = NULL,  # Reference tissue models don't use blood data
         cores = cores,
+        save_logs = save_logs,
         notify = notify,
         ancillary_path = ancillary_path
       )
@@ -2804,7 +2746,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     
     # Output for analysis folder display
     output$analysis_folder <- renderText({
-      subfolder
+      analysis_foldername
     })
     
     # JSON preview output

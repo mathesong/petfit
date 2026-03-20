@@ -440,8 +440,9 @@ fit_plot_files <- model_data %>%
     list(.$fit_srtm, .$region, .$title, .$safe_filename),
     function(fit, region, title, fname) {
       p <- plot(fit, roiname = region) +
-        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)")
-      filepath <- file.path(fit_plot_dir, paste0(fname, ".png"))
+        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)") +
+        theme_light()
+      filepath <- file.path(fit_plot_dir, paste0("fit_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}
@@ -456,7 +457,10 @@ if (embed_fit_plots) {
 ### Residuals
 
 ```{r, results='asis'}
-if (embed_fit_plots) {
+n_res_plots <- nrow(model_data %>% filter(success))
+embed_res_plots <- n_res_plots <= 200
+
+if (embed_res_plots) {
   res_plot_dir <- tempdir()
 } else {
   res_plot_dir <- file.path(analysis_folder, "reports",
@@ -473,16 +477,17 @@ res_plot_files <- model_data %>%
     list(.$fit_srtm, .$title, .$safe_filename),
     function(fit, title, fname) {
       p <- plot_residuals(fit) +
-        labs(title = title)
-      filepath <- file.path(res_plot_dir, paste0(fname, ".png"))
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(res_plot_dir, paste0("res_", fname, ".png"))
       ggsave(filepath, p, width = 6, height = 4, dpi = 96)
       filepath
     }, .options = furrr_options(seed = TRUE))}
 
-if (embed_fit_plots) {
+if (embed_res_plots) {
   walk(res_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
 } else {
-  cat(str_glue("\n\n**Note:** {n_fit_plots} residual plots saved to: `reports/{desc}_report_plots/residuals/`\n\n"))
+  cat(str_glue("\n\n**Note:** {n_res_plots} residual plots saved to: `reports/{desc}_report_plots/residuals/`\n\n"))
 }
 ```
 
