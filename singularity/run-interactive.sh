@@ -33,7 +33,7 @@ Options:
     --derivatives-dir PATH  Path to derivatives directory to mount
     --blood-dir PATH        Path to blood data directory to mount
     --petfit-folder NAME   Name for petfit output folder (default: $PETFIT_FOLDER)
-    --analysis-folder NAME  Name for analysis subfolder (default: $ANALYSIS_FOLDER)
+    --analysis-folder NAME  Name for analysis folder (default: $ANALYSIS_FOLDER)
     --cores N               Number of cores for parallel processing (default: $CORES)
     -h, --help              Show this help message
 

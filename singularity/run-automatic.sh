@@ -29,7 +29,7 @@ Options:
     --blood-dir PATH         Path to blood data directory to mount
     --step STEP              Specific step to run (optional)
     --petfit-folder NAME    Name for petfit output folder (default: $PETFIT_FOLDER)
-    --analysis-folder NAME   Name for analysis subfolder (default: $ANALYSIS_FOLDER)
+    --analysis-folder NAME   Name for analysis folder (default: $ANALYSIS_FOLDER)
     --cores N                Number of cores for parallel processing (default: $CORES)
     -h, --help               Show this help message
 
@@ -60,8 +60,8 @@ Examples:
     $0 --container ./petfit_dev.sif --func modelling_plasma --derivatives-dir /path/to/derivatives
 
 Requirements:
-    - derivatives-dir must contain petfit folder with analysis subfolder
-    - Analysis subfolder must contain desc-petfitoptions_config.json file
+    - derivatives-dir must contain petfit folder with analysis folder
+    - Analysis folder must contain desc-petfitoptions_config.json file
     - blood-dir only needed for delay fitting and invasive model steps
 
 Directory Structure Expected:

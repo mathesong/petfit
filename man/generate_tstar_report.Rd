@@ -8,7 +8,8 @@ generate_tstar_report(
   analysis_folder,
   tstar_results = NULL,
   binding_regions = NULL,
-  output_dir = NULL
+  output_dir = NULL,
+  cores = 1L
 )
 }
 \arguments{

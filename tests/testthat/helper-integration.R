@@ -273,12 +273,12 @@ setup_regiondef_config <- function(workspace_info) {
 #' @param workspace_info List returned by create_integration_workspace()
 #' @param config_fixture_name Name of the JSON config fixture file
 #'   (e.g., "ds004869_plasma_config.json")
-#' @param analysis_subfolder Name for the analysis subfolder (default: "Primary_Analysis")
+#' @param analysis_foldername Name for the analysis folder (default: "Primary_Analysis")
 #' @return Path to the installed config file
 setup_modelling_config <- function(workspace_info, config_fixture_name,
-                                   analysis_subfolder = "Primary_Analysis") {
+                                   analysis_foldername = "Primary_Analysis") {
   # Create analysis directory
-  analysis_dir <- file.path(workspace_info$derivatives_dir, "petfit", analysis_subfolder)
+  analysis_dir <- file.path(workspace_info$derivatives_dir, "petfit", analysis_foldername)
   if (!dir.exists(analysis_dir)) {
     dir.create(analysis_dir, recursive = TRUE)
   }
@@ -303,7 +303,7 @@ setup_modelling_config <- function(workspace_info, config_fixture_name,
 #' @param blood_dir Optional path to blood data directory
 #' @param step Optional step name for automatic mode
 #' @param image Docker image name (default: "mathesong/petfit:latest")
-#' @param analysis_foldername Analysis subfolder name (default: "Primary_Analysis")
+#' @param analysis_foldername Analysis folder name (default: "Primary_Analysis")
 #' @return List with output (character vector) and exit_code (integer)
 run_petfit_docker <- function(func, mode, workspace_info,
                               blood_dir = NULL, step = NULL,
@@ -356,7 +356,7 @@ run_petfit_docker <- function(func, mode, workspace_info,
 #' @param container Path to SIF file or Docker reference
 #' @param blood_dir Optional path to blood data directory
 #' @param step Optional step name for automatic mode
-#' @param analysis_foldername Analysis subfolder name (default: "Primary_Analysis")
+#' @param analysis_foldername Analysis folder name (default: "Primary_Analysis")
 #' @return List with output (character vector) and exit_code (integer)
 run_petfit_singularity <- function(func, mode, workspace_info,
                                    container = "petfit_latest.sif",

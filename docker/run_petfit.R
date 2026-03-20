@@ -16,7 +16,7 @@ option_list <- list(
   make_option(c("--petfit_output_foldername"), type="character", default="petfit", 
               help="Name for petfit output folder within derivatives [default: petfit]"),
   make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis",
-              help="Name for analysis subfolder [default: Primary_Analysis]"),
+              help="Name for analysis folder [default: Primary_Analysis]"),
   make_option(c("--cores"), type="integer", default=1L,
               help="Number of cores for parallel processing [default: 1]")
 )
@@ -129,7 +129,7 @@ if (opt$mode == "interactive") {
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername,
+      analysis_foldername = opt$analysis_foldername,
       cores = opt$cores
     )
   } else if (opt$func == "modelling_ref") {
@@ -137,7 +137,7 @@ if (opt$mode == "interactive") {
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername,
+      analysis_foldername = opt$analysis_foldername,
       cores = opt$cores
     )
   }
@@ -195,7 +195,7 @@ if (opt$mode == "interactive") {
     # Execute the automatic pipeline
     tryCatch({
       result <- petfit_modelling_auto(
-        analysis_subfolder = opt$analysis_foldername,
+        analysis_foldername = opt$analysis_foldername,
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
         petfit_output_foldername = opt$petfit_output_foldername,
