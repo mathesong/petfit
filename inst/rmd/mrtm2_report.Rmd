@@ -39,9 +39,9 @@ if (cores > 1) {
 theme_set(theme_light())
 
 # Use parameters (from params or debugging section above)
-analysis_folder <- params$analysis_folder %||% analysis_folder
-model_number <- params$model_number %||% model_number
-bids_dir <- params$bids_dir %||% bids_dir %||% NULL
+analysis_folder <- params$analysis_folder
+model_number <- params$model_number
+bids_dir <- params$bids_dir
 ```
 
 ```{r load-config, include=FALSE}
