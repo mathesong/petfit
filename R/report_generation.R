@@ -56,7 +56,8 @@ generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, 
   # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
     callr::r(
-      function(input, output_file, params, output_dir) {
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
         library(petfit)
         rmarkdown::render(
           input = input,
@@ -71,7 +72,8 @@ generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, 
         input = template_file,
         output_file = output_file,
         params = params,
-        output_dir = output_dir
+        output_dir = output_dir,
+        lib_paths = .libPaths()
       ),
       stdout = log_file %||% "",
       stderr = log_file %||% ""
@@ -160,7 +162,8 @@ generate_model_report <- function(model_type, model_number, analysis_folder,
   # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
     callr::r(
-      function(input, output_file, params, output_dir) {
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
         library(petfit)
         rmarkdown::render(
           input = input,
@@ -175,7 +178,8 @@ generate_model_report <- function(model_type, model_number, analysis_folder,
         input = template_file,
         output_file = output_file,
         params = params,
-        output_dir = output_dir
+        output_dir = output_dir,
+        lib_paths = .libPaths()
       ),
       stdout = log_file %||% "",
       stderr = log_file %||% ""
@@ -287,7 +291,8 @@ generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding
   # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
     callr::r(
-      function(input, output_file, params, output_dir) {
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
         library(petfit)
         rmarkdown::render(
           input = input,
@@ -302,7 +307,8 @@ generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding
         input = template_file,
         output_file = output_file,
         params = params,
-        output_dir = output_dir
+        output_dir = output_dir,
+        lib_paths = .libPaths()
       ),
       stdout = log_file %||% "",
       stderr = log_file %||% ""
