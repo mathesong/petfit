@@ -39,6 +39,7 @@ This design means region definition results are shared across all analyses, whil
 ```{toctree}
 :maxdepth: 2
 
+folder-structure
 region-definition
 modelling-plasma
 modelling-reference

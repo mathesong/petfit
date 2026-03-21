@@ -98,17 +98,19 @@ docker run --rm \
   mathesong/petfit:latest \
   --func modelling_plasma \
   --mode automatic \
-  --analysis_folder Baseline_only
+  --analysis_foldername Baseline_only
 ```
 
 ## Command-line options
 
 | Option | Description |
 |--------|-------------|
-| `--func` | App to run: `regiondef`, `modelling_plasma`, or `modelling_ref` |
+| `--func` | App to run: `regiondef`, `modelling_plasma`, or `modelling_ref` (required) |
 | `--mode` | `interactive` (default) or `automatic` |
-| `--step` | Specific step for automatic mode: `datadef`, `weights`, `delay`, `model1`, `model2`, `model3` |
-| `--analysis_folder` | Analysis subfolder name (default: `Primary_Analysis`) |
+| `--step` | Specific step for automatic mode: `datadef`, `weights`, `delay`, `reference_tac`, `model1`, `model2`, `model3` |
+| `--analysis_foldername` | Analysis subfolder name (default: `Primary_Analysis`) |
+| `--petfit_output_foldername` | Name of petfit output folder within derivatives (default: `petfit`) |
+| `--cores` | Number of cores for parallel processing (default: `1`) |
 
 ## Mount points
 
@@ -170,7 +172,7 @@ for analysis in Analysis1 Analysis2 Analysis3; do
     mathesong/petfit:latest \
     --func modelling_plasma \
     --mode automatic \
-    --analysis_folder "$analysis"
+    --analysis_foldername "$analysis"
 done
 ```
 

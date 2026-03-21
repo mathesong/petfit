@@ -7,7 +7,7 @@ project = "PETFit"
 copyright = "2025, Granville Matheson"
 author = "Granville Matheson"
 version = "0.1"
-release = "0.1.2"
+release = "0.1.3"
 
 # -- General configuration ---------------------------------------------------
 

@@ -11,7 +11,7 @@ The region definition app combines individual brain regions from PET preprocessi
 library(petfit)
 
 # Interactive
-launch_petfit_apps(
+petfit_interactive(
   app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )

@@ -6,9 +6,9 @@ This guide walks through a minimal PETFit analysis from start to finish. You wil
 
 | Mode | R | Docker |
 |------|---|--------|
-| Interactive — Region Definition | `launch_petfit_apps(bids_dir = "...")` | `docker run -p 3838:3838 ... --func regiondef` |
-| Interactive — Plasma Modelling | `launch_petfit_apps(app = "modelling_plasma", ...)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
-| Interactive — Reference Modelling | `launch_petfit_apps(app = "modelling_ref", ...)` | `docker run -p 3838:3838 ... --func modelling_ref` |
+| Interactive — Region Definition | `petfit_interactive(bids_dir = "...")` | `docker run -p 3838:3838 ... --func regiondef` |
+| Interactive — Plasma Modelling | `petfit_interactive(app = "modelling_plasma", ...)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
+| Interactive — Reference Modelling | `petfit_interactive(app = "modelling_ref", ...)` | `docker run -p 3838:3838 ... --func modelling_ref` |
 | Automatic — Region Definition | `petfit_regiondef_auto(derivatives_dir = "...")` | `docker run ... --func regiondef --mode automatic` |
 | Automatic — Modelling | `petfit_modelling_auto(derivatives_dir = "...")` | `docker run ... --func modelling_plasma --mode automatic` |
 
@@ -23,7 +23,7 @@ Region definition combines individual brain regions from your PET preprocessing 
 library(petfit)
 
 # Interactive: opens the region definition app in your browser
-launch_petfit_apps(
+petfit_interactive(
   app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )
@@ -68,7 +68,7 @@ Once you have combined TACs, run the modelling pipeline. Choose either plasma in
 ````{tab-item} R (plasma input)
 ```r
 # Interactive
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives",
@@ -86,7 +86,7 @@ petfit_modelling_auto(
 ````{tab-item} R (reference tissue)
 ```r
 # Interactive
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives"
 )

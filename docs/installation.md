@@ -24,7 +24,7 @@ remotes::install_github("mathesong/petfit")
 
 ```r
 library(petfit)
-?launch_petfit_apps
+?petfit_interactive
 ```
 
 ## Docker

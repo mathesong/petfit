@@ -1,28 +1,6 @@
-# FAQ and troubleshooting
+# Troubleshooting
 
-## General questions
-
-### What is PETFit?
-
-PETFit is a BIDS App for fitting kinetic models to PET time activity curve data. It provides interactive Shiny web apps for configuring analyses and an automatic pipeline for batch processing.
-
-### What is kinfitr?
-
-[kinfitr](https://github.com/mathesong/kinfitr) is the R package that performs the actual kinetic model fitting. PETFit provides the pipeline infrastructure, interactive configuration, and reporting on top of kinfitr.
-
-### What BIDS data do I need?
-
-You need PET data preprocessed according to the [PET Preprocessing Derivatives BIDS specification](https://bids-specification.readthedocs.io/). This typically means TAC files and morphometry files from a preprocessing pipeline such as [PETPrep](https://petprep.readthedocs.io/). The TAC files must have `seg` or `label` BIDS entities in their filenames.
-
-### Can I use PETFit without Docker?
-
-Yes. You can install PETFit as an R package and use it directly. Docker and Singularity are provided for convenience but are not required.
-
-### What preprocessing pipeline should I use?
-
-PETFit works with any pipeline that produces TAC and morphometry files following the PET Preprocessing Derivatives BIDS specification. [PETPrep](https://petprep.readthedocs.io/) is one such pipeline.
-
-## Common issues
+## Data and file issues
 
 ### No TAC files found
 
@@ -56,6 +34,26 @@ PETFit works with any pipeline that produces TAC and morphometry files following
 
 **Fix:** PETFit uses `readr::read_tsv()` which preserves character types. If you see this issue, please report it.
 
+### BIDS entity ordering in petfit_regions.tsv
+
+**Symptom:** Region definition fails to match files.
+
+**Cause:** The description column in `petfit_regions.tsv` must use the correct BIDS entity ordering. PETFit gives priority to `seg`/`label`, then sorts remaining keys alphabetically.
+
+**Fix:** Use `seg-gtm_desc-preproc` rather than `desc-preproc_seg-gtm`.
+
+## Reference tissue issues
+
+### Reference region not found in analysis data
+
+**Symptom:** Error during reference TAC setup or model fitting.
+
+**Cause:** The reference region specified in `ReferenceTAC.region` is not included in the data subsetting.
+
+**Fix:** Make sure the Regions field in the Subsetting section includes your reference region. For example, if your reference region is "Cerebellum", then Regions must include "Cerebellum".
+
+## Report issues
+
 ### Report generation fails
 
 **Symptom:** Error when generating HTML reports.
@@ -74,21 +72,45 @@ rmarkdown::render(
 )
 ```
 
-### Reference region not found in analysis data
+## Model fitting issues
 
-**Symptom:** Error during reference TAC setup or model fitting.
+### Model fails to converge
 
-**Cause:** The reference region specified in `ReferenceTAC.region` is not included in the data subsetting.
+**Symptom:** Model fitting produces `NA` values or error messages about convergence.
 
-**Fix:** Make sure the Regions field in the Subsetting section includes your reference region. For example, if your reference region is "Cerebellum", then Regions must include "Cerebellum".
+**Possible causes:**
+- Parameter bounds too narrow or too wide
+- Poor start values
+- Noisy or unusual TAC data
+- Insufficient time frames for the model complexity
 
-### BIDS entity ordering in petfit_regions.tsv
+**Fix:** Try adjusting parameter bounds and start values in the model configuration. For compartmental models, ensure bounds are physiologically reasonable. Check the TAC data in the interactive tab to verify it looks sensible before fitting.
 
-**Symptom:** Region definition fails to match files.
+### Unexpected parameter estimates
 
-**Cause:** The description column in `petfit_regions.tsv` must use the correct BIDS entity ordering. PETFit gives priority to `seg`/`label`, then sorts remaining keys alphabetically.
+**Symptom:** Fitted parameters are at their boundary values or seem implausible.
 
-**Fix:** Use `seg-gtm_desc-preproc` rather than `desc-preproc_seg-gtm`.
+**Cause:** The optimiser may be hitting parameter bounds, or the data may not support the chosen model.
+
+**Fix:** Review the model fit plots in the HTML reports. Consider whether a simpler model might be more appropriate (e.g. 1TCM instead of 2TCM). Widen parameter bounds if estimates are consistently hitting limits.
+
+## Ancillary analysis issues
+
+### Ancillary folder not found
+
+**Symptom:** Error message about missing ancillary analysis folder.
+
+**Cause:** The `ancillary_analysis_folder` must be a sibling folder name (e.g. `"Ancillary_Analysis"`), not a full path. It must already exist under `derivatives/petfit/`.
+
+**Fix:** Ensure the ancillary analysis has been run first and the folder exists. Pass only the folder name, not a path.
+
+### Missing delay or k2prime files in ancillary folder
+
+**Symptom:** Pipeline cannot find expected parameter files in the ancillary folder.
+
+**Cause:** The ancillary analysis did not complete the relevant step (delay fitting or model fitting), or the files are named differently than expected.
+
+**Fix:** Check that the ancillary analysis ran successfully by reviewing its reports. Delay files should match `*_desc-delayfit_kinpar.tsv` and model files should match `*_desc-model{N}_kinpar.tsv`.
 
 ## Docker issues
 

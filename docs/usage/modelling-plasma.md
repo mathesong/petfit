@@ -11,7 +11,7 @@ The plasma input modelling app configures and runs invasive kinetic models that 
 library(petfit)
 
 # Interactive
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives",
@@ -33,7 +33,7 @@ petfit_modelling_auto(
 
 # Automatic — custom analysis folder
 petfit_modelling_auto(
-  analysis_subfolder = "Baseline_only",
+  analysis_foldername = "Baseline_only",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )

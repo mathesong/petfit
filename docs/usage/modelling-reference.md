@@ -11,7 +11,7 @@ The reference tissue modelling app configures and runs non-invasive kinetic mode
 library(petfit)
 
 # Interactive
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives"
 )

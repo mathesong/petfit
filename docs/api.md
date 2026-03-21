@@ -4,27 +4,48 @@ This page documents PETFit's exported R functions, organised by functional area.
 
 ## App launchers
 
-### `launch_petfit_apps()`
+### `petfit_interactive()`
 
 Launch a PETFit Shiny app.
 
 ```r
-launch_petfit_apps(
+petfit_interactive(
   app = c("regiondef", "modelling_plasma", "modelling_ref"),
   bids_dir = NULL,
   derivatives_dir = NULL,
   blood_dir = NULL,
-  analysis_subfolder = "Primary_Analysis",
+  petfit_output_foldername = "petfit",
+  analysis_foldername = "Primary_Analysis",
+  config_file = NULL,
+  cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 ```
+
+**Arguments:**
+- `app` — Which app to launch: `"regiondef"`, `"modelling_plasma"`, or `"modelling_ref"`.
+- `bids_dir` — Path to the BIDS directory.
+- `derivatives_dir` — Path to derivatives directory. Defaults to `bids_dir/derivatives` if `bids_dir` is provided.
+- `blood_dir` — Path to blood data directory (for `modelling_plasma`).
+- `petfit_output_foldername` — Name of the petfit output folder within derivatives (default: `"petfit"`).
+- `analysis_foldername` — Name of the analysis subfolder (default: `"Primary_Analysis"`).
+- `config_file` — Path to an existing configuration file (for modelling apps).
+- `cores` — Number of cores for parallel processing (default: `1L`).
+- `save_logs` — Whether to save processing logs (default: `FALSE`).
+- `ancillary_analysis_folder` — Name of a sibling analysis subfolder to inherit delay or k2prime estimates from. Must be a folder name (e.g. `"Ancillary_Analysis"`), not a full path.
 
 ### `region_definition_app()`
 
 Launch the region definition app directly.
 
 ```r
-region_definition_app(bids_dir = NULL, derivatives_dir = NULL)
+region_definition_app(
+  bids_dir = NULL,
+  derivatives_dir = NULL,
+  petfit_output_foldername = "petfit",
+  cores = 1L
+)
 ```
 
 ### `modelling_plasma_app()`
@@ -36,7 +57,10 @@ modelling_plasma_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
   blood_dir = NULL,
-  analysis_subfolder = "Primary_Analysis",
+  analysis_foldername = "Primary_Analysis",
+  config_file = NULL,
+  cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 ```
@@ -49,20 +73,52 @@ Launch the reference tissue modelling app directly.
 modelling_ref_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
-  analysis_subfolder = "Primary_Analysis",
+  blood_dir = NULL,
+  analysis_foldername = "Primary_Analysis",
+  config_file = NULL,
+  cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 ```
 
 ## Automatic pipelines
 
+### `petfit_auto()`
+
+Unified entry point for running any PETFit pipeline non-interactively.
+
+```r
+petfit_auto(
+  app = c("regiondef", "modelling_plasma", "modelling_ref"),
+  bids_dir = NULL,
+  derivatives_dir = NULL,
+  blood_dir = NULL,
+  petfit_output_foldername = "petfit",
+  analysis_foldername = "Primary_Analysis",
+  step = NULL,
+  cores = 1L,
+  save_logs = FALSE,
+  ancillary_analysis_folder = NULL
+)
+```
+
+Dispatches to `petfit_regiondef_auto()` or `petfit_modelling_auto()` based on the `app` parameter.
+
 ### `petfit_regiondef_auto()`
 
 Run the region definition pipeline non-interactively.
 
 ```r
-petfit_regiondef_auto(bids_dir = NULL, derivatives_dir = NULL)
+petfit_regiondef_auto(
+  bids_dir = NULL,
+  derivatives_dir = NULL,
+  petfit_output_foldername = "petfit",
+  cores = 1L
+)
 ```
+
+**Returns:** List with `success`, `messages`, and `output_file`.
 
 ### `petfit_modelling_auto()`
 
@@ -72,15 +128,21 @@ Run the modelling pipeline non-interactively.
 petfit_modelling_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
+  petfit_output_foldername = "petfit",
+  analysis_foldername = "Primary_Analysis",
   blood_dir = NULL,
-  analysis_subfolder = "Primary_Analysis",
   step = NULL,
+  pipeline_type = NULL,
+  cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 ```
 
 **Arguments:**
 - `step` — Run a specific step: `"datadef"`, `"weights"`, `"delay"`, `"reference_tac"`, `"model1"`, `"model2"`, `"model3"`. If `NULL`, runs all steps.
+- `pipeline_type` — Explicit pipeline type: `"plasma"` or `"reference"`. If `NULL`, auto-detected from the configuration file.
+- `ancillary_analysis_folder` — Name of a sibling analysis subfolder to inherit delay or k2prime estimates from.
 
 ## Pipeline step execution
 
@@ -240,9 +302,17 @@ Convert raw blood data to input function TSV format.
 
 Validate that an ancillary analysis folder exists and is a sibling of the current analysis.
 
+```r
+validate_ancillary_folder(petfit_dir, ancillary_analysis_folder)
+```
+
 ### `scan_ancillary_contents()`
 
 Scan an ancillary analysis folder and return available delay and kinpar files.
+
+```r
+scan_ancillary_contents(ancillary_path)
+```
 
 ### `print_ancillary_summary()`
 
@@ -250,11 +320,23 @@ Print a formatted summary of ancillary folder contents.
 
 ### `read_ancillary_delay()`
 
-Read delay estimates from an ancillary analysis folder.
+Read delay estimates (inpshift values) from an ancillary analysis folder.
+
+```r
+read_ancillary_delay(ancillary_path, pet_ids = NULL)
+```
 
 ### `read_ancillary_k2prime()`
 
 Read and aggregate k2prime values from ancillary kinpar files.
+
+```r
+read_ancillary_k2prime(ancillary_path, model_num, aggregation, pet_ids = NULL)
+```
+
+**Arguments:**
+- `model_num` — Which model's kinpar files to read (1, 2, or 3).
+- `aggregation` — How to aggregate k2prime across regions: `"mean"` or `"median"`.
 
 ### `parse_ancillary_k2prime_source()`
 
