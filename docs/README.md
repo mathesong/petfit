@@ -36,7 +36,6 @@ make html
 | `quickstart.md` | Quick start tutorial |
 | `models.md` | Supported kinetic models reference |
 | `outputs.md` | Output file descriptions |
-| `configuration.md` | JSON configuration file reference |
 | `troubleshooting.md` | Troubleshooting guide |
 | `contributing.md` | Contributing and testing guide |
 | `api.md` | API reference for exported R functions |
@@ -153,3 +152,5 @@ See [Section title](page-name.md#section-anchor) for a specific section.
 ## Deployment
 
 The documentation is built and deployed automatically by [Read the Docs](https://readthedocs.org/) on pushes to the `main` branch. Configuration is in `.readthedocs.yaml` at the repository root.
+
+
