@@ -88,30 +88,63 @@ PETFit has two categories of tests: **unit tests** (fast, no external data) and 
 
 ### Running tests
 
-```bash
-# Run unit tests only (the default)
-Rscript -e "devtools::test()"
+**Unit tests only** (fast, no setup needed):
 
-# Run a specific unit test file
+```bash
+Rscript -e "devtools::test()"
+```
+
+**Full integration battery** (R-native, no containers):
+
+```bash
+PETFIT_INTEGRATION_TESTS=true \
+  Rscript -e "devtools::test()"
+```
+
+This runs all unit tests plus all R-native integration tests (region definition, plasma modelling, reference modelling, ancillary inheritance, parallel processing).
+
+**Full integration battery with Docker**:
+
+```bash
+PETFIT_INTEGRATION_TESTS=true \
+  PETFIT_DOCKER_TESTS=true \
+  Rscript -e "devtools::test()"
+```
+
+**Full integration battery with Apptainer/Singularity**:
+
+```bash
+PETFIT_INTEGRATION_TESTS=true \
+  PETFIT_SINGULARITY_TESTS=true \
+  Rscript -e "devtools::test()"
+```
+
+**Everything** (R-native + Docker + Apptainer):
+
+```bash
+PETFIT_INTEGRATION_TESTS=true \
+  PETFIT_DOCKER_TESTS=true \
+  PETFIT_SINGULARITY_TESTS=true \
+  Rscript -e "devtools::test()"
+```
+
+**Single test file** (useful during development):
+
+```bash
+# A specific unit test
 Rscript -e "devtools::test(filter = 'bids_utils')"
 
-# Run all integration tests (requires test data)
-PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
+# A specific integration test
+PETFIT_INTEGRATION_TESTS=true \
+  Rscript -e "devtools::test(filter = 'integration-regiondef')"
+```
 
-# Run a specific integration test file
-PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration-regiondef')"
+**Persistent cache** (avoids re-extracting test data between runs):
 
-# Run integration tests with a persistent cache (avoids re-extracting test data)
-PETFIT_INTEGRATION_TESTS=true PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache \
-  Rscript -e "devtools::test(filter = 'integration')"
-
-# Include Docker container tests
-PETFIT_INTEGRATION_TESTS=true PETFIT_DOCKER_TESTS=true \
-  Rscript -e "devtools::test(filter = 'integration')"
-
-# Include Singularity container tests
-PETFIT_INTEGRATION_TESTS=true PETFIT_SINGULARITY_TESTS=true \
-  Rscript -e "devtools::test(filter = 'integration')"
+```bash
+PETFIT_INTEGRATION_TESTS=true \
+  PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache \
+  Rscript -e "devtools::test()"
 ```
 
 ### Unit tests

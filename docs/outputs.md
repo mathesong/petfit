@@ -102,7 +102,7 @@ One file per PET measurement per model, named `{pet_id}_model-{MODEL}_kinpar.tsv
 
 ### Configuration file
 
-`desc-petfitoptions_config.json` stores all analysis settings. See [Configuration files](configuration.md) for the full specification.
+`desc-petfitoptions_config.json` stores all analysis settings. This file is generated automatically by the interactive apps and read by the automatic pipeline.
 
 ### HTML reports
 

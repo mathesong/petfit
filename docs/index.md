@@ -93,7 +93,6 @@ models
 
 troubleshooting
 api
-configuration
 citation
 changes
 license

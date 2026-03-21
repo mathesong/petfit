@@ -36,7 +36,6 @@ make html
 | `quickstart.md` | Quick start tutorial |
 | `models.md` | Supported kinetic models reference |
 | `outputs.md` | Output file descriptions |
-| `configuration.md` | JSON configuration file reference |
 | `troubleshooting.md` | Troubleshooting guide |
 | `contributing.md` | Contributing and testing guide |
 | `api.md` | API reference for exported R functions |
