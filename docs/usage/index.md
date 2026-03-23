@@ -22,7 +22,7 @@ Every PETFit analysis follows two stages:
 
 ## Interactive vs automatic mode
 
-Both modes produce identical results. The difference is how you interact with the pipeline:
+Both modes produce identical results. The difference is how you interact with the pipeline. Docker is the recommended way to run both modes.
 
 **Interactive mode** launches a Shiny web app in your browser. You configure each step visually, run steps individually, and review results as you go. The app automatically saves a JSON configuration file that records all your choices.
 

@@ -65,8 +65,34 @@ Each analysis folder contains its own configuration file (`desc-petfitoptions_co
 
 ### Creating an analysis folder
 
-Analysis folders are created automatically when you launch a modelling app or run `petfit_modelling_auto()`. Specify the folder name with the `analysis_foldername` parameter:
+Analysis folders are created automatically when you launch a modelling app. Specify the folder name with the `analysis_foldername` parameter:
 
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+docker run -it --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --analysis_foldername Baseline_Only
+```
+````
+
+````{tab-item} Apptainer
+```bash
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --analysis_foldername Baseline_Only
+```
+````
+
+````{tab-item} R
 ```r
 # Interactive
 petfit_interactive(
@@ -81,6 +107,9 @@ petfit_modelling_auto(
   analysis_foldername = "Baseline_Only"
 )
 ```
+````
+
+`````
 
 ## Up to three models per analysis
 
@@ -112,8 +141,55 @@ Ancillary and primary analyses are **sibling folders** under `derivatives/petfit
 
 ### Delay inheritance (plasma input)
 
-For plasma input pipelines, you can estimate the blood-tissue delay in an ancillary analysis and inherit it in the primary analysis:
+For plasma input pipelines, you can estimate the blood-tissue delay in an ancillary analysis and inherit it in the primary analysis.
 
+In the primary analysis configuration, set the delay model to `"ancillary_estimate"` so that the pipeline copies the delay values from the ancillary folder instead of fitting them.
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Step 1: Run ancillary analysis with well-behaved regions
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Ancillary_Delay
+
+# Step 2: Run primary analysis, inheriting delay estimates
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_Delay
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Step 1: Run ancillary analysis with well-behaved regions
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Ancillary_Delay
+
+# Step 2: Run primary analysis, inheriting delay estimates
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_Delay
+```
+````
+
+````{tab-item} R
 ```r
 # Step 1: Run ancillary analysis with well-behaved regions
 petfit_modelling_auto(
@@ -128,23 +204,51 @@ petfit_modelling_auto(
   ancillary_analysis_folder = "Ancillary_Delay"
 )
 ```
+````
 
-In the primary analysis configuration, set the delay model to `"ancillary_estimate"` so that the pipeline copies the delay values from the ancillary folder instead of fitting them.
+`````
 
 ### k2prime inheritance (reference tissue)
 
-For reference tissue pipelines, you can estimate k2prime in an ancillary analysis and use it in constrained models (MRTM2, SRTM2, refLogan) in the primary analysis:
+For reference tissue pipelines, you can estimate k2prime in an ancillary analysis and use it in constrained models (MRTM2, SRTM2, refLogan) in the primary analysis.
 
+In the primary analysis configuration, set the k2prime source to values like `"ancillary_model1_median"` or `"ancillary_model1_mean"` to use the aggregated k2prime from the ancillary analysis.
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_k2prime
+```
+````
+
+````{tab-item} Apptainer
+```bash
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_k2prime
+```
+````
+
+````{tab-item} R
 ```r
-# Primary analysis inherits k2prime from ancillary Model 1
 petfit_modelling_auto(
   derivatives_dir = "/path/to/derivatives",
   analysis_foldername = "Primary_Analysis",
   ancillary_analysis_folder = "Ancillary_k2prime"
 )
 ```
+````
 
-In the primary analysis configuration, set the k2prime source to values like `"ancillary_model1_median"` or `"ancillary_model1_mean"` to use the aggregated k2prime from the ancillary analysis.
+`````
 
 ### When to use ancillary analyses
 

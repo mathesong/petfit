@@ -2,55 +2,6 @@
 
 The reference tissue modelling app configures and runs non-invasive kinetic models that use a reference brain region instead of arterial blood data. This is the appropriate choice when blood data is not available.
 
-## Launching the app
-
-`````{tab-set}
-
-````{tab-item} R
-```r
-library(petfit)
-
-# Interactive
-petfit_interactive(
-  app = "modelling_ref",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic — full pipeline
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic — single step
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives",
-  step = "model1"
-)
-```
-````
-
-````{tab-item} Docker
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
-
-# Automatic — full pipeline
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref \
-  --mode automatic
-```
-````
-
-`````
-
 ## Pipeline steps
 
 The reference tissue pipeline runs these steps in order:
@@ -98,6 +49,92 @@ Models that require a **k2prime** value (SRTM2, MRTM2, refLogan) can obtain it f
 - A fixed value you provide
 - The fitted results of another model in the same analysis (e.g. MRTM1's k2a estimate)
 - An ancillary analysis folder (when using the ancillary analysis workflow)
+
+## Running the pipeline
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref \
+  --mode automatic
+
+# Automatic — single step
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref \
+  --mode automatic \
+  --step model1
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref \
+  --mode automatic
+
+# Automatic — single step
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref \
+  --mode automatic \
+  --step model1
+```
+````
+
+````{tab-item} R
+```r
+library(petfit)
+
+# Interactive
+petfit_interactive(
+  app = "modelling_ref",
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic — full pipeline
+petfit_modelling_auto(
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic — single step
+petfit_modelling_auto(
+  derivatives_dir = "/path/to/derivatives",
+  step = "model1"
+)
+```
+````
+
+`````
 
 ## Interactive exploration
 
