@@ -13,6 +13,7 @@ petfit_interactive(
   analysis_foldername = "Primary_Analysis",
   config_file = NULL,
   cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 }

@@ -13,6 +13,7 @@ petfit_modelling_auto(
   step = NULL,
   pipeline_type = NULL,
   cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 }
