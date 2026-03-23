@@ -12,7 +12,8 @@ generate_model_report(
   bids_dir = NULL,
   blood_dir = NULL,
   cores = 1L,
-  ancillary_path = NULL
+  ancillary_path = NULL,
+  save_logs = FALSE
 )
 }
 \arguments{
@@ -27,6 +28,12 @@ generate_model_report(
 \item{bids_dir}{Character string path to the BIDS directory (optional)}
 
 \item{blood_dir}{Character string path to the blood data directory (optional)}
+
+\item{cores}{Integer number of cores for parallel processing (default: 1)}
+
+\item{ancillary_path}{Character string path to ancillary analysis folder (optional)}
+
+\item{save_logs}{Logical whether to save subprocess output to log files (default: FALSE)}
 }
 \value{
 Character string path to the generated report file

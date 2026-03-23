@@ -9,6 +9,7 @@ execute_reference_tac_step(
   output_dir,
   bids_dir = NULL,
   cores = 1L,
+  save_logs = FALSE,
   notify = function(msg, type) {
  }
 )

@@ -18,7 +18,9 @@ option_list <- list(
   make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis",
               help="Name for analysis folder [default: Primary_Analysis]"),
   make_option(c("--cores"), type="integer", default=1L,
-              help="Number of cores for parallel processing [default: 1]")
+              help="Number of cores for parallel processing [default: 1]"),
+  make_option(c("--ancillary_analysis_folder"), type="character", default=NULL,
+              help="Name of sibling analysis folder to inherit delay/k2prime from [optional]")
 )
 
 # Parse arguments
@@ -58,6 +60,9 @@ if (!is.null(opt$step)) {
 }
 cat("petfit output folder:", opt$petfit_output_foldername, "\n")
 cat("Analysis folder:", opt$analysis_foldername, "\n")
+if (!is.null(opt$ancillary_analysis_folder)) {
+  cat("Ancillary analysis folder:", opt$ancillary_analysis_folder, "\n")
+}
 cat("\n")
 
 # Detect mounted directories
@@ -130,7 +135,8 @@ if (opt$mode == "interactive") {
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
       analysis_foldername = opt$analysis_foldername,
-      cores = opt$cores
+      cores = opt$cores,
+      ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
   } else if (opt$func == "modelling_ref") {
     modelling_ref_app(
@@ -138,7 +144,8 @@ if (opt$mode == "interactive") {
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
       analysis_foldername = opt$analysis_foldername,
-      cores = opt$cores
+      cores = opt$cores,
+      ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
   }
 
@@ -202,7 +209,8 @@ if (opt$mode == "interactive") {
         blood_dir = dirs$blood_dir,
         step = opt$step,
         pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference",
-        cores = opt$cores
+        cores = opt$cores,
+        ancillary_analysis_folder = opt$ancillary_analysis_folder
       )
 
       # Print all messages

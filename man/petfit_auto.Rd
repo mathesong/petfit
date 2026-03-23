@@ -13,6 +13,7 @@ petfit_auto(
   analysis_foldername = "Primary_Analysis",
   step = NULL,
   cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 }

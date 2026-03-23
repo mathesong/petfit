@@ -309,7 +309,8 @@ run_petfit_docker <- function(func, mode, workspace_info,
                               blood_dir = NULL, step = NULL,
                               image = "mathesong/petfit:latest",
                               analysis_foldername = "Primary_Analysis",
-                              cores = 1L) {
+                              cores = 1L,
+                              ancillary_analysis_folder = NULL) {
   # Build volume mounts
   volumes <- c(
     paste0(workspace_info$bids_dir, ":/data/bids_dir:ro"),
@@ -335,6 +336,9 @@ run_petfit_docker <- function(func, mode, workspace_info,
   }
   if (cores > 1L) {
     docker_args <- c(docker_args, "--cores", as.character(cores))
+  }
+  if (!is.null(ancillary_analysis_folder)) {
+    docker_args <- c(docker_args, "--ancillary_analysis_folder", ancillary_analysis_folder)
   }
 
   result <- suppressWarnings(
@@ -362,7 +366,8 @@ run_petfit_singularity <- function(func, mode, workspace_info,
                                    container = "petfit_latest.sif",
                                    blood_dir = NULL, step = NULL,
                                    analysis_foldername = "Primary_Analysis",
-                                   cores = 1L) {
+                                   cores = 1L,
+                                   ancillary_analysis_folder = NULL) {
   # Detect whether to use singularity or apptainer command
   cmd <- if (nchar(Sys.which("apptainer")) > 0) "apptainer" else "singularity"
 
@@ -391,6 +396,9 @@ run_petfit_singularity <- function(func, mode, workspace_info,
   }
   if (cores > 1L) {
     cmd_args <- c(cmd_args, "--cores", as.character(cores))
+  }
+  if (!is.null(ancillary_analysis_folder)) {
+    cmd_args <- c(cmd_args, "--ancillary_analysis_folder", ancillary_analysis_folder)
   }
 
   result <- suppressWarnings(

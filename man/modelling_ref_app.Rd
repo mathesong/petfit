@@ -11,6 +11,7 @@ modelling_ref_app(
   analysis_foldername = "Primary_Analysis",
   config_file = NULL,
   cores = 1L,
+  save_logs = FALSE,
   ancillary_analysis_folder = NULL
 )
 }

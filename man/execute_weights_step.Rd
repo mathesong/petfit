@@ -10,6 +10,7 @@ execute_weights_step(
   bids_dir = NULL,
   blood_dir = NULL,
   cores = 1L,
+  save_logs = FALSE,
   notify = function(msg, type) {
  }
 )
