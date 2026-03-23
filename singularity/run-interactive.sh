@@ -16,6 +16,7 @@ BLOOD_DIR=""
 PETFIT_FOLDER="petfit"
 ANALYSIS_FOLDER="Primary_Analysis"
 CORES=1
+ANCILLARY_FOLDER=""
 
 # Help function
 show_help() {
@@ -35,6 +36,7 @@ Options:
     --petfit-folder NAME   Name for petfit output folder (default: $PETFIT_FOLDER)
     --analysis-folder NAME  Name for analysis folder (default: $ANALYSIS_FOLDER)
     --cores N               Number of cores for parallel processing (default: $CORES)
+    --ancillary-folder NAME Sibling analysis folder for delay/k2prime inheritance (optional)
     -h, --help              Show this help message
 
 Examples:
@@ -102,6 +104,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --cores)
             CORES="$2"
+            shift 2
+            ;;
+        --ancillary-folder)
+            ANCILLARY_FOLDER="$2"
             shift 2
             ;;
         -h|--help)
@@ -174,6 +180,9 @@ if [ -n "$ANALYSIS_FOLDER" ]; then
     CMD_ARGS="$CMD_ARGS --analysis_foldername $ANALYSIS_FOLDER"
 fi
 CMD_ARGS="$CMD_ARGS --cores $CORES"
+if [ -n "$ANCILLARY_FOLDER" ]; then
+    CMD_ARGS="$CMD_ARGS --ancillary_analysis_folder $ANCILLARY_FOLDER"
+fi
 
 echo "=== petfit Singularity Interactive Mode ==="
 echo "Container: $CONTAINER"
@@ -190,6 +199,9 @@ if [ -n "$BLOOD_DIR" ]; then
 fi
 echo "petfit folder: $PETFIT_FOLDER"
 echo "Analysis folder: $ANALYSIS_FOLDER"
+if [ -n "$ANCILLARY_FOLDER" ]; then
+    echo "Ancillary folder: $ANCILLARY_FOLDER"
+fi
 echo
 
 echo "Starting interactive Shiny app..."
