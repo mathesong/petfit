@@ -1177,8 +1177,8 @@ create_tacs_list <- function(derivatives_folder) {
     # Create description from attributes (excluding identifiers and desc for matching)
     dplyr::mutate(
       desc_from_path = create_bids_key_value_pairs(
-        dplyr::cur_data(),
-        setdiff(colnames(dplyr::cur_data()), c("path", "foldername", "description", "mappings", "tacs_path", "morph_path", "tacs_attrs", "sub", "ses", "trc", "rec", "task", "run", "pet", "desc_from_path"))
+        dplyr::pick(dplyr::everything()),
+        setdiff(colnames(dplyr::pick(dplyr::everything())), c("path", "foldername", "description", "mappings", "tacs_path", "morph_path", "tacs_attrs", "sub", "ses", "trc", "rec", "task", "run", "pet", "desc_from_path"))
       )$description
     ) %>%
     # Join with original descriptions
