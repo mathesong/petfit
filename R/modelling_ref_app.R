@@ -623,7 +623,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                fluidRow(
                                  column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5,min = 0, step=.5)),
                                ),
 
                                # TAC Subset Selection
@@ -899,7 +899,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                fluidRow(
                                  column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5,min = 0, step=.5)),
                                ),
 
                                # TAC Subset Selection
@@ -1180,7 +1180,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                fluidRow(
                                  column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1,min = 0, step=.001)),
                                  column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 0.5,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5,min = 0, step=.5)),
                                ),
 
                                # TAC Subset Selection
@@ -1724,11 +1724,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             if (!is.null(model_config$BPnd)) {
               updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
               updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 0.5)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
             } else if (!is.null(model_config$k2a)) {
               updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$k2a$start %||% 0.1)
               updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$k2a$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$k2a$upper %||% 0.5)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$k2a$upper %||% 5)
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
@@ -1745,7 +1745,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             if (!is.null(model_config$BPnd)) {
               updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
               updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 0.5)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
             }
             if (!is.null(model_config$k2prime_source)) {
               k2prime_src <- model_config$k2prime_source %||% "set"
@@ -2227,7 +2227,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_params$BPnd = list(
             start = input[[paste0("BPnd.start", suffix)]] %||% 0.1,
             lower = input[[paste0("BPnd.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("BPnd.upper", suffix)]] %||% 0.5
+            upper = input[[paste0("BPnd.upper", suffix)]] %||% 5
           )
 
           # TAC Subset Selection
