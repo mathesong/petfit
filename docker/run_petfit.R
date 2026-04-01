@@ -11,12 +11,16 @@ option_list <- list(
               help="App function to run: 'regiondef', 'modelling_plasma', or 'modelling_ref' [required]"),
   make_option(c("--mode"), type="character", default="interactive", 
               help="Execution mode: 'interactive' or 'automatic' [default: interactive]"),
-  make_option(c("--step"), type="character", default=NULL, 
-              help="Step to run in automatic mode: 'datadef', 'weights', 'delay', 'model1', 'model2', 'model3' [optional]"),
+  make_option(c("--step"), type="character", default=NULL,
+              help="Step to run in automatic mode: 'datadef', 'weights', 'delay', 'reference_tac', 'model1', 'model2', 'model3' [optional]"),
   make_option(c("--petfit_output_foldername"), type="character", default="petfit", 
               help="Name for petfit output folder within derivatives [default: petfit]"),
-  make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis", 
-              help="Name for analysis subfolder [default: Primary_Analysis]")
+  make_option(c("--analysis_foldername"), type="character", default="Primary_Analysis",
+              help="Name for analysis folder [default: Primary_Analysis]"),
+  make_option(c("--cores"), type="integer", default=1L,
+              help="Number of cores for parallel processing [default: 1]"),
+  make_option(c("--ancillary_analysis_folder"), type="character", default=NULL,
+              help="Name of sibling analysis folder to inherit delay/k2prime from [optional]")
 )
 
 # Parse arguments
@@ -38,8 +42,8 @@ if (!opt$mode %in% c("interactive", "automatic")) {
   stop("--mode must be 'interactive' or 'automatic'", call.=FALSE)
 }
 
-if (!is.null(opt$step) && !opt$step %in% c("datadef", "weights", "delay", "model1", "model2", "model3")) {
-  stop("--step must be one of: 'datadef', 'weights', 'delay', 'model1', 'model2', 'model3'", call.=FALSE)
+if (!is.null(opt$step) && !opt$step %in% c("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")) {
+  stop("--step must be one of: 'datadef', 'weights', 'delay', 'reference_tac', 'model1', 'model2', 'model3'", call.=FALSE)
 }
 
 # Ignore step argument if in interactive mode
@@ -56,6 +60,9 @@ if (!is.null(opt$step)) {
 }
 cat("petfit output folder:", opt$petfit_output_foldername, "\n")
 cat("Analysis folder:", opt$analysis_foldername, "\n")
+if (!is.null(opt$ancillary_analysis_folder)) {
+  cat("Ancillary analysis folder:", opt$ancillary_analysis_folder, "\n")
+}
 cat("\n")
 
 # Detect mounted directories
@@ -119,21 +126,26 @@ if (opt$mode == "interactive") {
     region_definition_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
-      petfit_output_foldername = opt$petfit_output_foldername
+      petfit_output_foldername = opt$petfit_output_foldername,
+      cores = opt$cores
     )
   } else if (opt$func == "modelling_plasma") {
     modelling_plasma_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername
+      analysis_foldername = opt$analysis_foldername,
+      cores = opt$cores,
+      ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
   } else if (opt$func == "modelling_ref") {
     modelling_ref_app(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
-      subfolder = opt$analysis_foldername
+      analysis_foldername = opt$analysis_foldername,
+      cores = opt$cores,
+      ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
   }
 
@@ -151,7 +163,8 @@ if (opt$mode == "interactive") {
       result <- petfit_regiondef_auto(
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
-        petfit_output_foldername = opt$petfit_output_foldername
+        petfit_output_foldername = opt$petfit_output_foldername,
+        cores = opt$cores
       )
 
       # Print all messages
@@ -189,12 +202,15 @@ if (opt$mode == "interactive") {
     # Execute the automatic pipeline
     tryCatch({
       result <- petfit_modelling_auto(
-        analysis_subfolder = opt$analysis_foldername,
+        analysis_foldername = opt$analysis_foldername,
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
         petfit_output_foldername = opt$petfit_output_foldername,
         blood_dir = dirs$blood_dir,
-        step = opt$step
+        step = opt$step,
+        pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference",
+        cores = opt$cores,
+        ancillary_analysis_folder = opt$ancillary_analysis_folder
       )
 
       # Print all messages

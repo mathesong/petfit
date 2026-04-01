@@ -7,57 +7,85 @@
 #' @param output_dir Character string path to output directory (default: analysis_folder/reports)
 #' @param bids_dir Character string path to the BIDS directory (optional)
 #' @param blood_dir Character string path to the blood data directory (optional)
-#' 
+#' @param cores Integer number of cores for parallel processing (default: 1)
+#' @param save_logs Logical whether to save subprocess output to log files (default: FALSE)
+#'
 #' @return Character string path to the generated report file
 #' @export
-generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, bids_dir = NULL, blood_dir = NULL) {
-  
+generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, bids_dir = NULL, blood_dir = NULL, cores = 1L, save_logs = FALSE) {
+
   # Set default output directory
   if (is.null(output_dir)) {
     output_dir <- file.path(analysis_folder, "reports")
   }
-  
+
   # Create reports directory if it doesn't exist
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created reports directory:", output_dir, "\n")
   }
-  
+
   # Get template file path
-  template_file <- system.file("rmd", paste0(step_name, "_report.Rmd"), 
+  template_file <- system.file("rmd", paste0(step_name, "_report.Rmd"),
                               package = "petfit")
-  
+
   if (!file.exists(template_file)) {
     stop("Report template not found: ", paste0(step_name, "_report.Rmd"))
   }
-  
+
   # Set output file path
   output_file <- file.path(output_dir, paste0(step_name, "_report.html"))
-  
+
   # Prepare parameters - reports are now self-deriving
   params <- list(
+    cores = cores,
     analysis_folder = analysis_folder,
     bids_dir = bids_dir,
     blood_dir = blood_dir
   )
-  
-  
-  # Generate report
+
+  # Set up logging if requested
+  log_file <- NULL
+  if (save_logs) {
+    log_dir <- file.path(analysis_folder, "reports", "logs")
+    if (!dir.exists(log_dir)) dir.create(log_dir, recursive = TRUE)
+    log_file <- file.path(log_dir, paste0(step_name, "_report.log"))
+  }
+
+  # Generate report in a subprocess so future::supportsMulticore() returns TRUE
+  # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
-    rmarkdown::render(
-      input = template_file,
-      output_file = output_file,
-      params = params,
-      envir = new.env(),
-      quiet = TRUE,
-      intermediates_dir = output_dir
+    callr::r(
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
+        library(petfit)
+        rmarkdown::render(
+          input = input,
+          output_file = output_file,
+          params = params,
+          envir = new.env(),
+          quiet = TRUE,
+          intermediates_dir = output_dir
+        )
+      },
+      args = list(
+        input = template_file,
+        output_file = output_file,
+        params = params,
+        output_dir = output_dir,
+        lib_paths = .libPaths()
+      ),
+      stdout = log_file %||% "",
+      stderr = log_file %||% ""
     )
-    
+
     cat("Generated report:", output_file, "\n")
     return(output_file)
-    
+
   }, error = function(e) {
-    warning("Failed to generate ", step_name, " report: ", e$message)
+    # Extract actual error from callr subprocess
+    actual_msg <- if (!is.null(e$parent)) e$parent$message else e$message
+    warning("Failed to generate ", step_name, " report: ", actual_msg)
     return(NULL)
   })
 }
@@ -72,61 +100,98 @@ generate_step_report <- function(step_name, analysis_folder, output_dir = NULL, 
 #' @param output_dir Character string path to output directory (default: analysis_folder/reports)
 #' @param bids_dir Character string path to the BIDS directory (optional)
 #' @param blood_dir Character string path to the blood data directory (optional)
-#' 
+#' @param cores Integer number of cores for parallel processing (default: 1)
+#' @param ancillary_path Character string path to ancillary analysis folder (optional)
+#' @param save_logs Logical whether to save subprocess output to log files (default: FALSE)
+#'
 #' @return Character string path to the generated report file
 #' @export
-generate_model_report <- function(model_type, model_number, analysis_folder, 
-                                 output_dir = NULL, bids_dir = NULL, blood_dir = NULL) {
-  
+generate_model_report <- function(model_type, model_number, analysis_folder,
+                                 output_dir = NULL, bids_dir = NULL, blood_dir = NULL, cores = 1L,
+                                 ancillary_path = NULL, save_logs = FALSE) {
+
   # Set default output directory
   if (is.null(output_dir)) {
     output_dir <- file.path(analysis_folder, "reports")
   }
-  
+
   # Create reports directory if it doesn't exist
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created reports directory:", output_dir, "\n")
   }
-  
+
   # Get template name based on model type
   template_name <- get_model_template(model_type)
-  
+
   # Get template file path
   template_file <- system.file("rmd", template_name, package = "petfit")
-  
+
   if (!file.exists(template_file)) {
     stop("Report template not found: ", template_name)
   }
-  
+
   # Set output file path (always model1_report.html, model2_report.html, etc.)
   model_num <- tolower(gsub(" ", "", model_number))  # "Model 1" -> "model1"
   output_file <- file.path(output_dir, paste0(model_num, "_report.html"))
-  
+
   # Prepare parameters
   params <- list(
+    cores = cores,
     model_number = model_number,
     analysis_folder = analysis_folder,
     bids_dir = bids_dir,
     blood_dir = blood_dir
   )
-  
-  # Generate report
+
+  # Only include ancillary_path for templates that declare it (k2prime consumers)
+  k2prime_models <- c("MRTM2", "SRTM2", "refLogan")
+  if (model_type %in% k2prime_models) {
+    params$ancillary_path <- ancillary_path
+  }
+
+  # Set up logging if requested
+  log_file <- NULL
+  if (save_logs) {
+    log_dir <- file.path(analysis_folder, "reports", "logs")
+    if (!dir.exists(log_dir)) dir.create(log_dir, recursive = TRUE)
+    log_file <- file.path(log_dir, paste0(model_num, "_report.log"))
+  }
+
+  # Generate report in a subprocess so future::supportsMulticore() returns TRUE
+  # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
-    rmarkdown::render(
-      input = template_file,
-      output_file = output_file,
-      params = params,
-      envir = new.env(),
-      quiet = TRUE,
-      intermediates_dir = output_dir
+    callr::r(
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
+        library(petfit)
+        rmarkdown::render(
+          input = input,
+          output_file = output_file,
+          params = params,
+          envir = new.env(),
+          quiet = TRUE,
+          intermediates_dir = output_dir
+        )
+      },
+      args = list(
+        input = template_file,
+        output_file = output_file,
+        params = params,
+        output_dir = output_dir,
+        lib_paths = .libPaths()
+      ),
+      stdout = log_file %||% "",
+      stderr = log_file %||% ""
     )
-    
+
     cat("Generated report:", output_file, "\n")
     return(output_file)
-    
+
   }, error = function(e) {
-    warning("Failed to generate ", model_type, " report for ", model_number, ": ", e$message)
+    # Extract actual error from callr subprocess
+    actual_msg <- if (!is.null(e$parent)) e$parent$message else e$message
+    warning("Failed to generate ", model_type, " report for ", model_number, ": ", actual_msg)
     return(NULL)
   })
 }
@@ -136,10 +201,14 @@ generate_model_report <- function(model_type, model_number, analysis_folder,
 #' @description Map model type to corresponding template filename
 #'
 #' @param model_type Character string type of model
-#' 
+#'
 #' @return Character string template filename
 get_model_template <- function(model_type) {
-  
+
+  if (is.null(model_type) || length(model_type) == 0) {
+    stop("Model type must be provided (received NULL)")
+  }
+
   template_map <- list(
     "1TCM" = "1tcm_report.Rmd",
     "2TCM" = "2tcm_report.Rmd",
@@ -154,14 +223,14 @@ get_model_template <- function(model_type) {
     "MRTM1" = "mrtm1_report.Rmd",
     "MRTM2" = "mrtm2_report.Rmd"
   )
-  
+
   template_name <- template_map[[model_type]]
-  
+
   if (is.null(template_name)) {
-    warning("Unknown model type: ", model_type, ". Using generic template.")
-    template_name <- "model_report.Rmd"  # fallback to existing template
+    stop("Unknown model type: ", model_type,
+         ". Supported types: ", paste(names(template_map), collapse = ", "))
   }
-  
+
   return(template_name)
 }
 
@@ -173,56 +242,85 @@ get_model_template <- function(model_type) {
 #' @param tstar_results List containing t* finder results
 #' @param binding_regions List containing binding region classifications
 #' @param output_dir Character string path to output directory (default: analysis_folder/reports)
-#' 
+#' @param cores Integer number of cores for parallel processing (default: 1)
+#' @param save_logs Logical whether to save subprocess output to log files (default: FALSE)
+#'
 #' @return Character string path to the generated report file
 #' @export
 generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding_regions = NULL,
-                                 output_dir = NULL) {
-  
+                                 output_dir = NULL, cores = 1L, save_logs = FALSE) {
+
   # Set default output directory
   if (is.null(output_dir)) {
     output_dir <- file.path(analysis_folder, "reports")
   }
-  
+
   # Create reports directory if it doesn't exist
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created reports directory:", output_dir, "\n")
   }
-  
+
   # Get template file path
   template_file <- system.file("rmd", "tstar_finder_report.Rmd", package = "petfit")
-  
+
   if (!file.exists(template_file)) {
     stop("Report template not found: tstar_finder_report.Rmd")
   }
-  
+
   # Set output file path
   output_file <- file.path(output_dir, "tstar_finder_report.html")
-  
+
   # Prepare parameters
   params <- list(
+    cores = cores,
     analysis_folder = analysis_folder,
     tstar_results = tstar_results,
     binding_regions = binding_regions
   )
-  
-  # Generate report
+
+  # Set up logging if requested
+  log_file <- NULL
+  if (save_logs) {
+    log_dir <- file.path(analysis_folder, "reports", "logs")
+    if (!dir.exists(log_dir)) dir.create(log_dir, recursive = TRUE)
+    log_file <- file.path(log_dir, "tstar_finder_report.log")
+  }
+
+  # Generate report in a subprocess so future::supportsMulticore() returns TRUE
+  # (Shiny disables multicore forking, but callr::r() escapes that context)
   tryCatch({
-    rmarkdown::render(
-      input = template_file,
-      output_file = output_file,
-      params = params,
-      envir = new.env(),
-      quiet = TRUE,
-      intermediates_dir = output_dir
+    callr::r(
+      function(input, output_file, params, output_dir, lib_paths) {
+        .libPaths(lib_paths)
+        library(petfit)
+        rmarkdown::render(
+          input = input,
+          output_file = output_file,
+          params = params,
+          envir = new.env(),
+          quiet = TRUE,
+          intermediates_dir = output_dir
+        )
+      },
+      args = list(
+        input = template_file,
+        output_file = output_file,
+        params = params,
+        output_dir = output_dir,
+        lib_paths = .libPaths()
+      ),
+      stdout = log_file %||% "",
+      stderr = log_file %||% ""
     )
-    
+
     cat("Generated report:", output_file, "\n")
     return(output_file)
-    
+
   }, error = function(e) {
-    warning("Failed to generate t* finder report: ", e$message)
+    # Extract actual error from callr subprocess
+    actual_msg <- if (!is.null(e$parent)) e$parent$message else e$message
+    warning("Failed to generate t* finder report: ", actual_msg)
     return(NULL)
   })
 }
@@ -233,24 +331,24 @@ generate_tstar_report <- function(analysis_folder, tstar_results = NULL, binding
 #'
 #' @param analysis_folder Character string path to the analysis folder
 #' @param output_dir Character string path to output directory (default: analysis_folder/reports)
-#' 
+#'
 #' @return Character string path to the generated summary report file
 #' @export
 generate_reports_summary <- function(analysis_folder, output_dir = NULL) {
-  
+
   # Set default output directory
   if (is.null(output_dir)) {
     output_dir <- file.path(analysis_folder, "reports")
   }
-  
+
   # Find all generated reports
   report_files <- list.files(output_dir, pattern = "*.html", full.names = FALSE)
-  
+
   if (length(report_files) == 0) {
     cat("No reports found to summarize.\n")
     return(NULL)
   }
-  
+
   # Create summary HTML content
   summary_content <- paste0(
     "<h1>petfit Analysis Reports Summary</h1>\n",
@@ -259,23 +357,23 @@ generate_reports_summary <- function(analysis_folder, output_dir = NULL) {
     "<h2>Available Reports</h2>\n",
     "<ul>\n"
   )
-  
+
   # Add links to each report
   for (report_file in sort(report_files)) {
     if (report_file != "reports_summary.html") {  # Don't include self-reference
       report_title <- gsub("_", " ", gsub("\\.html$", "", report_file))
       report_title <- tools::toTitleCase(report_title)
-      summary_content <- paste0(summary_content, 
+      summary_content <- paste0(summary_content,
                                '<li><a href="', report_file, '">', report_title, '</a></li>\n')
     }
   }
-  
+
   summary_content <- paste0(summary_content, "</ul>\n")
-  
+
   # Write summary file
   summary_file <- file.path(output_dir, "reports_summary.html")
   writeLines(summary_content, summary_file)
-  
+
   cat("Generated reports summary:", summary_file, "\n")
   return(summary_file)
 }

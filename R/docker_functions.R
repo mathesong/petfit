@@ -136,6 +136,79 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
   return(validation)
 }
 
+#' Run petfit Automatic Pipeline
+#'
+#' @description Unified interface for running petfit automatic pipelines. Dispatches to the
+#'   appropriate pipeline function based on the \code{app} parameter.
+#'
+#' @param app Character string specifying which pipeline to run: "regiondef", "modelling_plasma",
+#'   or "modelling_ref" (required)
+#' @param bids_dir Character string path to the BIDS directory (default: NULL)
+#' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
+#' @param blood_dir Character string path to blood data directory (default: NULL, for plasma input models)
+#' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis", for modelling apps)
+#' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights",
+#'   "delay", "reference_tac", "model1", "model2", "model3"). Only used for modelling apps.
+#' @param cores Integer number of cores for parallel processing (default: 1)
+#' @param ancillary_analysis_folder Character string name of a sibling analysis folder to inherit
+#'   delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.
+#' @return List with execution result and messages
+#'
+#' @details
+#' This function provides a unified interface to run petfit automatic pipelines:
+#' - "regiondef": Runs the region definition pipeline (uses \code{\link{petfit_regiondef_auto}})
+#' - "modelling_plasma" or "modelling_ref": Runs the modelling pipeline (uses \code{\link{petfit_modelling_auto}}).
+#'   Pipeline type (plasma vs reference) is auto-detected from the configuration file.
+#'
+#' @examples
+#' \dontrun{
+#' # Run region definition
+#' petfit_auto(app = "regiondef", derivatives_dir = "/path/to/derivatives")
+#'
+#' # Run modelling pipeline (auto-detects plasma vs reference from config)
+#' petfit_auto(app = "modelling_plasma", derivatives_dir = "/path/to/derivatives")
+#'
+#' # Run specific modelling step
+#' petfit_auto(app = "modelling_ref", derivatives_dir = "/path/to/derivatives", step = "weights")
+#' }
+#'
+#' @export
+petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"),
+                        bids_dir = NULL,
+                        derivatives_dir = NULL,
+                        blood_dir = NULL,
+                        petfit_output_foldername = "petfit",
+                        analysis_foldername = "Primary_Analysis",
+                        step = NULL,
+                        cores = 1L,
+                        save_logs = FALSE,
+                        ancillary_analysis_folder = NULL) {
+
+  app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
+
+  if (app == "regiondef") {
+    petfit_regiondef_auto(
+      bids_dir = bids_dir,
+      derivatives_dir = derivatives_dir,
+      petfit_output_foldername = petfit_output_foldername,
+      cores = cores
+    )
+  } else {
+    petfit_modelling_auto(
+      bids_dir = bids_dir,
+      derivatives_dir = derivatives_dir,
+      petfit_output_foldername = petfit_output_foldername,
+      analysis_foldername = analysis_foldername,
+      blood_dir = blood_dir,
+      step = step,
+      cores = cores,
+      save_logs = save_logs,
+      ancillary_analysis_folder = ancillary_analysis_folder
+    )
+  }
+}
+
 #' Run Automatic Region Definition Pipeline
 #'
 #' @description Execute the petfit region definition pipeline automatically based on existing petfit_regions.tsv
@@ -145,7 +218,7 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
 #' @return List with execution result and messages
 #' @export
-petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit") {
+petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
 
   result <- list(
     success = FALSE,
@@ -228,7 +301,9 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   tryCatch({
     result$messages <- c(result$messages, "Creating tacs-morph mapping...")
 
-    petfit_regions_files_path <- create_petfit_regions_files(petfit_regions_file, derivatives_dir)
+    create_petfit_regions_files(petfit_regions_file, derivatives_dir)
+
+    petfit_regions_files_path <- file.path(petfit_base_dir, "petfit_regions_files.tsv")
 
     result$messages <- c(result$messages, paste("Created mapping file:", petfit_regions_files_path))
 
@@ -252,7 +327,8 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
       derivatives_dir,
       output_folder,
       bids_dir,
-      participant_data
+      participant_data,
+      cores = cores
     )
 
     # Generate summary
@@ -280,6 +356,52 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   return(result)
 }
 
+#' Determine Pipeline Type from Config
+#'
+#' @description Determine whether a config represents a plasma input or reference tissue pipeline
+#'
+#' @param config List containing petfit configuration (parsed JSON)
+#' @param pipeline_type Optional explicit pipeline type ("plasma" or "reference") as override
+#' @return Character string: "plasma" or "reference", or NULL if cannot be determined
+#' @export
+determine_pipeline_type <- function(config, pipeline_type = NULL) {
+  # 1. Explicit parameter takes priority
+  if (!is.null(pipeline_type)) {
+    if (pipeline_type %in% c("plasma", "reference")) {
+      return(pipeline_type)
+    }
+  }
+
+  # 2. Check modelling_configuration_type in config
+  config_type <- config$modelling_configuration_type
+  if (!is.null(config_type)) {
+    if (config_type == "plasma input") return("plasma")
+    if (config_type == "reference tissue") return("reference")
+  }
+
+  # 3. Fallback: inspect config sections
+  if (!is.null(config$FitDelay)) return("plasma")
+  if (!is.null(config$ReferenceTAC)) return("reference")
+
+  # 4. Final fallback: inspect model types
+  invasive_models <- c("1TCM", "2TCM", "Logan", "MA1")
+  reference_models <- c("SRTM", "refLogan", "MRTM1", "MRTM2")
+  for (model_num in c("1", "2", "3")) {
+    model_key <- paste0("Model", model_num)
+    if (!is.null(config$Models[[model_key]]$type)) {
+      if (config$Models[[model_key]]$type %in% invasive_models) {
+        return("plasma")
+      }
+      if (config$Models[[model_key]]$type %in% reference_models) {
+        return("reference")
+      }
+    }
+  }
+
+  # Cannot determine
+  return(NULL)
+}
+
 #' Run Automatic Modelling Pipeline
 #'
 #' @description Execute the petfit modelling pipeline automatically based on existing config file
@@ -287,17 +409,24 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
 #' @param bids_dir Character string path to BIDS directory (optional if derivatives_dir provided)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
-#' @param analysis_subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
+#' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param blood_dir Character string path to blood data directory (optional, for invasive models)
 #' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+#' @param pipeline_type Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)
+#' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
+#'   delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.
 #' @return List with execution result and messages
 #' @export
 petfit_modelling_auto <- function(bids_dir = NULL,
                                    derivatives_dir = NULL,
                                    petfit_output_foldername = "petfit",
-                                   analysis_subfolder = "Primary_Analysis",
+                                   analysis_foldername = "Primary_Analysis",
                                    blood_dir = NULL,
-                                   step = NULL) {
+                                   step = NULL,
+                                   pipeline_type = NULL,
+                                   cores = 1L,
+                                   save_logs = FALSE,
+                                   ancillary_analysis_folder = NULL) {
 
   result <- list(
     success = FALSE,
@@ -342,7 +471,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
 
   # Determine analysis folder path
   petfit_base_dir <- file.path(derivatives_dir, petfit_output_foldername)
-  analysis_folder <- file.path(petfit_base_dir, analysis_subfolder)
+  analysis_folder <- file.path(petfit_base_dir, analysis_foldername)
 
   if (!dir.exists(analysis_folder)) {
     result$messages <- c(result$messages, paste("Analysis folder does not exist:", analysis_folder))
@@ -372,14 +501,72 @@ petfit_modelling_auto <- function(bids_dir = NULL,
     return(result)
   }
 
+  # Validate and resolve ancillary analysis folder if provided
+  ancillary_path <- NULL
+  if (!is.null(ancillary_analysis_folder)) {
+    ancillary_validation_error <- tryCatch({
+      ancillary_path <- validate_ancillary_folder(petfit_base_dir, ancillary_analysis_folder)
+      ancillary_scan <- scan_ancillary_contents(ancillary_path)
+      print_ancillary_summary(ancillary_path, ancillary_scan)
+      NULL
+    }, error = function(e) {
+      e$message
+    })
+
+    if (!is.null(ancillary_validation_error)) {
+      result$messages <- c(result$messages,
+                          paste("Ancillary folder error:", ancillary_validation_error))
+      return(result)
+    }
+  }
+
+  # Check if config references ancillary but no ancillary folder provided
+  if (is.null(ancillary_path)) {
+    delay_model <- config$FitDelay$model
+    if (!is.null(delay_model) && delay_model == "ancillary_estimate") {
+      result$messages <- c(result$messages,
+                          "Config references ancillary delay (ancillary_estimate) but no ancillary_analysis_folder provided")
+      return(result)
+    }
+    for (model_num in c("1", "2", "3")) {
+      model_key <- paste0("Model", model_num)
+      k2prime_src <- config$Models[[model_key]]$k2prime_source
+      if (!is.null(k2prime_src) && grepl("^ancillary_", k2prime_src)) {
+        result$messages <- c(result$messages,
+                            paste0("Config references ancillary k2prime (", k2prime_src,
+                                   ") for ", model_key, " but no ancillary_analysis_folder provided"))
+        return(result)
+      }
+    }
+  }
+
   # Console-only notification callback (no Shiny in automatic mode)
   notify <- function(msg, type) {
     cat(paste0("[", toupper(type), "] ", msg, "\n"))
   }
 
   # Determine which steps to run
-  all_steps <- c("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
-  steps_to_run <- if (is.null(step)) all_steps else step
+  if (is.null(step)) {
+    # Running full pipeline - determine step list based on pipeline type
+    detected_type <- determine_pipeline_type(config, pipeline_type)
+
+    if (is.null(detected_type)) {
+      result$messages <- c(result$messages, "Cannot determine pipeline type from config or parameters")
+      result$messages <- c(result$messages, "Please specify pipeline_type or ensure config has modelling_configuration_type")
+      return(result)
+    }
+
+    result$messages <- c(result$messages, paste("Pipeline type:", detected_type))
+
+    if (detected_type == "plasma") {
+      steps_to_run <- c("datadef", "weights", "delay", "model1", "model2", "model3")
+    } else {
+      steps_to_run <- c("datadef", "weights", "reference_tac", "model1", "model2", "model3")
+    }
+  } else {
+    # Running a specific step - no filtering needed
+    steps_to_run <- step
+  }
 
   # Execute steps sequentially
   for (current_step in steps_to_run) {
@@ -394,6 +581,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         petfit_dir = petfit_base_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -404,6 +593,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -414,7 +605,10 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        notify = notify
+        cores = cores,
+        save_logs = save_logs,
+        notify = notify,
+        ancillary_path = ancillary_path
       )
 
     } else if (current_step == "reference_tac") {
@@ -423,6 +617,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         config_path = config_path,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -435,7 +631,10 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         output_dir = analysis_folder,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        notify = notify
+        cores = cores,
+        save_logs = save_logs,
+        notify = notify,
+        ancillary_path = ancillary_path
       )
     }
 

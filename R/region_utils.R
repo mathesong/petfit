@@ -190,8 +190,8 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
     dplyr::mutate(
       # Create description string from all non-identifier attributes
       description = create_bids_key_value_pairs(
-        dplyr::cur_data(),
-        setdiff(colnames(dplyr::cur_data()), c("tacs_path", "morph_path", "folder", "tacs_basename", "tacs_filename", "morph_filename", "sub", "ses", "trc", "rec", "task", "run", "pet"))
+        dplyr::pick(dplyr::everything()),
+        setdiff(colnames(dplyr::pick(dplyr::everything())), c("tacs_path", "morph_path", "folder", "tacs_basename", "tacs_filename", "morph_filename", "sub", "ses", "trc", "rec", "task", "run", "pet"))
       )$description
     )
 
@@ -199,7 +199,8 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
   regions_files <- regions_config %>%
     dplyr::inner_join(
       all_mappings %>% dplyr::select(folder, description, tacs_filename, morph_filename),
-      by = c("folder", "description")
+      by = c("folder", "description"),
+      relationship = "many-to-many"
     )
 
   if (nrow(regions_files) == 0) {
@@ -801,7 +802,7 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
 #' @param participant_data Participant data loaded from BIDS directory (optional)
 #' @return Tibble with all combined TACs data in long format with BIDS attributes
 #' @export
-create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL) {
+create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL, cores = 1L) {
   
   # Validate inputs
   if (!file.exists(petfit_regions_files_path)) {
@@ -849,8 +850,18 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     cat("Detected TAC units from", first_tacs_file, ":", original_tac_units, "\n")
   }
   
+  # Set up parallel processing
+  if (cores > 1L) {
+    if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+    on.exit(future::plan(future::sequential), add = TRUE)
+  }
+
   # Process all file pairs and collect results
-  all_combined_data <- purrr::map_dfr(1:nrow(file_groups), function(i) {
+  all_combined_data <- furrr::future_map_dfr(1:nrow(file_groups), function(i) {
     tacs_file <- file_groups$tacs_filename[i]
     morph_file <- file_groups$morph_filename[i]
     regions_data <- file_groups$regions_data[[i]]
@@ -959,9 +970,10 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
 
       if (!is.null(weight_column_found)) {
         # Use _tacs.json bodyweight as primary, participants.tsv as fallback
+        # Convert weight column to numeric (handles "n/a" or other non-numeric values as NA)
         combined_results_with_bids <- combined_results_with_bids %>%
           dplyr::left_join(participant_columns_to_add, by = "sub") %>%
-          dplyr::mutate(bodyweight = dplyr::coalesce(bodyweight, .data[[weight_column_found]])) %>%
+          dplyr::mutate(bodyweight = dplyr::coalesce(bodyweight, as.numeric(.data[[weight_column_found]]))) %>%
           dplyr::select(-dplyr::all_of(weight_column_found))  # Remove the participant weight column, keep bodyweight
       } else {
         # Keep our bodyweight column (from _tacs.json) and add other participant data
@@ -993,7 +1005,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
       dplyr::select(dplyr::all_of(column_order[column_order %in% colnames(.)]))  # Only select columns that exist
 
     return(combined_results_with_bids)
-  })
+  }, .options = furrr::furrr_options(seed = TRUE))
   
   if (nrow(all_combined_data) == 0) {
     warning("No regions were successfully combined across all files")
@@ -1165,8 +1177,8 @@ create_tacs_list <- function(derivatives_folder) {
     # Create description from attributes (excluding identifiers and desc for matching)
     dplyr::mutate(
       desc_from_path = create_bids_key_value_pairs(
-        dplyr::cur_data(),
-        setdiff(colnames(dplyr::cur_data()), c("path", "foldername", "description", "mappings", "tacs_path", "morph_path", "tacs_attrs", "sub", "ses", "trc", "rec", "task", "run", "pet", "desc_from_path"))
+        dplyr::pick(dplyr::everything()),
+        setdiff(colnames(dplyr::pick(dplyr::everything())), c("path", "foldername", "description", "mappings", "tacs_path", "morph_path", "tacs_attrs", "sub", "ses", "trc", "rec", "task", "run", "pet", "desc_from_path"))
       )$description
     ) %>%
     # Join with original descriptions

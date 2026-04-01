@@ -1,2 +1,11 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.github$
+tests/testthat/fixtures/integration/ds004869_testdata\.tar\.gz$
+tests/testthat/fixtures/integration/prepare_testdata\.sh$
+tests/testthat/fixtures/integration/README\.md$
+^test_parallel$
+^PLAN\.md$
+^docs$
+^\.readthedocs\.yaml$
+^plan_docs\.md$

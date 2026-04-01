@@ -8,7 +8,9 @@ generate_tstar_report(
   analysis_folder,
   tstar_results = NULL,
   binding_regions = NULL,
-  output_dir = NULL
+  output_dir = NULL,
+  cores = 1L,
+  save_logs = FALSE
 )
 }
 \arguments{
@@ -19,6 +21,10 @@ generate_tstar_report(
 \item{binding_regions}{List containing binding region classifications}
 
 \item{output_dir}{Character string path to output directory (default: analysis_folder/reports)}
+
+\item{cores}{Integer number of cores for parallel processing (default: 1)}
+
+\item{save_logs}{Logical whether to save subprocess output to log files (default: FALSE)}
 }
 \value{
 Character string path to the generated report file

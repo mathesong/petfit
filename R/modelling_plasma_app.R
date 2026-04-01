@@ -5,10 +5,10 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to the derivatives folder (default: bids_dir/derivatives)
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
-#' @param subfolder Character string name for analysis subfolder (default: "Primary_Analysis")
+#' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
 #' @export
-modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, subfolder = "Primary_Analysis", config_file = NULL) {
+modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -103,8 +103,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     })
   }
 
-  # Resolve subfolder based on validation
-  if (subfolder == "Primary_Analysis") {
+  # Resolve analysis_foldername based on validation
+  if (analysis_foldername == "Primary_Analysis") {
     primary_check <- validate_folder(file.path(petfit_dir, "Primary_Analysis"))
 
     if (primary_check$exists && !primary_check$compatible) {
@@ -120,28 +120,43 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       }
 
       # Use Secondary_Analysis
-      subfolder <- "Secondary_Analysis"
+      analysis_foldername <- "Secondary_Analysis"
       cat("Using Secondary_Analysis for this analysis.\n")
     }
   } else {
     # User specified custom folder name, validate it
-    folder_check <- validate_folder(file.path(petfit_dir, subfolder))
+    folder_check <- validate_folder(file.path(petfit_dir, analysis_foldername))
 
     if (folder_check$exists && !folder_check$compatible) {
       stop(sprintf("Analysis folder '%s' already exists but contains configuration for %s modelling. Please choose a different folder name.",
-                   subfolder, folder_check$config_type), call. = FALSE)
+                   analysis_foldername, folder_check$config_type), call. = FALSE)
     }
   }
 
-  cat("  Analysis subfolder:", subfolder, "\n")
+  cat("  Analysis folder:", analysis_foldername, "\n")
 
   # Create output directory if it doesn't exist
-  output_dir <- file.path(petfit_dir, subfolder)
+  output_dir <- file.path(petfit_dir, analysis_foldername)
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created output directory:", output_dir, "\n")
   }
   
+  # Validate and scan ancillary analysis folder if provided
+  ancillary_path <- NULL
+  ancillary_scan <- NULL
+  if (!is.null(ancillary_analysis_folder)) {
+    tryCatch({
+      ancillary_path <- validate_ancillary_folder(petfit_dir, ancillary_analysis_folder)
+      ancillary_scan <- scan_ancillary_contents(ancillary_path)
+      print_ancillary_summary(ancillary_path, ancillary_scan)
+    }, error = function(e) {
+      message("WARNING: Ancillary folder validation failed: ", e$message)
+      ancillary_path <<- NULL
+      ancillary_scan <<- NULL
+    })
+  }
+
   # Fixed filename
   out_filename <- "petfit_config.json"
   
@@ -1754,6 +1769,23 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
   # Define server logic for config file creation ----
   server <- function(input, output, session) {
 
+    # Add ancillary delay option to dropdown if ancillary folder is available
+    if (!is.null(ancillary_path) && !is.null(ancillary_scan)) {
+      ancillary_delay_opts <- get_ancillary_delay_options(ancillary_scan)
+      if (!is.null(ancillary_delay_opts)) {
+        # Rebuild choices with ancillary option added
+        delay_choices <- c("None (no delay fitting)" = "none",
+                          "1TCM Delay from Single Representative TAC (Quick)" = "1tcm_singletac",
+                          "2TCM Delay from Single Representative TAC (Less Quick)" = "2tcm_singletac",
+                          "1TCM Median Delay from Multiple Regions (Recommended, Slow)" = "1tcm_median",
+                          "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median",
+                          ancillary_delay_opts)
+        updateSelectInput(session, "delay_model",
+                         choices = delay_choices,
+                         selected = "1tcm_median")
+      }
+    }
+
     # Load existing config on startup and restore UI state
     observe({
       existing_config <- load_existing_config()
@@ -2054,8 +2086,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         }
         # Restore FitDelay settings
         if (!is.null(existing_config$FitDelay)) {
-          updateSelectInput(session, "delay_model", 
-                           selected = existing_config$FitDelay$model %||% "1tcm_median")
+          delay_model_value <- existing_config$FitDelay$model %||% "1tcm_median"
+          # Check if config references ancillary but no ancillary folder provided
+          if (delay_model_value == "ancillary_estimate" && is.null(ancillary_path)) {
+            showNotification("Config references ancillary delay but no ancillary folder provided. Resetting to default.",
+                           type = "warning", duration = 5)
+            delay_model_value <- "1tcm_median"
+          }
+          updateSelectInput(session, "delay_model",
+                           selected = delay_model_value)
           updateNumericInput(session, "delay_time_window", 
                            value = existing_config$FitDelay$time_window %||% 5)
           updateTextInput(session, "delay_regions", 
@@ -2521,7 +2560,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       
       config_list <- list(
         modelling_configuration_type = "plasma input",
-        analysis_folder = subfolder,
+        analysis_folder = analysis_foldername,
         config_created = format(Sys.time(), "%Y-%m-%d %H:%M"),
         blood_dir = blood_dir,
         Subsetting = Subsetting,
@@ -2625,6 +2664,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         petfit_dir = petfit_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2649,6 +2690,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2673,7 +2716,10 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
-        notify = notify
+        cores = cores,
+        save_logs = save_logs,
+        notify = notify,
+        ancillary_path = ancillary_path
       )
 
       return(result$success)
@@ -2743,6 +2789,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         output_dir = output_dir,
         bids_dir = bids_dir,
         blood_dir = blood_dir,
+        cores = cores,
+        save_logs = save_logs,
         notify = notify
       )
 
@@ -2889,7 +2937,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     
     # Output for analysis folder display
     output$analysis_folder <- renderText({
-      subfolder
+      analysis_foldername
     })
     
     # JSON preview output
@@ -3090,17 +3138,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         }
         
         # Create the plot using stored data and metadata
-        # library(ggplot2)
-        
-        p <- ggplot(region_data, aes(x = frame_mid/60, y = TAC)) +
-          geom_line(color = "#4DAF4A", linewidth = 0.25) +
-          geom_point(color = "#377EB8") +
-          labs(
+        p <- ggplot2::ggplot(region_data, ggplot2::aes(x = frame_mid/60, y = TAC)) +
+          ggplot2::geom_line(color = "#4DAF4A", linewidth = 0.25) +
+          ggplot2::geom_point(color = "#377EB8") +
+          ggplot2::labs(
             title = paste0(plot_info$pet, " : ", plot_info$region ),
             x = "Time (min)",
             y = "Radioactivity"
           ) +
-          theme_light()
+          ggplot2::theme_light()
         
         # Future: Add model fitting and overlay when model1/model2/model3 selected
         # For now, all options show the same TAC plot

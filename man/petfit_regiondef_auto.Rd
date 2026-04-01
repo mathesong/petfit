@@ -7,7 +7,8 @@
 petfit_regiondef_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
-  petfit_output_foldername = "petfit"
+  petfit_output_foldername = "petfit",
+  cores = 1L
 )
 }
 \arguments{

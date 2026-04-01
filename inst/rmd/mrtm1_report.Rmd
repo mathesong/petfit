@@ -7,6 +7,7 @@ output:
     toc_depth: 2
     code_folding: hide
 params:
+  cores: 1
   model_number: "Model 1"
   analysis_folder: NULL
   bids_dir: NULL
@@ -21,12 +22,25 @@ library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
+library(furrr)
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
+
 theme_set(theme_light())
 
 # Use parameters (from params or debugging section above)
-analysis_folder <- params$analysis_folder %||% analysis_folder
-model_number <- params$model_number %||% model_number
-bids_dir <- params$bids_dir %||% bids_dir %||% NULL
+analysis_folder <- params$analysis_folder
+model_number <- params$model_number
+bids_dir <- params$bids_dir
 ```
 
 ```{r load-config, include=FALSE}
@@ -253,7 +267,6 @@ safe_mrtm1 <- possibly(mrtm1, otherwise = NA)
 
 # Fit MRTM1 model to all regional TACs
 model_data <- model_data %>%
-  group_by(output_stem, region) %>%
   mutate(fit_mrtm1 = map(tacs,
                          ~safe_mrtm1(t_tac = .x$frame_mid,
                                     reftac = .x$RefTAC,
@@ -299,11 +312,11 @@ model_res <- model_data %>%
 ```{r}
 par_table <- model_res %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   unnest(par) %>%
   rename(BPnd = bp)
 
 par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -318,12 +331,12 @@ par_se_table <- model_data %>%
   mutate(par.se = map(fit_mrtm1, "par.se")) %>%
   select(-fit_mrtm1, -tacs) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   unnest(par.se) %>%
   select(where(~ mean(is.na(.x)) < 1)) %>%
   rename(BPnd.se = bp.se)
 
 par_se_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -348,11 +361,11 @@ gof_table <- model_data %>%
     reduced_chisq = reduced_chisq(.x$fit)))) %>%
   select(-fit_mrtm1, -tacs) %>%
   select(-output_stem) %>%
-  select(where(~ n_distinct(.x) > 1)) %>%
   unnest(gof) %>%
   select(where(~ mean(is.na(.x)) < 1))
 
 gof_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
   DT::datatable()
 ```
@@ -394,30 +407,76 @@ ggplot(par_table_long, aes(x=Value, fill=region)) +
 
 ### Plots
 
-```{r, fig.height=4, fig.width=6}
-fitplots <- model_data %>%
-  mutate(title = paste(pet, " : ", region)) %>%
-  mutate(fitplot = pmap(list(fit_mrtm1, region, title),
-                        ~plot(..1, roiname=..2) +
-                          labs(title = ..3,
-                               y = "Radioactivity (kBq)",
-                               x = "Time (min)"))) %>%
-  pull(fitplot)
+```{r fit-plots, results='asis'}
+n_fit_plots <- nrow(model_data %>% filter(success))
+embed_fit_plots <- n_fit_plots <= 200
 
-walk(fitplots, ~print(.x))
+if (embed_fit_plots) {
+  fit_plot_dir <- tempdir()
+} else {
+  fit_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "fit")
+  dir.create(fit_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+fit_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(title = paste(pet, " : ", region),
+         safe_filename = str_replace_all(
+           paste(pet, region, sep = "_"), "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap_chr(
+    list(.$fit_mrtm1, .$region, .$title, .$safe_filename),
+    function(fit, region, title, fname) {
+      p <- plot(fit, roiname = region) +
+        labs(title = title, y = "Radioactivity (kBq)", x = "Time (min)") +
+        theme_light()
+      filepath <- file.path(fit_plot_dir, paste0("fit_", fname, ".png"))
+      ggsave(filepath, p, width = 6, height = 4, dpi = 96)
+      filepath
+    }, .options = furrr_options(seed = TRUE))}
+
+if (embed_fit_plots) {
+  walk(fit_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** {n_fit_plots} fit plots saved to: `reports/{desc}_report_plots/fit/`\n\n"))
+}
 ```
 
 ### Residuals
 
-```{r, fig.height=4, fig.width=6}
-resplots <- model_data %>%
-  mutate(title = paste(pet, " : ", region)) %>%
-  mutate(resplot = pmap(list(fit_mrtm1, title),
-                        ~plot_residuals(..1) +
-                          labs(title = ..2))) %>%
-  pull(resplot)
+```{r residual-plots, results='asis'}
+n_res_plots <- nrow(model_data %>% filter(success))
+embed_res_plots <- n_res_plots <= 200
 
-walk(resplots, ~print(.x))
+if (embed_res_plots) {
+  res_plot_dir <- tempdir()
+} else {
+  res_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "residuals")
+  dir.create(res_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+res_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(title = paste(pet, " : ", region),
+         safe_filename = str_replace_all(
+           paste(pet, region, sep = "_"), "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap_chr(
+    list(.$fit_mrtm1, .$title, .$safe_filename),
+    function(fit, title, fname) {
+      p <- plot_residuals(fit) +
+        labs(title = title) +
+        theme_light()
+      filepath <- file.path(res_plot_dir, paste0("res_", fname, ".png"))
+      ggsave(filepath, p, width = 6, height = 4, dpi = 96)
+      filepath
+    }, .options = furrr_options(seed = TRUE))}
+
+if (embed_res_plots) {
+  walk(res_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** {n_res_plots} residual plots saved to: `reports/{desc}_report_plots/residuals/`\n\n"))
+}
 ```
 
 
@@ -544,6 +603,10 @@ walk2(savefits_pet$jsondat,
 
 
 
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
+```
 
 # Session Information
 

@@ -8,8 +8,11 @@ modelling_plasma_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
   blood_dir = NULL,
-  subfolder = "Primary_Analysis",
-  config_file = NULL
+  analysis_foldername = "Primary_Analysis",
+  config_file = NULL,
+  cores = 1L,
+  save_logs = FALSE,
+  ancillary_analysis_folder = NULL
 )
 }
 \arguments{
@@ -19,7 +22,7 @@ modelling_plasma_app(
 
 \item{blood_dir}{Character string path to the blood data directory (default: NULL)}
 
-\item{subfolder}{Character string name for analysis subfolder (default: "Primary_Analysis")}
+\item{analysis_foldername}{Character string name for analysis folder (default: "Primary_Analysis")}
 
 \item{config_file}{Character string path to existing config file (optional)}
 }

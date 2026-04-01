@@ -38,11 +38,11 @@ The interactive apps allow you to:
 
 | Mode | R Usage | Docker Usage |
 |------|---------|--------------|
-| Interactive - Region Definition | `launch_petfit_apps(bids_dir = "/path/to/bids")` | `docker run -p 3838:3838 ... --func regiondef` |
-| Interactive - Modelling with Plasma Input | `launch_petfit_apps(app = "modelling_plasma", bids_dir, blood_dir)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
-| Interactive - Modelling with Reference Tissue | `launch_petfit_apps(app = "modelling_ref", bids_dir)` | `docker run -p 3838:3838 ... --func modelling_ref` |
-| Automatic - Region Definition | `petfit_regiondef_auto(derivatives_dir = "...")` | `docker run ... --func regiondef --mode automatic` |
-| Automatic - Modelling | `petfit_modelling_auto(derivatives_dir = "...")` | `docker run ... --func modelling_plasma --mode automatic` |
+| Interactive - Region Definition | `petfit_interactive(bids_dir = "/path/to/bids")` | `docker run -p 3838:3838 ... --func regiondef` |
+| Interactive - Modelling with Plasma Input | `petfit_interactive(app = "modelling_plasma", bids_dir, blood_dir)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
+| Interactive - Modelling with Reference Tissue | `petfit_interactive(app = "modelling_ref", bids_dir)` | `docker run -p 3838:3838 ... --func modelling_ref` |
+| Automatic - Region Definition | `petfit_auto(app = "regiondef", derivatives_dir = "...")` | `docker run ... --func regiondef --mode automatic` |
+| Automatic - Modelling | `petfit_auto(app = "modelling_plasma", derivatives_dir = "...")` | `docker run ... --func modelling_plasma --mode automatic` |
 
 ## R Package Usage
 
@@ -55,26 +55,26 @@ You can install the development version of petfit like so:
 remotes::install_github("mathesong/petfit")
 ```
 
-### Launch Apps
+### Interactive Apps
 
 ```r
 library(petfit)
 
 # Launch region definition app (default)
-launch_petfit_apps(
+petfit_interactive(
   app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Launch plasma input modelling app without preprocessing blood data
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Launch plasma input modelling app after producing derivative blood data
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_plasma",
   bids_dir = "/path/to/your/bids/dataset",
   derivatives_dir = "/path/to/derivatives",
@@ -83,7 +83,7 @@ launch_petfit_apps(
 
 
 # Launch reference tissue modelling app
-launch_petfit_apps(
+petfit_interactive(
   app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives",
 )
@@ -102,12 +102,14 @@ Automatic processing requires running region definition first, then modelling.
 #   - derivatives_dir/petfit/petfit_regions.tsv
 #   - bids_dir/code/petfit/petfit_regions.tsv
 
-petfit_regiondef_auto(
+petfit_auto(
+  app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Or with BIDS directory
-petfit_regiondef_auto(
+petfit_auto(
+  app = "regiondef",
   bids_dir = "/path/to/bids"
 )
 ```
@@ -115,28 +117,33 @@ petfit_regiondef_auto(
 **Step 2: Modelling Pipeline**
 ```r
 # Execute complete modelling pipeline
-# Uses "Primary_Analysis" subfolder by default
+# Uses "Primary_Analysis" analysis folder by default
+# Pipeline type (plasma vs reference) is auto-detected from config
 
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )
 
 # Or using bids_dir (which will use bids_dir/derivatives)
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   bids_dir = "/path/to/bids",
   blood_dir = "/path/to/blood"
 )
 
-# Specify a custom analysis subfolder
-petfit_modelling_auto(
-  analysis_subfolder = "Baseline_only",
+# Specify a custom analysis folder
+petfit_auto(
+  app = "modelling_plasma",
+  analysis_foldername = "Baseline_only",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )
 
 # Execute specific modelling step
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   step = "weights"
 )
@@ -260,7 +267,7 @@ docker run --rm \
 - `--func`: Application to run (`regiondef`, `modelling_plasma`, `modelling_ref`)
 - `--mode`: Execution mode (`interactive` [default] or `automatic`)
 - `--step`: Specific analysis step for automatic mode (optional)
-- `--analysis_folder`: Analysis subfolder name for modelling outputs (default: `Primary_Analysis`)
+- `--analysis_foldername`: Analysis folder name for modelling outputs (default: `Primary_Analysis`)
 
 ### Docker Mount Points
 
@@ -364,7 +371,7 @@ The region definition apps create files in the main `derivatives/petfit` folder.
 - **Region combination file**: `petfit_regions.tsv` contains all region combination names, and can be transferred to new studies and datasets with the same other pipelines.
 - **Combined TACs file**: `desc-combinedregions_tacs.tsv` contains all the TACs after regional combinations.
 
-The modelling apps generate the following outputs in `derivatives/petfit/<analysis_subfolder>/`:
+The modelling apps generate the following outputs in `derivatives/petfit/<analysis_foldername>/`:
 
 - **Output file**: Parameters and outputs for each PET measurement are created in the relevant subject folders.
 - **HTML reports**: Reports in `reports/` subfolder for each analysis step

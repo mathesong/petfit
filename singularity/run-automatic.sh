@@ -13,6 +13,8 @@ BLOOD_DIR=""
 STEP=""
 PETFIT_FOLDER="petfit"
 ANALYSIS_FOLDER="Primary_Analysis"
+CORES=1
+ANCILLARY_FOLDER=""
 
 # Help function
 show_help() {
@@ -28,7 +30,9 @@ Options:
     --blood-dir PATH         Path to blood data directory to mount
     --step STEP              Specific step to run (optional)
     --petfit-folder NAME    Name for petfit output folder (default: $PETFIT_FOLDER)
-    --analysis-folder NAME   Name for analysis subfolder (default: $ANALYSIS_FOLDER)
+    --analysis-folder NAME   Name for analysis folder (default: $ANALYSIS_FOLDER)
+    --cores N                Number of cores for parallel processing (default: $CORES)
+    --ancillary-folder NAME  Sibling analysis folder for delay/k2prime inheritance (optional)
     -h, --help               Show this help message
 
 Step Options:
@@ -54,12 +58,15 @@ Examples:
     # Custom analysis folder
     $0 --func modelling_ref --derivatives-dir /path/to/derivatives --analysis-folder "Study_A"
 
+    # Use ancillary folder for delay inheritance
+    $0 --func modelling_plasma --derivatives-dir /path/to/derivatives --ancillary-folder "Ancillary_Analysis"
+
     # Custom container
     $0 --container ./petfit_dev.sif --func modelling_plasma --derivatives-dir /path/to/derivatives
 
 Requirements:
-    - derivatives-dir must contain petfit folder with analysis subfolder
-    - Analysis subfolder must contain desc-petfitoptions_config.json file
+    - derivatives-dir must contain petfit folder with analysis folder
+    - Analysis folder must contain desc-petfitoptions_config.json file
     - blood-dir only needed for delay fitting and invasive model steps
 
 Directory Structure Expected:
@@ -100,6 +107,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --analysis-folder)
             ANALYSIS_FOLDER="$2"
+            shift 2
+            ;;
+        --cores)
+            CORES="$2"
+            shift 2
+            ;;
+        --ancillary-folder)
+            ANCILLARY_FOLDER="$2"
             shift 2
             ;;
         -h|--help)
@@ -194,6 +209,10 @@ fi
 if [ -n "$ANALYSIS_FOLDER" ]; then
     CMD_ARGS="$CMD_ARGS --analysis_foldername $ANALYSIS_FOLDER"
 fi
+CMD_ARGS="$CMD_ARGS --cores $CORES"
+if [ -n "$ANCILLARY_FOLDER" ]; then
+    CMD_ARGS="$CMD_ARGS --ancillary_analysis_folder $ANCILLARY_FOLDER"
+fi
 
 echo "=== petfit Singularity Automatic Mode ==="
 echo "Container: $CONTAINER"
@@ -205,6 +224,9 @@ fi
 echo "petfit folder: $PETFIT_FOLDER"
 echo "Analysis folder: $ANALYSIS_FOLDER"
 echo "Analysis path: $ANALYSIS_PATH"
+if [ -n "$ANCILLARY_FOLDER" ]; then
+    echo "Ancillary folder: $ANCILLARY_FOLDER"
+fi
 if [ -n "$STEP" ]; then
     echo "Step: $STEP"
 else
@@ -215,17 +237,23 @@ echo
 echo "Starting automatic processing..."
 echo
 
-# Check if Singularity is installed
-if ! command -v singularity &> /dev/null; then
-    echo "Error: Singularity is not installed or not in PATH"
+# Detect Singularity/Apptainer command
+if command -v apptainer &> /dev/null; then
+    SINGULARITY_CMD="apptainer"
+elif command -v singularity &> /dev/null; then
+    SINGULARITY_CMD="singularity"
+else
+    echo "Error: Neither Apptainer nor Singularity is installed or in PATH"
     exit 1
 fi
 
 # Run the container
-echo "Command: singularity run $BIND_MOUNTS $CONTAINER $CMD_ARGS"
+# --cleanenv prevents host environment variables (e.g., R_LIBS_USER) from
+# leaking into the container and hiding the container's own R libraries
+echo "Command: $SINGULARITY_CMD run --cleanenv $BIND_MOUNTS $CONTAINER $CMD_ARGS"
 echo
 
-singularity run $BIND_MOUNTS "$CONTAINER" $CMD_ARGS
+$SINGULARITY_CMD run --cleanenv $BIND_MOUNTS "$CONTAINER" $CMD_ARGS
 
 # Capture exit code
 EXIT_CODE=$?

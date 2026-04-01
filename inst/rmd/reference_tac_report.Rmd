@@ -7,6 +7,7 @@ output:
     toc_depth: 2
     code_folding: hide
 params:
+  cores: 1
   analysis_folder: NULL
   bids_dir: NULL
   blood_dir: NULL
@@ -23,12 +24,24 @@ library(plotly)
 library(crosstalk)
 library(htmltools)
 library(scales)
+library(furrr)
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
 
 theme_set(theme_light())
 
 # Use parameters (from params or debugging section above)
-analysis_folder <- params$analysis_folder %||% analysis_folder
-bids_dir <- params$bids_dir %||% NULL
+analysis_folder <- params$analysis_folder
+bids_dir <- params$bids_dir
 
 # Load configuration from standard location
 config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
@@ -455,26 +468,30 @@ weights_data <- tibble(
   unnest(tacs) %>%
   select(-basename, -measurement, -desc, -TAC, -filename)
 
-ref_tac_data_noisecalc <- ref_tac_data %>% 
-  inner_join(weights_data) %>% 
+ref_tac_data_noisecalc <- ref_tac_data %>%
+  inner_join(weights_data) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet", "filename")))) %>%
-  nest(.key = "ref_tacs") %>% 
-  mutate(splinefit = map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+  nest(.key = "ref_tacs") %>%
+  ungroup() %>%
+  mutate(splinefit = future_map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
                                                tac     = .x$RefTAC,
-                                               weights = .x$weights))) %>% 
-  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) * 
+                                               weights = .x$weights),
+                                .options = furrr_options(seed = TRUE))) %>%
+  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) *
                                          (.x$tacs$TAC_fitted - .x$tacs$TAC)^2)))
 
-target_tac_data_noisecalc <- target_tac_data %>% 
-  inner_join(weights_data) %>% 
+target_tac_data_noisecalc <- target_tac_data %>%
+  inner_join(weights_data) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet", "filename", "region")))) %>%
-  nest(.key = "target_tacs") %>% 
-  mutate(splinefit = map(target_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+  nest(.key = "target_tacs") %>%
+  ungroup() %>%
+  mutate(splinefit = future_map(target_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
                                                   tac     = .x$TAC,
-                                                  weights = .x$weights))) %>% 
-  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) * 
+                                                  weights = .x$weights),
+                                .options = furrr_options(seed = TRUE))) %>%
+  mutate(RSS = map_dbl(splinefit, ~sum((weights(.x)/mean(weights(.x))) *
                                          (.x$tacs$TAC_fitted - .x$tacs$TAC)^2)))
 
 RSS_compare <- ref_tac_data_noisecalc %>% 
@@ -506,12 +523,14 @@ ref_tac_fitdata <- ref_tac_data %>%
   inner_join(ref_weights_final) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet", "tac_filename")))) %>%
-  nest(.key = "ref_tacs") 
+  nest(.key = "ref_tacs") %>%
+  ungroup()
 
 ref_tac_fitdata <- ref_tac_fitdata %>%
-  mutate(ref_fit = map(ref_tacs, ~feng_1tc_tac(t_tac   = .x$frame_mid/60,
+  mutate(ref_fit = future_map(ref_tacs, ~feng_1tc_tac(t_tac   = .x$frame_mid/60,
                                               tac     = .x$RefTAC,
-                                              weights = .x$ref_weights)))
+                                              weights = .x$ref_weights),
+                              .options = furrr_options(seed = TRUE)))
 
 ref_tac_preddata <- ref_tac_fitdata %>%
   mutate(ref_preds = map(ref_fit, ~.x$tacs %>%
@@ -617,12 +636,14 @@ ref_tac_fitdata <- ref_tac_data %>%
   inner_join(ref_weights_final) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet", "tac_filename")))) %>%
-  nest(.key = "ref_tacs") 
+  nest(.key = "ref_tacs") %>%
+  ungroup()
 
 ref_tac_fitdata <- ref_tac_fitdata %>%
-  mutate(ref_fit = map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
+  mutate(ref_fit = future_map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
                                               tac     = .x$RefTAC,
-                                              weights = .x$ref_weights)))
+                                              weights = .x$ref_weights),
+                              .options = furrr_options(seed = TRUE)))
 
 ref_tac_preddata <- ref_tac_fitdata %>%
   mutate(ref_preds = map(ref_fit, ~.x$tacs %>%
@@ -756,6 +777,10 @@ target_tac_files %>%
     write_tsv(.x,
               file = paste0(analysis_folder, "/", target_filename))
   })
+```
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
 ```
 
 ---
