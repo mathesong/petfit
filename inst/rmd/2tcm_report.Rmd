@@ -290,24 +290,41 @@ if (length(blood_files) == 0) {
 }
 
 # Generate blood data from raw BIDS data
-raw_data <- kinfitr::bids_parse_study(bids_dir) %>% 
+raw_data <- kinfitr::bids_parse_study(bids_dir) %>%
   select(any_of(names(tac_data)), blooddata)
 
-tac_data_files <- tac_data %>% 
-  filter(!duplicated(filename)) %>% 
+if (nrow(raw_data) == 0) {
+  stop("No PET measurements found in bids_dir. ",
+       "Ensure _pet.json sidecar files are present alongside _blood.tsv files.")
+}
+
+tac_data_files <- tac_data %>%
+  filter(!duplicated(filename)) %>%
    select(any_of(names(raw_data)), filename)
 
-save_data <- inner_join(raw_data, tac_data_files) %>% 
-  mutate(filename = str_remove(filename, "_desc.*")) %>% 
-  mutate(filename = str_remove(filename, "_weights.*")) %>% 
-  mutate(filename = str_remove(filename, "_tacs.*")) %>% 
-  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>% 
+save_data <- inner_join(raw_data, tac_data_files) %>%
+  mutate(filename = str_remove(filename, "_desc.*")) %>%
+  mutate(filename = str_remove(filename, "_weights.*")) %>%
+  mutate(filename = str_remove(filename, "_tacs.*")) %>%
+  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>%
   mutate(filename = paste0(analysis_folder, "/", filename))
+
+if (nrow(save_data) == 0) {
+  stop("No blood data matched the TAC files. ",
+       "Check that blood file BIDS entities (sub, ses, trc) match the TAC files.")
+}
 
 walk2(save_data$blooddata, save_data$filename, blooddata2inputfunction_tsv)
 
+# Verify inputfunction files were created
+inputfunction_check <- list.files(analysis_folder, pattern = "_inputfunction\\.tsv$", recursive = TRUE)
+if (length(inputfunction_check) == 0) {
+  stop("No inputfunction files were created from the blood data. ",
+       "Check that blood data in bids_dir is valid.")
+}
+
 # Load the created inputfunction files
-blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>%
   select(-measurement, -desc)
 ```
 
