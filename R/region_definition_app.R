@@ -1051,8 +1051,12 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   app <- shiny::shinyApp(ui = ui, server = server)
   
   # Run with Docker-compatible settings
+  shiny_port <- suppressWarnings(as.integer(Sys.getenv("PETFIT_SHINY_PORT", unset = "3838")))
+  if (is.na(shiny_port) || shiny_port < 1L || shiny_port > 65535L) {
+    shiny_port <- 3838L
+  }
   cat("Please open the address on the following line in your web browser.\n")
   cat("If that doesn't work, use the address from the next line:\n")
-  cat("http://localhost:3838\n")
-  shiny::runApp(app, host = "0.0.0.0", port = 3838)
+  cat("http://localhost:", shiny_port, "\n", sep = "")
+  shiny::runApp(app, host = "0.0.0.0", port = shiny_port)
 }

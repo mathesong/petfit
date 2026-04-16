@@ -33,6 +33,9 @@ From: rocker/shiny-verse:latest
     # Install kinfitr from GitHub
     R -e "remotes::install_github('mathesong/kinfitr', dependencies = TRUE)"
 
+    # Install petfit from local source copied into /app
+    R -e "remotes::install_local('/app', dependencies = TRUE)"
+
     # Create app directory and set permissions
     mkdir -p /app
     chown -R {{ USER_NAME }}:{{ USER_NAME }} /app
@@ -67,5 +70,8 @@ From: rocker/shiny-verse:latest
     
     Automatic mode:
     singularity run petfit.sif --func modelling --mode automatic
+
+    Apptainer without explicit --bind (if host paths are auto-mounted):
+    apptainer run petfit.sif --func regiondef --bids_dir /home/USER/path/to/bids
     
     For detailed usage information, see the singularity/README.md file.

@@ -71,6 +71,35 @@ if (!is.null(opt$ancillary_analysis_folder)) {
 }
 cat("\n")
 
+# Determine an available localhost port near the preferred one.
+is_port_available <- function(port) {
+  con <- tryCatch(
+    socketConnection(host = "127.0.0.1", port = port, open = "r+", blocking = TRUE, timeout = 0.2),
+    error = function(e) NULL
+  )
+
+  if (is.null(con)) {
+    return(TRUE)
+  }
+
+  close(con)
+  FALSE
+}
+
+find_open_port <- function(start_port = 3838L, max_offset = 20L) {
+  for (offset in seq.int(0L, max_offset)) {
+    candidate <- start_port + offset
+    if (is_port_available(candidate)) {
+      return(candidate)
+    }
+  }
+
+  stop(
+    "Could not find an open port between ", start_port, " and ", start_port + max_offset,
+    call. = FALSE
+  )
+}
+
 # Detect mounted directories
 detect_mounted_directories <- function() {
   # Prefer explicit paths when provided, otherwise fall back to conventional
@@ -137,8 +166,18 @@ cat("\n")
 
 # Execute based on mode
 if (opt$mode == "interactive") {
+  requested_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", unset = "3838")))
+  if (is.na(requested_port) || requested_port < 1L || requested_port > 65535L) {
+    requested_port <- 3838L
+  }
+  selected_port <- find_open_port(requested_port)
+  if (selected_port != requested_port) {
+    cat("Requested Shiny port", requested_port, "is in use. Using", selected_port, "instead.\n")
+  }
+  Sys.setenv(PETFIT_SHINY_PORT = as.character(selected_port))
+
   cat("=== Starting Interactive Mode ===\n")
-  cat("Shiny app will be available at http://localhost:3838\n")
+  cat("Shiny app will be available at http://localhost:", selected_port, "\n", sep = "")
   cat("Container will exit when app is closed\n")
   cat("\n")
 
