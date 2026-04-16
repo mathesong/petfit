@@ -2,7 +2,6 @@
 
 # Docker entry script for petfit apps
 # Supports both interactive and automatic modes with flexible directory mounting
-
 library(optparse)
 
 # Define command line options
