@@ -6,7 +6,7 @@
 # Integration tests are disabled by default. Enable with environment variables:
 #   PETFIT_INTEGRATION_TESTS=true  -- R-native integration tests
 #   PETFIT_DOCKER_TESTS=true       -- Docker container tests
-#   PETFIT_SINGULARITY_TESTS=true  -- Apptainer/Singularity tests
+#   PETFIT_APPTAINER_TESTS=true    -- Apptainer (formerly Singularity) tests
 #
 # Test data source (in priority order):
 #   1. PETFIT_TESTDATA_PATH env var (explicit path to .tar.gz)
@@ -43,16 +43,16 @@ skip_if_no_docker <- function() {
   )
 }
 
-#' Skip test if Singularity/Apptainer tests are not enabled or not available
-skip_if_no_singularity <- function() {
+#' Skip test if Apptainer tests are not enabled or not available
+skip_if_no_apptainer <- function() {
   skip_if_no_integration()
   testthat::skip_if(
-    Sys.getenv("PETFIT_SINGULARITY_TESTS") == "",
-    "Singularity tests disabled. Set PETFIT_SINGULARITY_TESTS=true to enable."
+    Sys.getenv("PETFIT_APPTAINER_TESTS") == "",
+    "Apptainer tests disabled. Set PETFIT_APPTAINER_TESTS=true to enable."
   )
   testthat::skip_if_not(
-    nchar(Sys.which("singularity")) > 0 || nchar(Sys.which("apptainer")) > 0,
-    "Singularity/Apptainer not available on this system"
+    nchar(Sys.which("apptainer")) > 0 || nchar(Sys.which("singularity")) > 0,
+    "Apptainer not available on this system"
   )
 }
 
@@ -292,7 +292,7 @@ setup_modelling_config <- function(workspace_info, config_fixture_name,
 }
 
 # ---------------------------------------------------------------------------
-# Container runners (for Docker/Singularity tests)
+# Container runners (for Docker/Apptainer tests)
 # ---------------------------------------------------------------------------
 
 #' Run petfit Docker container
@@ -352,7 +352,7 @@ run_petfit_docker <- function(func, mode, workspace_info,
   )
 }
 
-#' Run petfit Singularity/Apptainer container
+#' Run petfit Apptainer container
 #'
 #' @param func Character: "regiondef", "modelling_plasma", or "modelling_ref"
 #' @param mode Character: "interactive" or "automatic"
@@ -362,13 +362,13 @@ run_petfit_docker <- function(func, mode, workspace_info,
 #' @param step Optional step name for automatic mode
 #' @param analysis_foldername Analysis folder name (default: "Primary_Analysis")
 #' @return List with output (character vector) and exit_code (integer)
-run_petfit_singularity <- function(func, mode, workspace_info,
-                                   container = "petfit_latest.sif",
-                                   blood_dir = NULL, step = NULL,
-                                   analysis_foldername = "Primary_Analysis",
-                                   cores = 1L,
-                                   ancillary_analysis_folder = NULL) {
-  # Detect whether to use singularity or apptainer command
+run_petfit_apptainer <- function(func, mode, workspace_info,
+                                 container = "petfit_latest.sif",
+                                 blood_dir = NULL, step = NULL,
+                                 analysis_foldername = "Primary_Analysis",
+                                 cores = 1L,
+                                 ancillary_analysis_folder = NULL) {
+  # Detect whether to use apptainer or singularity command
   cmd <- if (nchar(Sys.which("apptainer")) > 0) "apptainer" else "singularity"
 
   # Build bind mounts
@@ -462,28 +462,28 @@ setup_docker_workspace <- function() {
 }
 
 # ---------------------------------------------------------------------------
-# Singularity/Apptainer container helpers
+# Apptainer container helpers
 # ---------------------------------------------------------------------------
 
-#' Locate singularity/apptainer command
-get_singularity_cmd <- function() {
+#' Locate apptainer/singularity command
+get_apptainer_cmd <- function() {
   if (nchar(Sys.which("apptainer")) > 0) return("apptainer")
   if (nchar(Sys.which("singularity")) > 0) return("singularity")
   NULL
 }
 
-#' Find or build Singularity container image
-find_singularity_container <- function() {
+#' Find or build Apptainer container image
+find_apptainer_container <- function() {
   # Check for explicit path
-  sif_path <- Sys.getenv("PETFIT_SINGULARITY_SIF", unset = "")
+  sif_path <- Sys.getenv("PETFIT_APPTAINER_SIF", unset = "")
   if (sif_path != "" && file.exists(sif_path)) {
     return(sif_path)
   }
 
-  # Check for a SIF in the singularity/ directory
+  # Check for a SIF in the apptainer/ directory
   pkg_root <- testthat::test_path("..", "..")
   sif_candidates <- list.files(
-    file.path(pkg_root, "singularity"),
+    file.path(pkg_root, "apptainer"),
     pattern = "\\.sif$",
     full.names = TRUE
   )
@@ -501,12 +501,12 @@ find_singularity_container <- function() {
   NULL
 }
 
-#' Set up workspace for Singularity tests (resolves symlinks)
-setup_singularity_workspace <- function() {
+#' Set up workspace for Apptainer tests (resolves symlinks)
+setup_apptainer_workspace <- function() {
   dataset_dir <- ensure_testdata()
   ws <- create_integration_workspace(dataset_dir)
 
-  # Singularity needs real paths for bind mounts
+  # Apptainer needs real paths for bind mounts
   petprep_link <- file.path(ws$derivatives_dir, "petprep")
   if (file.exists(petprep_link) && Sys.readlink(petprep_link) != "") {
     real_path <- normalizePath(petprep_link)

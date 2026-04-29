@@ -51,19 +51,19 @@ docker run --rm \
 
 ````{tab-item} Apptainer
 ```bash
-# Interactive (using wrapper script)
-cd singularity/
-./run-interactive.sh --func regiondef \
-  --bids-dir /path/to/bids
+# Interactive
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func regiondef
+# Then open http://localhost:3838
 
-# Automatic (using wrapper script)
-./run-automatic.sh --func regiondef \
-  --derivatives-dir /path/to/derivatives
-
-# Or directly with apptainer/singularity
-apptainer run \
-  --bind /path/to/bids:/data/bids_dir \
-  --bind /path/to/derivatives:/data/derivatives_dir \
+# Automatic
+apptainer run --cleanenv \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
   petfit_latest.sif \
   --func regiondef --mode automatic
 ```
@@ -166,28 +166,42 @@ docker run --rm \
 ````{tab-item} Apptainer (plasma input)
 ```bash
 # Interactive
-cd singularity/
-./run-interactive.sh --func modelling_plasma \
-  --bids-dir /path/to/bids \
-  --blood-dir /path/to/blood
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma
 
 # Automatic
-./run-automatic.sh --func modelling_plasma \
-  --derivatives-dir /path/to/derivatives \
-  --blood-dir /path/to/blood
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic
 ```
 ````
 
 ````{tab-item} Apptainer (reference tissue)
 ```bash
 # Interactive
-cd singularity/
-./run-interactive.sh --func modelling_ref \
-  --bids-dir /path/to/bids
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_ref
 
 # Automatic
-./run-automatic.sh --func modelling_ref \
-  --derivatives-dir /path/to/derivatives
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_ref --mode automatic
 ```
 ````
 

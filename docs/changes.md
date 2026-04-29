@@ -15,6 +15,6 @@
 - Region definition with BIDS entity matching
 - Plasma input modelling pipeline (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak)
 - Reference tissue modelling pipeline (SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak)
-- Docker and Singularity container support
+- Docker and Apptainer container support
 - Parameterised HTML reports for quality control
 - Interactive data exploration tabs in modelling apps

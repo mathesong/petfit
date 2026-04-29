@@ -1,40 +1,40 @@
-# Integration tests: Parallel Processing via Singularity/Apptainer Container
+# Integration tests: Parallel Processing via Apptainer Container
 #
-# Tests that the --cores flag works correctly when passed through Singularity.
+# Tests that the --cores flag works correctly when passed through Apptainer.
 # Verifies that parallel processing with cores=2 produces valid output
-# from within a Singularity/Apptainer container.
+# from within an Apptainer container.
 #
-# Requires: PETFIT_INTEGRATION_TESTS=true AND PETFIT_SINGULARITY_TESTS=true
+# Requires: PETFIT_INTEGRATION_TESTS=true AND PETFIT_APPTAINER_TESTS=true
 #   AND PETFIT_PARALLEL_TESTS=true
 
 # ---------------------------------------------------------------------------
 # Skip helper
 # ---------------------------------------------------------------------------
 
-skip_if_no_parallel_singularity <- function() {
-  skip_if_no_singularity()
+skip_if_no_parallel_apptainer <- function() {
+  skip_if_no_apptainer()
   if (!identical(Sys.getenv("PETFIT_PARALLEL_TESTS"), "true")) {
     testthat::skip("Parallel tests disabled (set PETFIT_PARALLEL_TESTS=true)")
   }
 }
 
 # ---------------------------------------------------------------------------
-# Test: Singularity regiondef with cores=2
+# Test: Apptainer regiondef with cores=2
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: regiondef with cores=2 produces combined TACs", {
-  skip_if_no_parallel_singularity()
+test_that("Apptainer: regiondef with cores=2 produces combined TACs", {
+  skip_if_no_parallel_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
@@ -43,7 +43,7 @@ test_that("Singularity: regiondef with cores=2 produces combined TACs", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity parallel regiondef failed:",
+               info = paste("Apptainer parallel regiondef failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify output files were created
@@ -54,37 +54,37 @@ test_that("Singularity: regiondef with cores=2 produces combined TACs", {
 })
 
 # ---------------------------------------------------------------------------
-# Test: Singularity plasma pipeline with cores=2
+# Test: Apptainer plasma pipeline with cores=2
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: plasma modelling with cores=2 succeeds", {
-  skip_if_no_parallel_singularity()
+test_that("Apptainer: plasma modelling with cores=2 succeeds", {
+  skip_if_no_parallel_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # Install plasma config
   setup_modelling_config(ws, "ds004869_plasma_config.json")
 
   # Run full plasma pipeline with 2 cores
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_plasma",
     mode = "automatic",
     workspace_info = ws,
@@ -93,7 +93,7 @@ test_that("Singularity: plasma modelling with cores=2 succeeds", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity parallel plasma pipeline failed:",
+               info = paste("Apptainer parallel plasma pipeline failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify reports were generated
@@ -107,37 +107,37 @@ test_that("Singularity: plasma modelling with cores=2 succeeds", {
 })
 
 # ---------------------------------------------------------------------------
-# Test: Singularity reference pipeline with cores=2
+# Test: Apptainer reference pipeline with cores=2
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: reference modelling with cores=2 succeeds", {
-  skip_if_no_parallel_singularity()
+test_that("Apptainer: reference modelling with cores=2 succeeds", {
+  skip_if_no_parallel_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # Install ref config
   setup_modelling_config(ws, "ds004869_ref_config.json")
 
   # Run full reference pipeline with 2 cores
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_ref",
     mode = "automatic",
     workspace_info = ws,
@@ -146,7 +146,7 @@ test_that("Singularity: reference modelling with cores=2 succeeds", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity parallel reference pipeline failed:",
+               info = paste("Apptainer parallel reference pipeline failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify reports were generated

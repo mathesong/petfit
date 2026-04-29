@@ -38,7 +38,7 @@ petfit_interactive(app = "modelling_ref", bids_dir = "/path/to/bids",
 
 ### Container Usage
 - **Docker**: Interactive and automatic processing modes
-- **Singularity/Apptainer**: HPC-compatible, scripts in `singularity/` folder
+- **Apptainer** (formerly Singularity): HPC-compatible, definition file in `apptainer/` folder
 
 ### Development
 ```bash
@@ -62,7 +62,7 @@ PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration')
 - `inst/rmd/`: Parameterised R Markdown report templates (rendered as interactive Plotly HTML)
 - `man/`: Roxygen-generated documentation
 - `tests/testthat/`: Unit and integration tests
-- `singularity/`: Singularity/Apptainer build and run scripts
+- `apptainer/`: Apptainer definition file
 - `.github/workflows/`: CI for integration tests (R-native, Docker, Apptainer)
 
 ### Directory Structure (BIDS Convention)
@@ -168,7 +168,7 @@ PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration-r
 
 # With container tests
 PETFIT_INTEGRATION_TESTS=true PETFIT_DOCKER_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
-PETFIT_INTEGRATION_TESTS=true PETFIT_SINGULARITY_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
+PETFIT_INTEGRATION_TESTS=true PETFIT_APPTAINER_TESTS=true Rscript -e "devtools::test(filter = 'integration')"
 
 # Persistent cache (avoids re-extracting tarball)
 PETFIT_INTEGRATION_TESTS=true PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache Rscript -e "devtools::test(filter = 'integration')"
@@ -183,8 +183,8 @@ PETFIT_INTEGRATION_TESTS=true PETFIT_INTEGRATION_CACHE=/tmp/petfit_cache Rscript
 | `PETFIT_INTEGRATION_CACHE` | Persistent cache directory for extracted data |
 | `PETFIT_DOCKER_TESTS=true` | Enable Docker container tests |
 | `PETFIT_DOCKER_BUILD=true` | Rebuild Docker image before testing |
-| `PETFIT_SINGULARITY_TESTS=true` | Enable Singularity/Apptainer tests |
-| `PETFIT_SINGULARITY_SIF` | Explicit path to `.sif` container file |
+| `PETFIT_APPTAINER_TESTS=true` | Enable Apptainer tests |
+| `PETFIT_APPTAINER_SIF` | Explicit path to `.sif` container file |
 
 ### Test Data
 The tarball (`ds004869_testdata.tar.gz`, ~2.7 MB) is in `tests/testthat/fixtures/integration/`. Contains real TSV/JSON with NIfTI placeholders. At test time, `ensure_testdata()` extracts it automatically.

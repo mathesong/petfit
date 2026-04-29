@@ -45,7 +45,7 @@ From: rocker/shiny-verse:latest
     # Copy the petfit app package files
     . /app/
     
-    # Copy Docker-specific scripts (reuse for Singularity)
+    # Copy Docker-specific scripts (reuse for Apptainer)
     docker/run_petfit.R /app/run_petfit.R
 
 %environment
@@ -59,13 +59,13 @@ From: rocker/shiny-verse:latest
 
 %help
     This container runs the petfit PET imaging analysis application built on kinfitr.
-    
+
     Usage examples:
-    
+
     Interactive mode:
-    singularity run petfit.sif --func modelling
-    
+    apptainer run petfit.sif --func modelling
+
     Automatic mode:
-    singularity run petfit.sif --func modelling --mode automatic
-    
-    For detailed usage information, see the singularity/README.md file.
+    apptainer run petfit.sif --func modelling --mode automatic
+
+    For detailed usage information, see the apptainer/README.md file.
