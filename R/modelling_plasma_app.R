@@ -2118,18 +2118,18 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     # Blood data status display ----
     output$delay_blood_status_display <- renderUI({
       # Helper function to check for blood data files in a directory
-      check_blood_files <- function(dir_path) {
+      check_blood_files <- function(dir_path, pattern) {
         if (is.null(dir_path) || !dir.exists(dir_path)) {
           return(list(found = FALSE, files = character(0)))
         }
         
-        blood_files <- list.files(dir_path, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
+        blood_files <- list.files(dir_path, pattern = pattern, recursive = TRUE)
         return(list(found = length(blood_files) > 0, files = blood_files))
       }
       
       if (!is.null(blood_dir)) {
-        # User provided blood_dir - check for blood data files
-        blood_status <- check_blood_files(blood_dir)
+        # User provided blood_dir - check for processed input function files
+        blood_status <- check_blood_files(blood_dir, "_inputfunction\\.tsv$")
         
         if (blood_status$found) {
           div(
@@ -2140,14 +2140,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           div(
             p(strong("✗ No blood data found in blood_dir"), 
               style = "color: #d73027; font-size: 16px; margin-bottom: 5px;"),
-            p("No _blood.tsv or _inputfunction.tsv files detected in the specified blood directory", 
+            p("No _inputfunction.tsv files detected in the specified blood directory", 
               style = "color: #d73027; font-size: 14px;")
           )
         }
       } else if (!is.null(bids_dir)) {
-        # Check for blood files in analysis folder first, then BIDS directory
-        blood_status_analysis <- check_blood_files(output_dir)
-        blood_status_bids <- check_blood_files(bids_dir)
+        # Check for processed input functions in the analysis folder first,
+        # then raw blood files in the BIDS directory.
+        blood_status_analysis <- check_blood_files(output_dir, "_inputfunction\\.tsv$")
+        blood_status_bids <- check_blood_files(bids_dir, "_blood\\.tsv$")
         
         if (blood_status_analysis$found) {
           # Prioritize analysis folder data
@@ -2170,7 +2171,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
           div(
             p(strong("✗ No blood data found"), 
               style = "color: #d73027; font-size: 16px; margin-bottom: 10px;"),
-            p("No _blood.tsv or _inputfunction.tsv files detected in BIDS directory or analysis folder", 
+            p("No _inputfunction.tsv files detected in analysis folder and no _blood.tsv files detected in BIDS directory", 
               style = "color: #d73027; font-size: 14px; margin-bottom: 10px;"),
             p("If your analysis does not involve blood data, then delay estimation is unnecessary.", 
               style = "color: #666; font-size: 14px;")
