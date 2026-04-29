@@ -2,7 +2,6 @@
 
 # Docker entry script for petfit apps
 # Supports both interactive and automatic modes with flexible directory mounting
-
 library(optparse)
 
 # Define command line options
@@ -20,7 +19,13 @@ option_list <- list(
   make_option(c("--cores"), type="integer", default=1L,
               help="Number of cores for parallel processing [default: 1]"),
   make_option(c("--ancillary_analysis_folder"), type="character", default=NULL,
-              help="Name of sibling analysis folder to inherit delay/k2prime from [optional]")
+              help="Name of sibling analysis folder to inherit delay/k2prime from [optional]"),
+  make_option(c("--bids_dir"), type="character", default=NULL,
+              help="Explicit BIDS directory path inside container (optional; useful with Apptainer home auto-mounts)"),
+  make_option(c("--derivatives_dir"), type="character", default=NULL,
+              help="Explicit derivatives directory path inside container (optional; useful with Apptainer home auto-mounts)"),
+  make_option(c("--blood_dir"), type="character", default=NULL,
+              help="Explicit blood directory path inside container (optional; useful with Apptainer home auto-mounts)")
 )
 
 # Parse arguments
@@ -65,27 +70,71 @@ if (!is.null(opt$ancillary_analysis_folder)) {
 }
 cat("\n")
 
+# Determine an available localhost port near the preferred one.
+is_port_available <- function(port) {
+  con <- tryCatch(
+    socketConnection(host = "127.0.0.1", port = port, open = "r+", blocking = TRUE, timeout = 0.2),
+    error = function(e) NULL
+  )
+
+  if (is.null(con)) {
+    return(TRUE)
+  }
+
+  close(con)
+  FALSE
+}
+
+find_open_port <- function(start_port = 3838L, max_offset = 20L) {
+  for (offset in seq.int(0L, max_offset)) {
+    candidate <- start_port + offset
+    if (is_port_available(candidate)) {
+      return(candidate)
+    }
+  }
+
+  stop(
+    "Could not find an open port between ", start_port, " and ", start_port + max_offset,
+    call. = FALSE
+  )
+}
+
 # Detect mounted directories
 detect_mounted_directories <- function() {
-  bids_available <- dir.exists("/data/bids_dir")
-  derivatives_available <- dir.exists("/data/derivatives_dir")
-  blood_available <- dir.exists("/data/blood_dir")
+  # Prefer explicit paths when provided, otherwise fall back to conventional
+  # bind mount locations used by Docker/Singularity wrapper scripts.
+  bids_candidate <- opt$bids_dir %||% "/data/bids_dir"
+  derivatives_candidate <- opt$derivatives_dir %||% "/data/derivatives_dir"
+  blood_candidate <- opt$blood_dir %||% "/data/blood_dir"
+
+  bids_available <- dir.exists(bids_candidate)
+  derivatives_available <- dir.exists(derivatives_candidate)
+  blood_available <- dir.exists(blood_candidate)
   
   cat("=== Directory Detection ===\n")
-  cat("BIDS directory mounted:", bids_available, "\n")
-  cat("Derivatives directory mounted:", derivatives_available, "\n")
-  cat("Blood directory mounted:", blood_available, "\n")
+  cat("BIDS directory available:", bids_available, "\n")
+  cat("Derivatives directory available:", derivatives_available, "\n")
+  cat("Blood directory available:", blood_available, "\n")
+  if (!is.null(opt$bids_dir)) {
+    cat("BIDS explicit path:", bids_candidate, "\n")
+  }
+  if (!is.null(opt$derivatives_dir)) {
+    cat("Derivatives explicit path:", derivatives_candidate, "\n")
+  }
+  if (!is.null(opt$blood_dir)) {
+    cat("Blood explicit path:", blood_candidate, "\n")
+  }
   cat("\n")
   
   # Validate at least one primary directory exists
   if (!bids_available && !derivatives_available) {
-    stop("At least one of bids_dir or derivatives_dir must be mounted", call.=FALSE)
+    stop("At least one of bids_dir or derivatives_dir must be available (bind mount or explicit path)", call.=FALSE)
   }
   
   # Set directory paths based on what's available
-  bids_dir <- if(bids_available) "/data/bids_dir" else NULL
-  derivatives_dir <- if(derivatives_available) "/data/derivatives_dir" else NULL
-  blood_dir <- if(blood_available) "/data/blood_dir" else NULL
+  bids_dir <- if (bids_available) bids_candidate else NULL
+  derivatives_dir <- if (derivatives_available) derivatives_candidate else NULL
+  blood_dir <- if (blood_available) blood_candidate else NULL
   
   return(list(
     bids_dir = bids_dir,
@@ -116,8 +165,18 @@ cat("\n")
 
 # Execute based on mode
 if (opt$mode == "interactive") {
+  requested_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", unset = "3838")))
+  if (is.na(requested_port) || requested_port < 1L || requested_port > 65535L) {
+    requested_port <- 3838L
+  }
+  selected_port <- find_open_port(requested_port)
+  if (selected_port != requested_port) {
+    cat("Requested Shiny port", requested_port, "is in use. Using", selected_port, "instead.\n")
+  }
+  Sys.setenv(PETFIT_SHINY_PORT = as.character(selected_port))
+
   cat("=== Starting Interactive Mode ===\n")
-  cat("Shiny app will be available at http://localhost:3838\n")
+  cat("Shiny app will be available at http://localhost:", selected_port, "\n", sep = "")
   cat("Container will exit when app is closed\n")
   cat("\n")
 
