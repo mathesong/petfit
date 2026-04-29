@@ -4,6 +4,23 @@ This directory contains Singularity implementation files for running the PETFit 
 
 ## Quick Start
 
+### For Apptainer on HPC
+
+1. Pull the image and create a .sif
+
+```bash
+apptainer pull name_petfit.sif docker://mathesong/petfit:latest
+```
+
+2. SSH port forwarding, as Apptainer typically uses the host network (no Docker-style -p host:container port publishing).
+
+```bash
+ssh -L 3838:localhost:3838 username@servername
+```
+
+3. Run as usual (read `Direct Singularity Commands`)
+
+
 ### Building the Container
 
 ```bash
@@ -203,7 +220,7 @@ Automatic mode runs processing pipelines without user interaction, ideal for bat
 
 ### Direct Singularity Commands
 
-If you prefer to use Singularity directly:
+If you prefer to use Singularity or Apptainer (replace `singularity` with `apptainer`) directly:
 
 ```bash
 # Interactive modelling app with plasma input
