@@ -118,33 +118,33 @@ Sys.setenv(PETFIT_DOCKER_BUILD = "true")
 devtools::test(filter = "integration-docker")
 ```
 
-### Container tests (Singularity / Apptainer)
+### Container tests (Apptainer)
 
-Requires `singularity` or `apptainer` CLI:
+Requires `apptainer` (or `singularity`) CLI:
 
 **Bash:**
 ```bash
 # With a .sif file
 PETFIT_INTEGRATION_TESTS=true \
-PETFIT_SINGULARITY_TESTS=true \
-PETFIT_SINGULARITY_SIF=/path/to/petfit_latest.sif \
-  Rscript -e "devtools::test(filter = 'integration-singularity')"
+PETFIT_APPTAINER_TESTS=true \
+PETFIT_APPTAINER_SIF=/path/to/petfit_latest.sif \
+  Rscript -e "devtools::test(filter = 'integration-apptainer')"
 
 # Or with the Docker image available (uses docker-daemon: reference)
 PETFIT_INTEGRATION_TESTS=true \
-PETFIT_SINGULARITY_TESTS=true \
-  Rscript -e "devtools::test(filter = 'integration-singularity')"
+PETFIT_APPTAINER_TESTS=true \
+  Rscript -e "devtools::test(filter = 'integration-apptainer')"
 ```
 
 **R:**
 ```r
 Sys.setenv(PETFIT_INTEGRATION_TESTS = "true")
-Sys.setenv(PETFIT_SINGULARITY_TESTS = "true")
-Sys.setenv(PETFIT_SINGULARITY_SIF = "/path/to/petfit_latest.sif")
-devtools::test(filter = "integration-singularity")
+Sys.setenv(PETFIT_APPTAINER_TESTS = "true")
+Sys.setenv(PETFIT_APPTAINER_SIF = "/path/to/petfit_latest.sif")
+devtools::test(filter = "integration-apptainer")
 ```
 
-Script validation tests (no container needed) run with just `PETFIT_INTEGRATION_TESTS=true` and are included in the Singularity test file.
+Definition file validation tests (no container needed) run with just `PETFIT_INTEGRATION_TESTS=true` and are included in the Apptainer test file.
 
 ### All integration tests (including containers)
 
@@ -152,7 +152,7 @@ Script validation tests (no container needed) run with just `PETFIT_INTEGRATION_
 ```bash
 PETFIT_INTEGRATION_TESTS=true \
 PETFIT_DOCKER_TESTS=true \
-PETFIT_SINGULARITY_TESTS=true \
+PETFIT_APPTAINER_TESTS=true \
   Rscript -e "devtools::test(filter = 'integration')"
 ```
 
@@ -160,7 +160,7 @@ PETFIT_SINGULARITY_TESTS=true \
 ```r
 Sys.setenv(PETFIT_INTEGRATION_TESTS = "true")
 Sys.setenv(PETFIT_DOCKER_TESTS = "true")
-Sys.setenv(PETFIT_SINGULARITY_TESTS = "true")
+Sys.setenv(PETFIT_APPTAINER_TESTS = "true")
 devtools::test(filter = "integration")
 ```
 
@@ -249,7 +249,7 @@ Integration tests verify petfit pipelines end-to-end using real PET data from [O
 | `test-integration-modelling-plasma.R` | Plasma pipeline: datadef, weights, delay, 2TCM model, single-subject, zero-delay |
 | `test-integration-modelling-ref.R` | Reference tissue pipeline: datadef, reference TAC, SRTM model, single-subject |
 | `test-integration-docker.R` | Docker container: regiondef, plasma, reference, error handling |
-| `test-integration-singularity.R` | Singularity/Apptainer scripts and container execution |
+| `test-integration-apptainer.R` | Apptainer definition file and container execution |
 
 ### Test Data
 
@@ -304,8 +304,8 @@ Each test creates an isolated workspace via `create_integration_workspace()`:
 | `PETFIT_INTEGRATION_CACHE` | `tempdir()/petfit_integration` | Persistent cache for extracted data |
 | `PETFIT_DOCKER_TESTS` | (unset) | Set to `true` to enable Docker tests |
 | `PETFIT_DOCKER_BUILD` | (unset) | Set to `true` to rebuild Docker image before testing |
-| `PETFIT_SINGULARITY_TESTS` | (unset) | Set to `true` to enable Singularity tests |
-| `PETFIT_SINGULARITY_SIF` | (unset) | Explicit path to `.sif` container file |
+| `PETFIT_APPTAINER_TESTS` | (unset) | Set to `true` to enable Apptainer tests |
+| `PETFIT_APPTAINER_SIF` | (unset) | Explicit path to `.sif` container file |
 
 ---
 
@@ -437,14 +437,14 @@ devtools::test(filter = "integration-modelling-<name>")
 |----------|---------|
 | `skip_if_no_integration()` | Skip test if `PETFIT_INTEGRATION_TESTS` not set |
 | `skip_if_no_docker()` | Skip test if Docker not available |
-| `skip_if_no_singularity()` | Skip test if Singularity/Apptainer not available |
+| `skip_if_no_apptainer()` | Skip test if Apptainer not available |
 | `ensure_testdata()` | Extract test data tarball, return dataset path |
 | `create_integration_workspace(dataset_dir)` | Create isolated workspace with symlinked source data |
 | `cleanup_workspace(ws)` | Remove temporary workspace |
 | `setup_regiondef_config(ws)` | Copy `petfit_regions.tsv` to workspace |
 | `setup_modelling_config(ws, config_name)` | Copy JSON config fixture to analysis folder |
 | `run_petfit_docker(...)` | Execute Docker container |
-| `run_petfit_singularity(...)` | Execute Singularity container |
+| `run_petfit_apptainer(...)` | Execute Apptainer container |
 
 ---
 
@@ -454,7 +454,7 @@ The workflow at `.github/workflows/integration-tests.yml` runs three parallel jo
 
 1. **R-native**: Uses test data from repo checkout, runs all `integration-*` test files
 2. **Docker**: Builds Docker image with GHA layer caching, runs Docker-specific integration tests
-3. **Apptainer**: Installs Apptainer, builds Docker image, runs Singularity-specific tests
+3. **Apptainer**: Installs Apptainer, builds Docker image, runs Apptainer-specific tests
 
 The workflow triggers on pushes to `main`, pull requests, and manual dispatch.
 
@@ -466,7 +466,7 @@ The workflow triggers on pushes to `main`, pull requests, and manual dispatch.
 
 **Docker tests skip**: Pull the image (`docker pull mathesong/petfit:latest`) or set `PETFIT_DOCKER_BUILD=true`.
 
-**Singularity tests skip**: Provide a `.sif` file via `PETFIT_SINGULARITY_SIF` or ensure the Docker image is available.
+**Apptainer tests skip**: Provide a `.sif` file via `PETFIT_APPTAINER_SIF` or ensure the Docker image is available.
 
 **Regiondef fails with "No regions could be matched"**: Check that the `description` column in `petfit_regions.tsv` uses the correct BIDS key ordering (`seg-gtm_desc-preproc`).
 

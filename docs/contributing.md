@@ -45,7 +45,7 @@ petfit/
 ├── inst/rmd/                   # Parameterised report templates (Rmd)
 ├── tests/testthat/             # Unit and integration tests
 ├── docker/                     # Docker configuration
-├── singularity/                # Singularity/Apptainer configuration
+├── apptainer/                  # Apptainer configuration
 ├── docs/                       # Sphinx documentation (this site)
 ├── DESCRIPTION                 # R package metadata
 ├── NAMESPACE                   # Exported functions
@@ -111,11 +111,11 @@ PETFIT_INTEGRATION_TESTS=true \
   Rscript -e "devtools::test()"
 ```
 
-**Full integration battery with Apptainer/Singularity**:
+**Full integration battery with Apptainer**:
 
 ```bash
 PETFIT_INTEGRATION_TESTS=true \
-  PETFIT_SINGULARITY_TESTS=true \
+  PETFIT_APPTAINER_TESTS=true \
   Rscript -e "devtools::test()"
 ```
 
@@ -124,7 +124,7 @@ PETFIT_INTEGRATION_TESTS=true \
 ```bash
 PETFIT_INTEGRATION_TESTS=true \
   PETFIT_DOCKER_TESTS=true \
-  PETFIT_SINGULARITY_TESTS=true \
+  PETFIT_APPTAINER_TESTS=true \
   Rscript -e "devtools::test()"
 ```
 
@@ -217,9 +217,9 @@ Integration tests verify full PETFit pipelines end-to-end using real PET data fr
 | `test-integration-ancillary.R` | Ancillary folder inheritance: delay and k2prime |
 | `test-integration-parallel.R` | Parallel processing (R-native) |
 | `test-integration-docker.R` | Docker container execution |
-| `test-integration-singularity.R` | Singularity/Apptainer container execution |
+| `test-integration-apptainer.R` | Apptainer container execution |
 | `test-integration-parallel-docker.R` | Parallel processing in Docker |
-| `test-integration-parallel-singularity.R` | Parallel processing in Singularity |
+| `test-integration-parallel-apptainer.R` | Parallel processing in Apptainer |
 
 #### Environment variables
 
@@ -230,8 +230,8 @@ Integration tests verify full PETFit pipelines end-to-end using real PET data fr
 | `PETFIT_INTEGRATION_CACHE` | Persistent cache directory for extracted data |
 | `PETFIT_DOCKER_TESTS=true` | Enable Docker container tests |
 | `PETFIT_DOCKER_BUILD=true` | Rebuild Docker image before testing |
-| `PETFIT_SINGULARITY_TESTS=true` | Enable Singularity/Apptainer tests |
-| `PETFIT_SINGULARITY_SIF` | Explicit path to `.sif` container file |
+| `PETFIT_APPTAINER_TESTS=true` | Enable Apptainer tests |
+| `PETFIT_APPTAINER_SIF` | Explicit path to `.sif` container file |
 
 #### Test data
 
@@ -337,14 +337,14 @@ test_that("pipeline produces expected output", {
 |----------|---------|
 | `skip_if_no_integration()` | Skip test if `PETFIT_INTEGRATION_TESTS` not set |
 | `skip_if_no_docker()` | Skip test if Docker not available |
-| `skip_if_no_singularity()` | Skip test if Singularity/Apptainer not available |
+| `skip_if_no_apptainer()` | Skip test if Apptainer not available |
 | `ensure_testdata()` | Extract test data tarball (cached per session) |
 | `create_integration_workspace(dataset_dir)` | Create isolated workspace with symlinks |
 | `cleanup_workspace(ws)` | Remove temporary workspace |
 | `setup_regiondef_config(ws)` | Copy `petfit_regions.tsv` to workspace |
 | `setup_modelling_config(ws, config_name)` | Copy JSON config fixture to analysis folder |
 | `run_petfit_docker(...)` | Execute Docker container with proper mounts |
-| `run_petfit_singularity(...)` | Execute Singularity container with bind mounts |
+| `run_petfit_apptainer(...)` | Execute Apptainer container with bind mounts |
 
 **`tests/testthat/helper-setup.R`** loads the `here` package and sets the package root directory.
 
@@ -354,7 +354,7 @@ Integration tests run automatically on GitHub Actions (`.github/workflows/integr
 
 1. **R-native** — Uses test data from the repository, runs all integration tests.
 2. **Docker** — Builds the Docker image with layer caching, runs container tests.
-3. **Apptainer** — Installs Apptainer, builds from Docker image, runs Singularity tests.
+3. **Apptainer** — Installs Apptainer, builds from Docker image, runs Apptainer tests.
 
 The workflow triggers on pushes to `main`, pull requests, and manual dispatch.
 

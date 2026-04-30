@@ -1,44 +1,22 @@
-# Integration tests: Singularity/Apptainer container
+# Integration tests: Apptainer container
 #
-# Tests petfit Singularity container in automatic mode using real ds004869 data.
-# Also validates shell scripts and definition file without requiring a container.
+# Tests petfit Apptainer container in automatic mode using real ds004869 data.
+# Also validates the container definition file without requiring a built container.
 #
-# Container tests require: PETFIT_INTEGRATION_TESTS=true, PETFIT_SINGULARITY_TESTS=true,
-#   and either singularity or apptainer CLI available.
+# Container tests require: PETFIT_INTEGRATION_TESTS=true, PETFIT_APPTAINER_TESTS=true,
+#   and either apptainer or singularity CLI available.
 #
-# Script validation tests run with just PETFIT_INTEGRATION_TESTS=true (no container needed).
+# Definition validation tests run with just PETFIT_INTEGRATION_TESTS=true (no container needed).
 
 # ---------------------------------------------------------------------------
-# Script validation (no container needed)
+# Definition file validation (no container needed)
 # ---------------------------------------------------------------------------
 
-test_that("Singularity shell scripts are executable", {
+test_that("Apptainer definition file has required sections", {
   skip_if_no_integration()
 
   pkg_root <- testthat::test_path("..", "..")
-  singularity_dir <- file.path(pkg_root, "singularity")
-
-  scripts <- c("build.sh", "run-interactive.sh", "run-automatic.sh",
-               "run-regiondef.sh", "test-basic.sh")
-
-  for (script in scripts) {
-    script_path <- file.path(singularity_dir, script)
-    expect_true(file.exists(script_path),
-                info = paste("Script should exist:", script))
-
-    # Check executable permission
-    file_info <- file.info(script_path)
-    expect_true(as.integer(file_info$mode) %% 2 == 1 ||
-                  bitwAnd(as.integer(file_info$mode), 0x49) > 0,
-                info = paste("Script should be executable:", script))
-  }
-})
-
-test_that("Singularity definition file has required sections", {
-  skip_if_no_integration()
-
-  pkg_root <- testthat::test_path("..", "..")
-  def_file <- file.path(pkg_root, "singularity", "petfit.def")
+  def_file <- file.path(pkg_root, "apptainer", "petfit.def")
 
   expect_true(file.exists(def_file), info = "petfit.def should exist")
 
@@ -57,75 +35,29 @@ test_that("Singularity definition file has required sections", {
               info = "Definition should install kinfitr")
 })
 
-test_that("Singularity run-automatic.sh validates arguments", {
-  skip_if_no_integration()
-
-  pkg_root <- testthat::test_path("..", "..")
-  script <- file.path(pkg_root, "singularity", "run-automatic.sh")
-
-  # Should fail with invalid step
-  result <- suppressWarnings(
-    system2("bash", c(script, "--derivatives-dir", "/tmp", "--step", "invalid"),
-            stdout = TRUE, stderr = TRUE)
-  )
-  exit_code <- attr(result, "status") %||% 0L
-  expect_true(exit_code != 0L, info = "Should reject invalid step")
-
-  # Should fail with missing func
-  result2 <- suppressWarnings(
-    system2("bash", c(script, "--derivatives-dir", "/tmp"),
-            stdout = TRUE, stderr = TRUE)
-  )
-  exit_code2 <- attr(result2, "status") %||% 0L
-  expect_true(exit_code2 != 0L, info = "Should require --func argument")
-})
-
-test_that("Singularity run-interactive.sh validates arguments", {
-  skip_if_no_integration()
-
-  pkg_root <- testthat::test_path("..", "..")
-  script <- file.path(pkg_root, "singularity", "run-interactive.sh")
-
-  # Should fail with invalid function
-  result <- suppressWarnings(
-    system2("bash", c(script, "--func", "invalid", "--bids-dir", "/tmp"),
-            stdout = TRUE, stderr = TRUE)
-  )
-  exit_code <- attr(result, "status") %||% 0L
-  expect_true(exit_code != 0L, info = "Should reject invalid function")
-
-  # Should fail with no directories
-  result2 <- suppressWarnings(
-    system2("bash", c(script, "--func", "regiondef"),
-            stdout = TRUE, stderr = TRUE)
-  )
-  exit_code2 <- attr(result2, "status") %||% 0L
-  expect_true(exit_code2 != 0L, info = "Should require at least one directory")
-})
-
 # ---------------------------------------------------------------------------
 # Container tests: regiondef automatic mode
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: regiondef automatic mode produces combined TACs", {
-  skip_if_no_singularity()
+test_that("Apptainer: regiondef automatic mode produces combined TACs", {
+  skip_if_no_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
     testthat::skip(paste(
-      "No Singularity container found. Provide via one of:",
-      "  1. PETFIT_SINGULARITY_SIF=/path/to/petfit.sif",
-      "  2. Place .sif file in singularity/ directory",
+      "No Apptainer container found. Provide via one of:",
+      "  1. PETFIT_APPTAINER_SIF=/path/to/petfit.sif",
+      "  2. Place .sif file in apptainer/ directory",
       "  3. Have Docker image mathesong/petfit:latest available",
       sep = "\n"
     ))
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
@@ -133,7 +65,7 @@ test_that("Singularity: regiondef automatic mode produces combined TACs", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity regiondef failed:",
+               info = paste("Apptainer regiondef failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify output files were created
@@ -147,34 +79,34 @@ test_that("Singularity: regiondef automatic mode produces combined TACs", {
 # Container tests: modelling pipelines
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: plasma modelling full pipeline succeeds", {
-  skip_if_no_singularity()
+test_that("Apptainer: plasma modelling full pipeline succeeds", {
+  skip_if_no_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # Install plasma config
   setup_modelling_config(ws, "ds004869_plasma_config.json")
 
   # Run full plasma pipeline
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_plasma",
     mode = "automatic",
     workspace_info = ws,
@@ -182,7 +114,7 @@ test_that("Singularity: plasma modelling full pipeline succeeds", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity plasma pipeline failed:",
+               info = paste("Apptainer plasma pipeline failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify reports
@@ -191,34 +123,34 @@ test_that("Singularity: plasma modelling full pipeline succeeds", {
   expect_true(dir.exists(reports_dir), info = "Reports directory should exist")
 })
 
-test_that("Singularity: reference tissue modelling full pipeline succeeds", {
-  skip_if_no_singularity()
+test_that("Apptainer: reference tissue modelling full pipeline succeeds", {
+  skip_if_no_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # Install ref config
   setup_modelling_config(ws, "ds004869_ref_config.json")
 
   # Run full reference tissue pipeline
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_ref",
     mode = "automatic",
     workspace_info = ws,
@@ -226,7 +158,7 @@ test_that("Singularity: reference tissue modelling full pipeline succeeds", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity reference pipeline failed:",
+               info = paste("Apptainer reference pipeline failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify reports
@@ -239,34 +171,34 @@ test_that("Singularity: reference tissue modelling full pipeline succeeds", {
 # Container tests: ancillary delay inheritance
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: plasma pipeline with ancillary delay inheritance", {
-  skip_if_no_singularity()
+test_that("Apptainer: plasma pipeline with ancillary delay inheritance", {
+  skip_if_no_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # --- Ancillary pipeline: datadef -> weights -> delay ---
   setup_modelling_config(ws, "ds004869_plasma_config.json", "Ancillary_Analysis")
 
   for (s in c("datadef", "weights", "delay")) {
-    step_result <- run_petfit_singularity(
+    step_result <- run_petfit_apptainer(
       func = "modelling_plasma",
       mode = "automatic",
       workspace_info = ws,
@@ -275,7 +207,7 @@ test_that("Singularity: plasma pipeline with ancillary delay inheritance", {
       analysis_foldername = "Ancillary_Analysis"
     )
     expect_equal(step_result$exit_code, 0L,
-                 info = paste("Singularity ancillary step", s, "failed:",
+                 info = paste("Apptainer ancillary step", s, "failed:",
                               paste(step_result$output, collapse = "\n")))
   }
 
@@ -298,7 +230,7 @@ test_that("Singularity: plasma pipeline with ancillary delay inheritance", {
                        pretty = TRUE, auto_unbox = TRUE)
 
   # Run full primary pipeline with ancillary_analysis_folder
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_plasma",
     mode = "automatic",
     workspace_info = ws,
@@ -307,7 +239,7 @@ test_that("Singularity: plasma pipeline with ancillary delay inheritance", {
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity primary with ancillary delay failed:",
+               info = paste("Apptainer primary with ancillary delay failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify delay files were copied to primary
@@ -328,33 +260,33 @@ test_that("Singularity: plasma pipeline with ancillary delay inheritance", {
 # Container tests: ancillary k2prime inheritance
 # ---------------------------------------------------------------------------
 
-test_that("Singularity: reference pipeline with ancillary k2prime inheritance", {
-  skip_if_no_singularity()
+test_that("Apptainer: reference pipeline with ancillary k2prime inheritance", {
+  skip_if_no_apptainer()
 
-  container <- find_singularity_container()
+  container <- find_apptainer_container()
   if (is.null(container)) {
-    testthat::skip("No Singularity container available")
+    testthat::skip("No Apptainer container available")
   }
 
-  ws <- setup_singularity_workspace()
+  ws <- setup_apptainer_workspace()
   withr::defer(cleanup_workspace(ws))
   setup_regiondef_config(ws)
 
   # Run regiondef first
-  regiondef_result <- run_petfit_singularity(
+  regiondef_result <- run_petfit_apptainer(
     func = "regiondef",
     mode = "automatic",
     workspace_info = ws,
     container = container
   )
   if (regiondef_result$exit_code != 0L) {
-    testthat::skip("Singularity regiondef prerequisite failed")
+    testthat::skip("Apptainer regiondef prerequisite failed")
   }
 
   # --- Ancillary pipeline: fit SRTM (produces kinpar with k2prime) ---
   setup_modelling_config(ws, "ds004869_ref_config.json", "Ancillary_Analysis")
 
-  ancillary_result <- run_petfit_singularity(
+  ancillary_result <- run_petfit_apptainer(
     func = "modelling_ref",
     mode = "automatic",
     workspace_info = ws,
@@ -363,7 +295,7 @@ test_that("Singularity: reference pipeline with ancillary k2prime inheritance", 
   )
 
   expect_equal(ancillary_result$exit_code, 0L,
-               info = paste("Singularity ancillary SRTM pipeline failed:",
+               info = paste("Apptainer ancillary SRTM pipeline failed:",
                             paste(ancillary_result$output, collapse = "\n")))
 
   # Verify ancillary produced model1 kinpar files with k2prime column
@@ -395,7 +327,7 @@ test_that("Singularity: reference pipeline with ancillary k2prime inheritance", 
                        pretty = TRUE, auto_unbox = TRUE)
 
   # Run full primary pipeline with ancillary k2prime
-  result <- run_petfit_singularity(
+  result <- run_petfit_apptainer(
     func = "modelling_ref",
     mode = "automatic",
     workspace_info = ws,
@@ -404,7 +336,7 @@ test_that("Singularity: reference pipeline with ancillary k2prime inheritance", 
   )
 
   expect_equal(result$exit_code, 0L,
-               info = paste("Singularity primary MRTM2 with ancillary k2prime failed:",
+               info = paste("Apptainer primary MRTM2 with ancillary k2prime failed:",
                             paste(result$output, collapse = "\n")))
 
   # Verify MRTM2 model report was generated

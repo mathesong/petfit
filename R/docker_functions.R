@@ -122,13 +122,13 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
         validation$messages <- c(validation$messages, paste("Blood data directory required for step:", step))
       }
     } else {
-      # Check for blood files
-      blood_files <- list.files(blood_dir, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
+      # Explicit blood_dir should contain processed input functions.
+      blood_files <- list.files(blood_dir, pattern = "_inputfunction\\.tsv$", recursive = TRUE)
       if (length(blood_files) == 0) {
         validation$valid <- FALSE
-        validation$messages <- c(validation$messages, "No blood data files found in blood directory")
+        validation$messages <- c(validation$messages, "No inputfunction.tsv files found in blood directory")
       } else {
-        validation$messages <- c(validation$messages, paste("Found", length(blood_files), "blood data files"))
+        validation$messages <- c(validation$messages, paste("Found", length(blood_files), "inputfunction files"))
       }
     }
   }

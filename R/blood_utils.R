@@ -138,8 +138,8 @@ get_blood_data_status <- function(analysis_folder, bids_dir = NULL, blood_dir = 
     length(list.files(path, pattern = pattern, recursive = TRUE))
   }
 
-  has_blood_dir <- count_files(blood_dir, "\\.tsv$") > 0
-  has_analysis_blood <- count_files(analysis_folder, "(inputfunction|blood)\\.tsv$") > 0
+  has_blood_dir <- count_files(blood_dir, "_inputfunction\\.tsv$") > 0
+  has_analysis_blood <- count_files(analysis_folder, "_inputfunction\\.tsv$") > 0
   has_bids_blood <- count_files(bids_dir, "_blood\\.tsv$") > 0
 
   priority_source <- if (has_blood_dir) {

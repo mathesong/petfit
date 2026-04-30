@@ -50,7 +50,7 @@ make html
 | `usage/reports.md` | Parameterised HTML reports |
 | `containers/index.md` | Container overview |
 | `containers/docker.md` | Docker usage |
-| `containers/singularity.md` | Singularity/Apptainer usage |
+| `containers/apptainer.md` | Apptainer usage |
 
 ## Adding a new page
 

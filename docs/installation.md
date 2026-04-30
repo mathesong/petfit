@@ -49,31 +49,30 @@ docker build -f docker/Dockerfile -t mathesong/petfit:latest .
 
 See [Docker usage](containers/docker.md) for full details on running the container.
 
-## Singularity / Apptainer
+## Apptainer
 
-Singularity (now called [Apptainer](https://apptainer.org/)) is the standard container runtime on HPC clusters. PETFit provides build scripts and run wrappers in the `singularity/` directory.
+[Apptainer](https://apptainer.org/) (formerly Singularity) is the standard container runtime on HPC clusters. PETFit's Apptainer definition file lives in the `apptainer/` directory.
 
 ### Build from the Docker image
 
+The fastest path is to convert the published Docker image directly into a SIF file:
+
 ```bash
-cd singularity/
-./build.sh
+apptainer build petfit_latest.sif docker://mathesong/petfit:latest
 ```
 
-This creates a `petfit_latest.sif` file. You can customise the build:
+### Build from the definition file
+
+If you need to customise the build (e.g. work offline or modify dependencies):
 
 ```bash
-# Custom name and tag
-./build.sh --name petfit --tag v1.0
-
-# Build as writable sandbox for development
-./build.sh --sandbox
+apptainer build petfit_latest.sif apptainer/petfit.def
 ```
 
 ### Prerequisites
 
-- Singularity or Apptainer installed on your system
+- Apptainer installed on your system (or Singularity, which uses the same commands)
 - `sudo` access for building (not required for running)
 - Internet access during the build
 
-See [Singularity usage](containers/singularity.md) for full details, including HPC integration with SLURM, PBS, and LSF.
+See [Apptainer usage](containers/apptainer.md) for full details, including HPC integration with SLURM, PBS, and LSF.

@@ -53,8 +53,8 @@ test_that("get_blood_data_status provides correct status information", {
   analysis_folder <- file.path(temp_dir, "analysis")
   dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
   
-  # Test with blood data present
-  blood_file <- file.path(analysis_folder, "sub-01_ses-01_trc-18FFDG_blood.tsv")
+  # Test with processed input function data present
+  blood_file <- file.path(analysis_folder, "sub-01_ses-01_trc-18FFDG_inputfunction.tsv")
   blood_data <- tibble::tibble(
     time = c(0, 1, 2),
     activity = c(0, 100, 200)
@@ -68,7 +68,7 @@ test_that("get_blood_data_status provides correct status information", {
   expect_true("has_bids_blood" %in% names(result))
   expect_true("priority_source" %in% names(result))
 
-  # Should find blood data in analysis folder
+  # Should find processed input function data in analysis folder
   expect_true(result$has_analysis_blood)
 })
 
@@ -99,8 +99,8 @@ test_that("get_blood_data_status with explicit blood_dir", {
   analysis_folder <- file.path(temp_dir, "analysis")
   dir.create(analysis_folder, showWarnings = FALSE)
   
-  # Add blood file to blood directory
-  blood_file <- file.path(blood_dir, "sub-01_blood.tsv")
+  # Add processed input function file to blood directory
+  blood_file <- file.path(blood_dir, "sub-01_inputfunction.tsv")
   blood_data <- tibble::tibble(
     time = c(0, 1, 2),
     activity = c(0, 100, 200)
@@ -111,6 +111,51 @@ test_that("get_blood_data_status with explicit blood_dir", {
   
   expect_true(result$has_blood_dir)
   expect_equal(result$priority_source, "blood_dir")
+  
+  # Cleanup
+  unlink(temp_dir, recursive = TRUE)
+})
+
+test_that("get_blood_data_status ignores non-blood TSV files in explicit blood_dir", {
+  
+  temp_dir <- tempdir()
+  blood_dir <- file.path(temp_dir, "blood_data_nonblood_tsv")
+  dir.create(blood_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  analysis_folder <- file.path(temp_dir, "analysis_nonblood_tsv")
+  dir.create(analysis_folder, showWarnings = FALSE)
+  
+  non_blood_file <- file.path(blood_dir, "participants.tsv")
+  readr::write_tsv(tibble::tibble(participant_id = "sub-01"), non_blood_file)
+  
+  result <- get_blood_data_status(blood_dir = blood_dir, analysis_folder = analysis_folder)
+  
+  expect_false(result$has_blood_dir)
+  expect_equal(result$priority_source, "none")
+  
+  # Cleanup
+  unlink(temp_dir, recursive = TRUE)
+})
+
+test_that("get_blood_data_status ignores raw blood TSV files in explicit blood_dir", {
+  
+  temp_dir <- tempdir()
+  blood_dir <- file.path(temp_dir, "blood_data_raw_tsv")
+  dir.create(blood_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  analysis_folder <- file.path(temp_dir, "analysis_raw_tsv")
+  dir.create(analysis_folder, showWarnings = FALSE)
+  
+  raw_blood_file <- file.path(blood_dir, "sub-01_blood.tsv")
+  readr::write_tsv(
+    tibble::tibble(time = c(0, 1), activity = c(0, 100)),
+    raw_blood_file
+  )
+  
+  result <- get_blood_data_status(blood_dir = blood_dir, analysis_folder = analysis_folder)
+  
+  expect_false(result$has_blood_dir)
+  expect_equal(result$priority_source, "none")
   
   # Cleanup
   unlink(temp_dir, recursive = TRUE)

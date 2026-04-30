@@ -292,8 +292,7 @@ On Linux systems, if you encounter permission issues where output files are owne
 
 ## Apptainer Usage
 
-PETFit can also be run with Apptainer/Singularity by converting the Docker image into a SIF file and binding the same directorie
-s used in the Docker examples.
+PETFit can also be run with [Apptainer](https://apptainer.org/) (formerly Singularity) by converting the Docker image into a SIF file and binding the same directories used in the Docker examples. See the `apptainer/` folder and [Apptainer documentation](docs/containers/apptainer.md) for HPC integration examples.
 
 ### Build SIF from Docker Hub
 

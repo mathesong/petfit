@@ -122,7 +122,7 @@ On Linux, Docker containers run as root by default. Add `--user $(id -u):$(id -g
 
 Map to a different host port: `-p 8080:3838` instead of `-p 3838:3838`.
 
-## Singularity / HPC issues
+## Apptainer / HPC issues
 
 ### No internet access on compute nodes
 
@@ -130,20 +130,20 @@ Build the container on a login node, then transfer the `.sif` file to your proje
 
 ### Home directory size limits
 
-Set `SINGULARITY_CACHEDIR` to a scratch directory:
+Set `APPTAINER_CACHEDIR` to a scratch directory:
 
 ```bash
-export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
+export APPTAINER_CACHEDIR=/scratch/$USER/apptainer_cache
 ```
 
-### Finding the Singularity module
+### Finding the Apptainer module
 
 Common module names:
 
 ```bash
-module load singularity
 module load apptainer
+module load singularity
 module load singularity-ce
 ```
 
-See [Singularity troubleshooting](containers/singularity.md#troubleshooting) for more details.
+See [Apptainer troubleshooting](containers/apptainer.md#troubleshooting) for more details.

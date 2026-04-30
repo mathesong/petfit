@@ -2,7 +2,7 @@ name: Integration Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, apptainer_adventures]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,8 +12,8 @@ on:
         required: false
         type: boolean
         default: true
-      run_singularity:
-        description: 'Run Singularity/Apptainer container tests'
+      run_apptainer:
+        description: 'Run Apptainer container tests'
         required: false
         type: boolean
         default: true
@@ -109,15 +109,15 @@ jobs:
           Rscript -e "devtools::test(filter = 'integration.*docker', stop_on_failure = TRUE)"
 
   # =========================================================================
-  # Job 3: Apptainer/Singularity container tests
+  # Job 3: Apptainer container tests
   # =========================================================================
-  singularity:
+  apptainer:
     name: Apptainer container tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: >-
       github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.run_singularity == 'true'
+      github.event.inputs.run_apptainer == 'true'
 
     steps:
       - name: Checkout repository
@@ -151,11 +151,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Singularity integration tests
+      - name: Run Apptainer integration tests
         env:
           PETFIT_INTEGRATION_TESTS: "true"
-          PETFIT_SINGULARITY_TESTS: "true"
+          PETFIT_APPTAINER_TESTS: "true"
           PETFIT_PARALLEL_TESTS: "true"
           PETFIT_INTEGRATION_CACHE: /tmp/petfit_integration
         run: |
-          Rscript -e "devtools::test(filter = 'integration.*singularity', stop_on_failure = TRUE)"
+          Rscript -e "devtools::test(filter = 'integration.*apptainer', stop_on_failure = TRUE)"

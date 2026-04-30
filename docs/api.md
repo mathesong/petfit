@@ -103,7 +103,7 @@ All other arguments are the same as `petfit_interactive()`.
 
 ## Container command-line options
 
-When running PETFit in Docker or Singularity/Apptainer, the container accepts these flags:
+When running PETFit in Docker or Apptainer, the container accepts these flags:
 
 | Flag | Description |
 |------|-------------|

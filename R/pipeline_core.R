@@ -295,19 +295,20 @@ execute_delay_step <- function(config_path, output_dir,
     }
 
     # Check if blood data is available
-    check_blood_files <- function(dir_path) {
+    check_blood_files <- function(dir_path, pattern) {
       if (is.null(dir_path) || !dir.exists(dir_path)) {
         return(FALSE)
       }
-      blood_files <- list.files(dir_path, pattern = "_(blood|inputfunction)\\.tsv$", recursive = TRUE)
+      blood_files <- list.files(dir_path, pattern = pattern, recursive = TRUE)
       return(length(blood_files) > 0)
     }
 
     has_blood_data <- FALSE
     if (!is.null(blood_dir)) {
-      has_blood_data <- check_blood_files(blood_dir)
+      has_blood_data <- check_blood_files(blood_dir, "_inputfunction\\.tsv$")
     } else if (!is.null(bids_dir)) {
-      has_blood_data <- check_blood_files(output_dir) || check_blood_files(bids_dir)
+      has_blood_data <- check_blood_files(output_dir, "_inputfunction\\.tsv$") ||
+        check_blood_files(bids_dir, "_blood\\.tsv$")
     }
 
     if (!has_blood_data) {
