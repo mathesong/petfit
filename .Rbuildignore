@@ -9,3 +9,5 @@ tests/testthat/fixtures/integration/README\.md$
 ^docs$
 ^\.readthedocs\.yaml$
 ^plan_docs\.md$
+^\.positai$
+^\.claude$
