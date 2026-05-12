@@ -1150,15 +1150,24 @@ summarise_tacs_descriptions <- function(dir_path) {
                   -measurement) %>%
     dplyr::distinct()
 
-  # Filter for files with seg or label attributes (silently exclude others)
-  # kinfitr::bids_parse_files() should provide seg and label columns if present
-  if ("seg" %in% colnames(unnested_tacfiledata) || "label" %in% colnames(unnested_tacfiledata)) {
-    unnested_tacfiledata <- unnested_tacfiledata %>%
-      dplyr::filter(!is.na(seg) | !is.na(label))
-  } else {
-    # No seg or label columns found - return empty
+  # Filter for files with seg or label attributes (silently exclude others).
+  # kinfitr::bids_parse_files() omits the column for any entity that never
+  # appears in the parsed filenames, so a tree using only seg-* (or only
+  # label-*) lacks the other column entirely. Pad whichever is missing with
+  # NA before filtering so both branches of `!is.na(seg) | !is.na(label)`
+  # remain resolvable.
+  if (!("seg" %in% colnames(unnested_tacfiledata)) &&
+      !("label" %in% colnames(unnested_tacfiledata))) {
     return(tibble::tibble(description = character(0)))
   }
+  if (!("seg" %in% colnames(unnested_tacfiledata))) {
+    unnested_tacfiledata$seg <- NA_character_
+  }
+  if (!("label" %in% colnames(unnested_tacfiledata))) {
+    unnested_tacfiledata$label <- NA_character_
+  }
+  unnested_tacfiledata <- unnested_tacfiledata %>%
+    dplyr::filter(!is.na(seg) | !is.na(label))
 
   # Return empty if no files match
   if (nrow(unnested_tacfiledata) == 0) {
