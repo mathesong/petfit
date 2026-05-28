@@ -607,104 +607,34 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "MRTM2 (Linear)" = "MRTM2"
                                          ),
                                          selected = "none"),
-                             # SRTM selection panel
-                             conditionalPanel(
-                               condition = "input.button == 'SRTM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("R1.start", "R1.start", value = 1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.lower", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.upper", "R1.upper", value = 5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5,min = 0, step=.5)),
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multiple Starting Points
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                               uiOutput("subset_validation_error")
-                             ),
-
-                            # SRTM2 selection panel
+                            # SRTM / SRTM2 selection panel (shared)
                             conditionalPanel(
-                              condition = "input.button == 'SRTM2'",
+                              condition = "input.button == 'SRTM' || input.button == 'SRTM2'",
                               h4("Model Parameters"),
                               fluidRow(
-                                column(3, offset = 0, numericInput("R1.start", "R1.start", value = 1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.lower", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.upper", "R1.upper", value = 5,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.start", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.lower", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.upper", "R1.upper", value = 5, min = 0, step = .001)),
                               ),
-                              fluidRow(
-                                column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5,min = 0, step=.001)),
-                              ),
-
-                              # TAC Subset Selection
-                              h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                              fluidRow(
-                                column(4,
-                                       selectInput("subset_type", "Selection Method:",
-                                                 choices = list("None" = "none",
-                                                              "Frame Numbers" = "frame",
-                                                              "Time Points (minutes)" = "time"),
-                                                 selected = "none")
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type != 'none'",
-                                         numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                       )
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type != 'none'",
-                                         numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                       )
+                              # k2 is only fitted by SRTM
+                              conditionalPanel(
+                                condition = "input.button == 'SRTM'",
+                                fluidRow(
+                                  column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 0.5, min = 0, step = .001)),
                                 )
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                              numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                              uiOutput("subset_validation_error")
+                              numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -722,31 +652,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  ),
                                  column(4,
                                         numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-                               
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
                                  )
                                )
                              ),
@@ -768,31 +673,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                         conditionalPanel(
                                           condition = "input.tstar_type != 'none'",
                                           numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
-                                        )
-                                 )
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
                                         )
                                  )
                                )
@@ -817,9 +697,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                           numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
                                         )
                                  )
-                               ),
+                               )
+                             ),
 
-                               # TAC Subset Selection
+                             # Shared TAC Subset Selection (any selected model)
+                             conditionalPanel(
+                               condition = "input.button != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -883,104 +766,34 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "MRTM2 (Linear)" = "MRTM2"
                                          ),
                                          selected = "none"),
-                             # SRTM selection panel
-                             conditionalPanel(
-                               condition = "input.button2 == 'SRTM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("R1.start2", "R1.start", value = 1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.lower2", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.upper2", "R1.upper", value = 5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5,min = 0, step=.5)),
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multiple Starting Points
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                               uiOutput("subset_validation_error2")
-                             ),
-
-                            # SRTM2 selection panel
+                            # SRTM / SRTM2 selection panel (shared)
                             conditionalPanel(
-                              condition = "input.button2 == 'SRTM2'",
+                              condition = "input.button2 == 'SRTM' || input.button2 == 'SRTM2'",
                               h4("Model Parameters"),
                               fluidRow(
-                                column(3, offset = 0, numericInput("R1.start2", "R1.start", value = 1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.lower2", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.upper2", "R1.upper", value = 5,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.start2", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.lower2", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.upper2", "R1.upper", value = 5, min = 0, step = .001)),
                               ),
-                              fluidRow(
-                                column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5,min = 0, step=.001)),
-                              ),
-
-                              # TAC Subset Selection
-                              h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                              fluidRow(
-                                column(4,
-                                       selectInput("subset_type2", "Selection Method:",
-                                                 choices = list("None" = "none",
-                                                              "Frame Numbers" = "frame",
-                                                              "Time Points (minutes)" = "time"),
-                                                 selected = "none")
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type2 != 'none'",
-                                         numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                       )
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type2 != 'none'",
-                                         numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                       )
+                              # k2 is only fitted by SRTM
+                              conditionalPanel(
+                                condition = "input.button2 == 'SRTM'",
+                                fluidRow(
+                                  column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 0.5, min = 0, step = .001)),
                                 )
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                              numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                              uiOutput("subset_validation_error2")
+                              numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -998,31 +811,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  ),
                                  column(4,
                                         numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
                                  )
                                )
                              ),
@@ -1044,31 +832,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                         conditionalPanel(
                                           condition = "input.tstar_type2 != 'none'",
                                           numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
-                                        )
-                                 )
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
                                         )
                                  )
                                )
@@ -1093,9 +856,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                           numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
                                         )
                                  )
-                               ),
+                               )
+                             ),
 
-                               # TAC Subset Selection
+                             # Shared TAC Subset Selection (any selected model)
+                             conditionalPanel(
+                               condition = "input.button2 != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -1164,104 +930,34 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "MRTM2 (Linear)" = "MRTM2"
                                          ),
                                          selected = "none"),
-                             # SRTM selection panel
-                             conditionalPanel(
-                               condition = "input.button3 == 'SRTM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("R1.start3", "R1.start", value = 1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.lower3", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("R1.upper3", "R1.upper", value = 5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5,min = 0, step=.5)),
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multiple Starting Points
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                               uiOutput("subset_validation_error3")
-                             ),
-
-                            # SRTM2 selection panel
+                            # SRTM / SRTM2 selection panel (shared)
                             conditionalPanel(
-                              condition = "input.button3 == 'SRTM2'",
+                              condition = "input.button3 == 'SRTM' || input.button3 == 'SRTM2'",
                               h4("Model Parameters"),
                               fluidRow(
-                                column(3, offset = 0, numericInput("R1.start3", "R1.start", value = 1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.lower3", "R1.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("R1.upper3", "R1.upper", value = 5,min = 0, step=.001)),
+                                column(3, offset = 0, numericInput("R1.start3", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.lower3", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("R1.upper3", "R1.upper", value = 5, min = 0, step = .001)),
                               ),
-                              fluidRow(
-                                column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001,min = 0, step=.001)),
-                                column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5,min = 0, step=.001)),
-                              ),
-
-                              # TAC Subset Selection
-                              h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                              fluidRow(
-                                column(4,
-                                       selectInput("subset_type3", "Selection Method:",
-                                                 choices = list("None" = "none",
-                                                              "Frame Numbers" = "frame",
-                                                              "Time Points (minutes)" = "time"),
-                                                 selected = "none")
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type3 != 'none'",
-                                         numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                       )
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type3 != 'none'",
-                                         numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                       )
+                              # k2 is only fitted by SRTM
+                              conditionalPanel(
+                                condition = "input.button3 == 'SRTM'",
+                                fluidRow(
+                                  column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                  column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 0.5, min = 0, step = .001)),
                                 )
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                              numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                              uiOutput("subset_validation_error3")
+                              numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -1279,31 +975,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  ),
                                  column(4,
                                         numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
                                  )
                                )
                              ),
@@ -1325,31 +996,6 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                         conditionalPanel(
                                           condition = "input.tstar_type3 != 'none'",
                                           numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
-                                        )
-                                 )
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
                                         )
                                  )
                                )
@@ -1374,9 +1020,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                           numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
                                         )
                                  )
-                               ),
+                               )
+                             ),
 
-                               # TAC Subset Selection
+                             # Shared TAC Subset Selection (any selected model)
+                             conditionalPanel(
+                               condition = "input.button3 != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -1548,6 +1197,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         updateSelectInput(session, "k2prime_source3", choices = model3_choices, selected = "set")
       }
     }
+
+    # Captured server-side because choice-population observers race with
+    # config load; reading input$<id> in the population observers isn't
+    # reliable before the client roundtrip completes.
+    saved_ref_region <- reactiveVal("")
+    saved_weights_external_tacs <- reactiveVal("")
 
     # Load existing config on startup and restore UI state
     observe({
@@ -1841,7 +1496,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                            selected = existing_config$Weights$region_type %||% "external")
           updateTextInput(session, "weights_region", 
                          value = existing_config$Weights$region %||% "")
-          updateSelectInput(session, "weights_external_tacs", 
+          saved_weights_external_tacs(existing_config$Weights$external_tacs %||% "")
+          updateSelectInput(session, "weights_external_tacs",
                            selected = existing_config$Weights$external_tacs %||% "")
           updateRadioButtons(session, "weights_radioisotope", 
                            selected = existing_config$Weights$radioisotope %||% "C11")
@@ -1862,6 +1518,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         }
         # Restore ReferenceTAC settings
         if (!is.null(existing_config$ReferenceTAC)) {
+          saved_ref_region(existing_config$ReferenceTAC$region %||% "")
           updateSelectInput(session, "ref_region",
                            selected = existing_config$ReferenceTAC$region %||% "")
           updateSelectInput(session, "ref_fitting_method",
@@ -1932,9 +1589,24 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                 unique_segmentations[1]
               }
 
+              config_selection <- isolate(saved_weights_external_tacs())
+              current_selection <- isolate(input$weights_external_tacs)
+              preferred <- if (!is.null(config_selection) && nzchar(config_selection)) {
+                config_selection
+              } else {
+                current_selection
+              }
+              selected_segmentation <- if (!is.null(preferred) &&
+                                          nzchar(preferred) &&
+                                          preferred %in% unique_segmentations) {
+                preferred
+              } else {
+                default_selection
+              }
+
               updateSelectInput(session, "weights_external_tacs",
                                choices = choices,
-                               selected = default_selection)
+                               selected = selected_segmentation)
 
               cat("Successfully updated external segmentation dropdown\n")
             } else {
@@ -1983,9 +1655,24 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               # Create choices for region selection
               choices <- setNames(unique_regions, unique_regions)
 
+              config_selection <- isolate(saved_ref_region())
+              current_selection <- isolate(input$ref_region)
+              preferred <- if (!is.null(config_selection) && nzchar(config_selection)) {
+                config_selection
+              } else {
+                current_selection
+              }
+              selected_region <- if (!is.null(preferred) &&
+                                    nzchar(preferred) &&
+                                    preferred %in% unique_regions) {
+                preferred
+              } else {
+                unique_regions[1]
+              }
+
               updateSelectInput(session, "ref_region",
                                choices = choices,
-                               selected = unique_regions[1])
+                               selected = selected_region)
 
               cat("Successfully updated reference region dropdown\n")
             } else {
