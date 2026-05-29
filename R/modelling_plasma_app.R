@@ -561,178 +561,58 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                      "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
-                             # 1TCM selection panel
+                             # Nonlinear models panel (1TCM, 2TCM, 2TCM_irr)
                              conditionalPanel(
-                               condition = "input.button == '1TCM'",
+                               condition = "input.button == '1TCM' || input.button == '2TCM' || input.button == '2TCM_irr'",
                                fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1, min = 0, step = .001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1, min = 0, step = .001)),
                                ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               checkboxInput("vB.fit", "Fit vB (otherwise use vB.start)", value = TRUE),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
+                               # k3 only fitted by 2TCM and 2TCM_irr
+                               conditionalPanel(
+                                 condition = "input.button == '2TCM' || input.button == '2TCM_irr'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.lower", "k3.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.upper", "k3.upper", value = 0.5, min = 0, step = .001)),
                                  )
                                ),
-                               
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
-                             ),
-                             # 2TCM selection panel
-                             conditionalPanel(
-                               condition = "input.button == '2TCM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k4.start", "k4.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.lower", "k4.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.upper", "k4.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               checkboxInput("vB.fit", "Fit vB (otherwise use vB.start)", value = TRUE),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
+                               # k4 only fitted by 2TCM (reversible)
+                               conditionalPanel(
+                                 condition = "input.button == '2TCM'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k4.start", "k4.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.lower", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.upper", "k4.upper", value = 0.5, min = 0, step = .001)),
                                  )
                                ),
-                               
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
-                             ),
-                             # 2TCM_irr selection panel
-                             conditionalPanel(
-                               condition = "input.button == '2TCM_irr'",
                                fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper", "K1.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper", "vB.upper", value = 0.1, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.start", "vB.start", value = 0.05, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.lower", "vB.lower", value = 0.01, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.upper", "vB.upper", value = 0.1, min = 0, step = .001)),
                                ),
                                checkboxInput("vB.fit", "Fit vB (otherwise use vB.start)", value = TRUE),
 
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multstart Options
+                               # Multiple Starting Points
                                h4("Multiple Starting Points"),
                                p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
+                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                              ),
-                             # Logan selection panel
+
+                             # Linear models panel (Logan, MA1, Patlak)
                              conditionalPanel(
-                               condition = "input.button == 'Logan'",
-                               checkboxInput("use_model_weights", "Use model weights (transformed)", value = FALSE),
+                               condition = "input.button == 'Logan' || input.button == 'MA1' || input.button == 'Patlak'",
+                               # use_model_weights only used by Logan and Patlak
+                               conditionalPanel(
+                                 condition = "input.button == 'Logan' || input.button == 'Patlak'",
+                                 checkboxInput("use_model_weights", "Use model weights (transformed)", value = FALSE)
+                               ),
                                h4("t* Definition"),
                                p("Define t* (time point for linear analysis start) using frame numbers or time."),
                                fluidRow(
@@ -746,7 +626,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                         numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
                                  )
                                ),
-                               
+
                                h4("Other Parameters"),
                                selectInput("vB_source", "vB Parameter Source:",
                                           choices = list("Set vB" = "set"),
@@ -754,114 +634,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                conditionalPanel(
                                  condition = "input.vB_source == 'set'",
                                  numericInput("vB_value", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
                                )
                              ),
 
-                             # MA1 selection panel
+                             # Shared TAC Subset Selection (any selected model)
                              conditionalPanel(
-                               condition = "input.button == 'MA1'",
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source", "vB Parameter Source:",
-                                          choices = list("Set vB" = "set"),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.vB_source == 'set'",
-                                 numericInput("vB_value", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("start_point", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type != 'none'",
-                                          numericInput("end_point", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               )
-                             ),
-
-                             # Patlak selection panel
-                             conditionalPanel(
-                               condition = "input.button == 'Patlak'",
-                               checkboxInput("use_model_weights", "Use model weights (transformed)", value = FALSE),
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source", "vB Parameter Source:",
-                                          choices = list("Set vB" = "set"),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.vB_source == 'set'",
-                                 numericInput("vB_value", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
+                               condition = "input.button != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -913,24 +691,77 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                      "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
-                             # 1TCM selection panel
+                             # Nonlinear models panel (1TCM, 2TCM, 2TCM_irr)
                              conditionalPanel(
-                               condition = "input.button2 == '1TCM'",
+                               condition = "input.button2 == '1TCM' || input.button2 == '2TCM' || input.button2 == '2TCM_irr'",
                                fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1, min = 0, step = .001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1, min = 0, step = .001)),
+                               ),
+                               # k3 only fitted by 2TCM and 2TCM_irr
+                               conditionalPanel(
+                                 condition = "input.button2 == '2TCM' || input.button2 == '2TCM_irr'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.lower2", "k3.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.upper2", "k3.upper", value = 0.5, min = 0, step = .001)),
+                                 )
+                               ),
+                               # k4 only fitted by 2TCM (reversible)
+                               conditionalPanel(
+                                 condition = "input.button2 == '2TCM'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k4.start2", "k4.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.lower2", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.upper2", "k4.upper", value = 0.5, min = 0, step = .001)),
+                                 )
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower2", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper2", "vB.upper", value = 0.1, min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.lower2", "vB.lower", value = 0.01, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.upper2", "vB.upper", value = 0.1, min = 0, step = .001)),
                                ),
+
+                               # Multiple Starting Points
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                             ),
+
+                             # Linear models panel (Logan, MA1, Patlak)
+                             conditionalPanel(
+                               condition = "input.button2 == 'Logan' || input.button2 == 'MA1' || input.button2 == 'Patlak'",
+                               # use_model_weights only used by Logan and Patlak
+                               conditionalPanel(
+                                 condition = "input.button2 == 'Logan' || input.button2 == 'Patlak'",
+                                 checkboxInput("use_model_weights2", "Use model weights (transformed)", value = FALSE)
+                               ),
+                               h4("t* Definition"),
+                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
+                               fluidRow(
+                                 column(4,
+                                        selectInput("tstar_type2", "Selection Method:",
+                                                  choices = list("Frame Numbers (from end)" = "frame",
+                                                               "Time Point (minutes)" = "time"),
+                                                  selected = "frame")
+                                 ),
+                                 column(4,
+                                        numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
+                                 )
+                               )
+                             ),
+
+                             # Shared vB Parameter Source panel; choices are narrowed per
+                             # model type by a server observer below.
+                             conditionalPanel(
+                               condition = "input.button2 != 'none'",
+                               h4("Other Parameters"),
                                selectInput("vB_source2", "vB Parameter Source:",
                                           choices = list(
                                             "Fit vB" = "fit",
@@ -939,306 +770,16 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                             "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
                                             "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median"
                                           ),
-                                          selected = "fit"),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-                               
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
-                             ),
-                             # 2TCM selection panel
-                             conditionalPanel(
-                               condition = "input.button2 == '2TCM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower2", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper2", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k4.start2", "k4.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.lower2", "k4.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.upper2", "k4.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower2", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper2", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               selectInput("vB_source2", "vB Parameter Source:",
-                                          choices = list(
-                                            "Fit vB" = "fit",
-                                            "Set vB (uses vB.start)" = "set",
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                          ),
-                                          selected = "fit"),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-                               
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
-                             ),
-                             # 2TCM_irr selection panel
-                             conditionalPanel(
-                               condition = "input.button2 == '2TCM_irr'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start2", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower2", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper2", "K1.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start2", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower2", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper2", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start2", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower2", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper2", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start2", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower2", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper2", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               checkboxInput("vB.fit2", "Fit vB (otherwise use vB.start)", value = TRUE),
-
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                             ),
-                             # Logan selection panel
-                             conditionalPanel(
-                               condition = "input.button2 == 'Logan'",
-                               checkboxInput("use_model_weights2", "Use model weights (transformed)", value = FALSE),
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type2", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source2", "vB Parameter Source:",
-                                          choices = list(
-                                            "Set vB" = "set",
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                          ),
                                           selected = "set"),
                                conditionalPanel(
                                  condition = "input.vB_source2 == 'set'",
                                  numericInput("vB_value2", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               )
-                             ),
-                             # MA1 selection panel
-                             conditionalPanel(
-                               condition = "input.button2 == 'MA1'",
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type2", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source2", "vB Parameter Source:",
-                                          choices = list(
-                                            "Set vB" = "set",
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.vB_source2 == 'set'",
-                                 numericInput("vB_value2", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type2", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("start_point2", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type2 != 'none'",
-                                          numericInput("end_point2", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
                                )
                              ),
 
-                             # Patlak selection panel
+                             # Shared TAC Subset Selection (any selected model)
                              conditionalPanel(
-                               condition = "input.button2 == 'Patlak'",
-                               checkboxInput("use_model_weights2", "Use model weights (transformed)", value = FALSE),
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type2", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar2", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source2", "vB Parameter Source:",
-                                          choices = list("Set vB" = "set"),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.vB_source2 == 'set'",
-                                 numericInput("vB_value2", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
+                               condition = "input.button2 != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -1290,163 +831,77 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                      "Patlak (Linear, Irreversible binding)" = "Patlak"
                                          ),
                                          selected = "none"),
-                             # 1TCM selection panel
+                             # Nonlinear models panel (1TCM, 2TCM, 2TCM_irr)
                              conditionalPanel(
-                               condition = "input.button3 == '1TCM'",
+                               condition = "input.button3 == '1TCM' || input.button3 == '2TCM' || input.button3 == '2TCM_irr'",
                                fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1, min = 0, step = .001)),
                                ),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
+                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1, min = 0, step = .001)),
                                ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower3", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper3", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               selectInput("vB_source3", "vB Parameter Source:",
-                                          choices = list(
-                                            "Fit vB" = "fit",
-                                            "Set vB (uses vB.start)" = "set", 
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
-                                          selected = "fit"),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
+                               # k3 only fitted by 2TCM and 2TCM_irr
+                               conditionalPanel(
+                                 condition = "input.button3 == '2TCM' || input.button3 == '2TCM_irr'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.lower3", "k3.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k3.upper3", "k3.upper", value = 0.5, min = 0, step = .001)),
                                  )
                                ),
-                               
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
-                             ),
-                             # 2TCM selection panel
-                             conditionalPanel(
-                               condition = "input.button3 == '2TCM'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower3", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper3", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k4.start3", "k4.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.lower3", "k4.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k4.upper3", "k4.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower3", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper3", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
-                               selectInput("vB_source3", "vB Parameter Source:",
-                                          choices = list(
-                                            "Fit vB" = "fit",
-                                            "Set vB (uses vB.start)" = "set", 
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
-                                          selected = "fit"),
-                               
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
+                               # k4 only fitted by 2TCM (reversible)
+                               conditionalPanel(
+                                 condition = "input.button3 == '2TCM'",
+                                 fluidRow(
+                                   column(3, offset = 0, numericInput("k4.start3", "k4.start", value = 0.1, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.lower3", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                   column(3, offset = 0, numericInput("k4.upper3", "k4.upper", value = 0.5, min = 0, step = .001)),
                                  )
                                ),
-                               
-                               # Multstart Options
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.lower3", "vB.lower", value = 0.01, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("vB.upper3", "vB.upper", value = 0.1, min = 0, step = .001)),
+                               ),
+
+                               # Multiple Starting Points
                                h4("Multiple Starting Points"),
                                p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-                               
+                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                              ),
-                             # 2TCM_irr selection panel
+
+                             # Linear models panel (Logan, MA1, Patlak)
                              conditionalPanel(
-                               condition = "input.button3 == '2TCM_irr'",
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("K1.start3", "K1.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.lower3", "K1.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("K1.upper3", "K1.upper", value = 1,min = 0, step=.001)),
+                               condition = "input.button3 == 'Logan' || input.button3 == 'MA1' || input.button3 == 'Patlak'",
+                               # use_model_weights only used by Logan and Patlak
+                               conditionalPanel(
+                                 condition = "input.button3 == 'Logan' || input.button3 == 'Patlak'",
+                                 checkboxInput("use_model_weights3", "Use model weights (transformed)", value = FALSE)
                                ),
+                               h4("t* Definition"),
+                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
                                fluidRow(
-                                 column(3, offset = 0, numericInput("k2.start3", "k2.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.lower3", "k2.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k2.upper3", "k2.upper", value = 1,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("k3.start3", "k3.start", value = 0.1,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.lower3", "k3.lower", value = 0.0001,min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("k3.upper3", "k3.upper", value = 0.5,min = 0, step=.001)),
-                               ),
-                               fluidRow(
-                                 column(3, offset = 0, numericInput("vB.start3", "vB.start", value = 0.05, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.lower3", "vB.lower", value = 0.01, min = 0, step=.001)),
-                                 column(3, offset = 0, numericInput("vB.upper3", "vB.upper", value = 0.1, min = 0, step=.001)),
-                               ),
+                                 column(4,
+                                        selectInput("tstar_type3", "Selection Method:",
+                                                  choices = list("Frame Numbers (from end)" = "frame",
+                                                               "Time Point (minutes)" = "time"),
+                                                  selected = "frame")
+                                 ),
+                                 column(4,
+                                        numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
+                                 )
+                               )
+                             ),
+
+                             # Shared vB Parameter Source panel; choices are narrowed per
+                             # model type by a server observer below.
+                             conditionalPanel(
+                               condition = "input.button3 != 'none'",
+                               h4("Other Parameters"),
                                selectInput("vB_source3", "vB Parameter Source:",
                                           choices = list(
                                             "Fit vB" = "fit",
@@ -1458,75 +913,16 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                             "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
                                             "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
                                           ),
-                                          selected = "fit"),
-
-                               # Time/Frame Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               ),
-
-                               # Multstart Options
-                               h4("Multiple Starting Points"),
-                               p("Fit model multiple times with different starting parameters to avoid local minima."),
-                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1),
-
-                             ),
-                             # Logan selection panel
-                             conditionalPanel(
-                               condition = "input.button3 == 'Logan'",
-                               checkboxInput("use_model_weights3", "Use model weights (transformed)", value = FALSE),
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type3", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source3", "vB Parameter Source:",
-                                          choices = list(
-                                            "Set vB" = "set",
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
                                           selected = "set"),
                                conditionalPanel(
                                  condition = "input.vB_source3 == 'set'",
                                  numericInput("vB_value3", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
+                               )
+                             ),
 
-                               # TAC Subset Selection
+                             # Shared TAC Subset Selection (any selected model)
+                             conditionalPanel(
+                               condition = "input.button3 != 'none'",
                                h4("TAC Subset Selection"),
                                p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
                                fluidRow(
@@ -1551,126 +947,6 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                  )
                                )
                              ),
-                             # MA1 selection panel
-                             conditionalPanel(
-                               condition = "input.button3 == 'MA1'",
-                               h4("t* Definition"),
-                               p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("tstar_type3", "Selection Method:",
-                                                  choices = list("Frame Numbers (from end)" = "frame",
-                                                               "Time Point (minutes)" = "time"),
-                                                  selected = "frame")
-                                 ),
-                                 column(4,
-                                        numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
-                                 )
-                               ),
-
-                               h4("Other Parameters"),
-                               selectInput("vB_source3", "vB Parameter Source:",
-                                          choices = list(
-                                            "Set vB" = "set",
-                                            "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                            "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                            "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                            "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
-                                            "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                            "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                          ),
-                                          selected = "set"),
-                               conditionalPanel(
-                                 condition = "input.vB_source3 == 'set'",
-                                 numericInput("vB_value3", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                               ),
-
-                               # TAC Subset Selection
-                               h4("TAC Subset Selection"),
-                               p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                               fluidRow(
-                                 column(4,
-                                        selectInput("subset_type3", "Selection Method:",
-                                                  choices = list("None" = "none",
-                                                               "Frame Numbers" = "frame",
-                                                               "Time Points (minutes)" = "time"),
-                                                  selected = "none")
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 ),
-                                 column(4,
-                                        conditionalPanel(
-                                          condition = "input.subset_type3 != 'none'",
-                                          numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                        )
-                                 )
-                               )
-                             ),
-
-                            # Patlak selection panel
-                            conditionalPanel(
-                              condition = "input.button3 == 'Patlak'",
-                              checkboxInput("use_model_weights3", "Use model weights (transformed)", value = FALSE),
-                              h4("t* Definition"),
-                              p("Define t* (time point for linear analysis start) using frame numbers or time."),
-                              fluidRow(
-                                column(4,
-                                       selectInput("tstar_type3", "Selection Method:",
-                                                 choices = list("Frame Numbers (from end)" = "frame",
-                                                              "Time Point (minutes)" = "time"),
-                                                 selected = "frame")
-                                ),
-                                column(4,
-                                       numericInput("tstar3", "t* Value", value = 10, min = 0, step = 1)
-                                )
-                              ),
-
-                              h4("Other Parameters"),
-                              selectInput("vB_source3", "vB Parameter Source:",
-                                         choices = list(
-                                           "Set vB" = "set",
-                                           "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
-                                           "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
-                                           "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median",
-                                           "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
-                                           "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
-                                           "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
-                                         ),
-                                         selected = "set"),
-                              conditionalPanel(
-                                condition = "input.vB_source3 == 'set'",
-                                numericInput("vB_value3", "vB Value", value = 0.05, min = 0, max = 1, step = 0.001)
-                              ),
-
-                              # TAC Subset Selection
-                              h4("TAC Subset Selection"),
-                              p("Specify subset of TAC data for fitting (optional). This can further reduce the data defined at the data definition step."),
-                              fluidRow(
-                                column(4,
-                                       selectInput("subset_type3", "Selection Method:",
-                                                 choices = list("None" = "none",
-                                                              "Frame Numbers" = "frame",
-                                                              "Time Points (minutes)" = "time"),
-                                                 selected = "none")
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type3 != 'none'",
-                                         numericInput("start_point3", "Start Point", value = NULL, min = 0, step = 0.1)
-                                       )
-                                ),
-                                column(4,
-                                       conditionalPanel(
-                                         condition = "input.subset_type3 != 'none'",
-                                         numericInput("end_point3", "End Point", value = NULL, min = 0, step = 0.1)
-                                       )
-                                )
-                              )
-                            ),
 
                              hr(),
                              uiOutput("subset_validation_error3"),
@@ -2188,6 +1464,46 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       }
     })
     
+    # Narrow vB_source2 / vB_source3 choices based on the selected model type.
+    # Patlak and the other linear models cannot fit vB, so "Fit vB" is hidden
+    # for them.
+    inherit_m1_choices <- list(
+      "Inherit vB from Model 1 (Regional)" = "inherit_model1_regional",
+      "Inherit vB from Model 1 (Mean Across Regions)" = "inherit_model1_mean",
+      "Inherit vB from Model 1 (Median Across Regions)" = "inherit_model1_median"
+    )
+    inherit_m1m2_choices <- c(inherit_m1_choices, list(
+      "Inherit vB from Model 2 (Regional)" = "inherit_model2_regional",
+      "Inherit vB from Model 2 (Mean Across Regions)" = "inherit_model2_mean",
+      "Inherit vB from Model 2 (Median Across Regions)" = "inherit_model2_median"
+    ))
+
+    observeEvent(input$button2, {
+      choices <- if (input$button2 %in% c("1TCM", "2TCM", "2TCM_irr")) {
+        c(list("Fit vB" = "fit", "Set vB (uses vB.start)" = "set"), inherit_m1_choices)
+      } else if (input$button2 %in% c("Logan", "MA1", "Patlak")) {
+        c(list("Set vB (uses vB.start)" = "set"), inherit_m1_choices)
+      } else {
+        return()
+      }
+      current <- isolate(input$vB_source2)
+      selected <- if (!is.null(current) && nzchar(current) && current %in% unlist(choices)) current else "set"
+      updateSelectInput(session, "vB_source2", choices = choices, selected = selected)
+    })
+
+    observeEvent(input$button3, {
+      choices <- if (input$button3 %in% c("1TCM", "2TCM", "2TCM_irr")) {
+        c(list("Fit vB" = "fit", "Set vB (uses vB.start)" = "set"), inherit_m1m2_choices)
+      } else if (input$button3 %in% c("Logan", "MA1", "Patlak")) {
+        c(list("Set vB (uses vB.start)" = "set"), inherit_m1m2_choices)
+      } else {
+        return()
+      }
+      current <- isolate(input$vB_source3)
+      selected <- if (!is.null(current) && nzchar(current) && current %in% unlist(choices)) current else "set"
+      updateSelectInput(session, "vB_source3", choices = choices, selected = selected)
+    })
+
     # Reactive function to populate external segmentation options from combined regions file ----
     observe({
       tryCatch({

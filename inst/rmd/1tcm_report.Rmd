@@ -520,6 +520,9 @@ if(vB_source == "fit") {
                                    k2.start = k2_start,
                                    k2.lower = k2_lower,
                                    k2.upper = k2_upper,
+                                   vB.start = vB_start,
+                                   vB.lower = vB_lower,
+                                   vB.upper = vB_upper,
                                    multstart_iter = multstart_iter),
                            .options = furrr_options(seed = TRUE))) %>%
     ungroup() %>%
