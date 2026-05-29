@@ -377,7 +377,7 @@ model_data <- inner_join(tac_data_nested, blood_data) %>%
 <!--                          ~lin2tcm_inpshiftProfile(t_tac = .x$frame_mid, tac = .x$TAC,  -->
 <!--                                  input = .y, dur = .x$frame_dur, -->
 <!--                                  weights = if(use_weights) .x$weights else NULL, -->
-<!--                                  vB =  if(fit_vB) vB_value else NULL, -->
+<!--                                  vB =  if(fit_vB) NULL else vB_value, -->
 <!--                                  timeStartEnd = c(0,time_window))))  -->
 
 <!-- delay_out <- model_data %>%  -->
@@ -406,7 +406,7 @@ model_data <- model_data %>%
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
@@ -436,7 +436,7 @@ model_data <- model_data %>%
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
@@ -466,7 +466,7 @@ model_data <- model_data %>%
                          ~safe_onetcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
@@ -498,7 +498,7 @@ model_data <- model_data %>%
                          ~safe_twotcm(t_tac = .x$frame_mid, tac = .x$TAC,
                                  input = .y,
                                  weights = if(use_weights) .x$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
@@ -575,7 +575,7 @@ fit_again_with_newdelay <- model_data %>%
                          ~safe_onetcm(t_tac = ..1$frame_mid, tac = ..1$TAC,
                                  input = ..2,
                                  weights = if(use_weights) ..1$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
@@ -638,7 +638,7 @@ fit_again_with_newdelay <- model_data %>%
                          ~safe_twotcm(t_tac = ..1$frame_mid, tac = ..1$TAC,
                                  input = ..2,
                                  weights = if(use_weights) ..1$weights else NULL,
-                                 vB =  if(fit_vB) vB_value else NULL,
+                                 vB =  if(fit_vB) NULL else vB_value,
                                  timeStartEnd = c(0,time_window),
                                  K1.upper = 2,
                                  k2.upper = 2,
