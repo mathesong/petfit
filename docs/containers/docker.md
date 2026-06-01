@@ -146,6 +146,14 @@ The container exposes port 3838 internally. Map it to any host port:
 -p 3839:3838    # Run multiple instances
 ```
 
+The port you browse to is always the **host** port — the left-hand side of `-p`. To run several instances at once, give each a different host port (`-p 3839:3838`, `-p 3840:3838`, …); the container side can stay `3838`.
+
+The entrypoint also checks that its internal port is free and, if not, scans upward to the next available one (printing the final `http://localhost:<port>` address). Within Docker's isolated network this rarely changes anything, but if you want to move the internal port — for example to match a custom `-p` target — set `SHINY_PORT`:
+
+```bash
+-e SHINY_PORT=8080 ... -p 8080:8080
+```
+
 ## File permissions on Linux
 
 On Linux, Docker containers run as root by default, which can cause permission issues with output files. Two solutions:
@@ -162,36 +170,3 @@ docker run --user $(id -u):$(id -g) \
 ```bash
 sudo chown -R $(id -u):$(id -g) /path/to/derivatives
 ```
-
-## Batch processing
-
-```bash
-for analysis in Analysis1 Analysis2 Analysis3; do
-  docker run --rm \
-    --user $(id -u):$(id -g) \
-    -v /data/derivatives:/data/derivatives_dir \
-    -v /data/blood:/data/blood_dir \
-    mathesong/petfit:latest \
-    --func modelling_plasma \
-    --mode automatic \
-    --analysis_foldername "$analysis"
-done
-```
-
-## Development testing
-
-A `docker-compose.yml` file is provided for development:
-
-```bash
-cd docker/
-docker-compose up petfit-modelling-plasma
-```
-
-## Error codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Configuration or validation error |
-| 2 | Missing required files or directories |
-| 3 | Processing error |

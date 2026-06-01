@@ -24,19 +24,16 @@ Configures how the reference region TAC is handled before being used for model f
 
 **Reference TAC methods:**
 
-- **Raw reference TAC** (default) — Uses the reference region TAC without modification.
+- **Raw reference TAC** (default) — Uses the reference region TAC without modification. This is usually recommended.
 - **Feng+1TC reference model** — Fits the reference TAC with a pharmacokinetic model to reduce noise.
-- **Spline model** — Fits the reference TAC with a smooth spline function.
+- **Spline model** — Fits the reference TAC with a smooth spline function to reduce noise.
 
 **Noise approximation** (available with Raw reference TAC only):
 
-When enabled, compares the noise level in the reference region to target regions using a spline-based estimate. This helps identify whether the reference region is particularly noisy relative to targets — useful for quality control.
+When enabled, compares the noise level in the reference region to target regions using a spline-based estimate. 
+This helps identify whether the reference region is particularly noisy relative to targets, which can necessitate fitting the reference region.
+But usually, the raw reference TAC is sufficient.
 
-**Reference TAC weighting:**
-
-- Same weights as the target TAC (default)
-- Independent weighting method
-- Custom formula
 
 ### 4. Model fitting
 
@@ -122,12 +119,14 @@ petfit_interactive(
 )
 
 # Automatic — full pipeline
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives"
 )
 
 # Automatic — single step
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives",
   step = "model1"
 )

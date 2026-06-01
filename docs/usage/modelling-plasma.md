@@ -44,10 +44,10 @@ Estimates the temporal delay between the blood input function and the tissue TAC
 **Delay estimation approaches** (ordered by speed):
 
 1. **Set to zero** — Skip delay estimation entirely.
-2. **1TCM from single representative TAC (quick)** — Fits a 1TCM to one region.
-3. **2TCM from single representative TAC (less quick)** — Fits a 2TCM to one region.
+2. **1TCM from single representative TAC (quick)** — Fits a 1TCM to one representative or high-quality region.
+3. **2TCM from single representative TAC (less quick)** — Fits a 2TCM to one representative or high-quality region.
 4. **1TCM median from multiple regions (recommended)** — Fits 1TCM to multiple regions and takes the median delay. This is the default.
-5. **2TCM median from multiple regions (very slow)** — Most comprehensive approach.
+5. **2TCM median from multiple regions (very slow)** — Fits 2TCM to multiple regions and takes the median delay.
 
 **Blood input time shift controls:**
 
@@ -89,15 +89,6 @@ docker run --rm \
   --func modelling_plasma \
   --mode automatic
 
-# Automatic — single step
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
-  --step weights
-
 # Automatic — custom analysis folder
 docker run --rm \
   -v /path/to/your/derivatives:/data/derivatives_dir:rw \
@@ -106,6 +97,15 @@ docker run --rm \
   --func modelling_plasma \
   --mode automatic \
   --analysis_foldername Baseline_only
+  
+# Automatic — single step
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --mode automatic \
+  --step weights
 ```
 ````
 
@@ -129,15 +129,6 @@ apptainer run \
   --func modelling_plasma \
   --mode automatic
 
-# Automatic — single step
-apptainer run \
-  --bind /path/to/your/derivatives:/data/derivatives_dir \
-  --bind /path/to/your/blood:/data/blood_dir \
-  petfit_latest.sif \
-  --func modelling_plasma \
-  --mode automatic \
-  --step weights
-
 # Automatic — custom analysis folder
 apptainer run \
   --bind /path/to/your/derivatives:/data/derivatives_dir \
@@ -146,6 +137,15 @@ apptainer run \
   --func modelling_plasma \
   --mode automatic \
   --analysis_foldername Baseline_only
+
+# Automatic — single step
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  --bind /path/to/your/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --mode automatic \
+  --step weights
 ```
 ````
 
@@ -162,23 +162,26 @@ petfit_interactive(
 )
 
 # Automatic — full pipeline
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
+  derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood"
+)
+
+# Automatic — custom analysis folder
+petfit_auto(
+  app = "modelling_plasma",
+  analysis_foldername = "Baseline_only",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )
 
 # Automatic — single step
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood",
   step = "weights"
-)
-
-# Automatic — custom analysis folder
-petfit_modelling_auto(
-  analysis_foldername = "Baseline_only",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood"
 )
 ```
 ````
@@ -186,6 +189,8 @@ petfit_modelling_auto(
 `````
 
 ## Interactive exploration
+
+*In progress*
 
 The Interactive tab lets you manually load and visualise individual TAC data. This is useful for validating model configurations before running the full pipeline:
 

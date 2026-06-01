@@ -1,442 +1,87 @@
 # PETFit: A BIDS App for PET Kinetic Modelling
 
-PETFit is a BIDS App for fitting kinetic models to PET time activity curve data.
-It performs a series of steps, accompanied by detailed HTML reports for quality
-control.
+PETFit is a [BIDS App](https://bids-apps.neuroimaging.io/) for fitting kinetic models to PET time activity curve (TAC) data. It runs a configurable, step-by-step pipeline — each step accompanied by detailed HTML reports for quality control — and delegates the kinetic model fitting to [kinfitr](https://github.com/mathesong/kinfitr).
 
-It can be used in two ways:
+**Full documentation: https://petfit.readthedocs.io**
 
-- **Interactive Mode**: Use interactive graphical web applications to configure analyses, and either download the created configuration file, or individual steps one-by-one from the browser.
-- **Automatic Mode**: Automated pipeline execution using pre-defined configuration files. This allows users to first define configuration files locally using interactive mode, and then execute the analysis automatically either locally or on a remote server.
+This README is only a brief overview. For the complete installation guide, tutorials, command reference, container/HPC usage, supported models, and troubleshooting, see the documentation site.
 
+**Note:** PETFit is currently in active development, and there may be bugs. Please report them on the [GitHub issues page](https://github.com/mathesong/petfit/issues) — they are extremely valuable for making the pipeline robust for all datasets.
 
-**NOTE:** PETFit is currently in active development, and there may be bugs. Please report these to me on the Github issues. They are extremely valuable for making this pipeline robust for application to all datasets.
+## Overview
 
+PETFit can be used in two ways:
 
-## Interactive Web Apps
+- **Interactive mode** — graphical web apps to configure analyses step-by-step, run individual steps, and save configuration files for reproducible processing.
+- **Automatic mode** — run the full pipeline non-interactively from a saved configuration file, locally or on a server/HPC.
 
-The web apps allow users to graphically define configurations for the analysis.
+It provides three apps for interactive usage:
 
-- **Region Definition App**: Creates combined regional TACs from PET Preprocessing Derivative data
-- **Modelling App with Plasma Input**: Configures invasive kinetic models (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak) requiring blood input
-- **Modelling App with Reference Tissue**: Configures non-invasive kinetic models (SRTM, refLogan, MRTM1, MRTM2) using reference regions
-
-The interactive apps allow you to:
-- Configure analyses step-by-step with a graphical interface
-- Execute each step individually and generate HTML reports
-- Save configuration files for reproducible processing
-- Run complete pipelines with the "Run All" button
+- **Region Definition** — combines regional TACs from BIDS PET preprocessing derivatives.
+- **Modelling with Plasma Input** — invasive models requiring a blood input function (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak).
+- **Modelling with Reference Tissue** — non-invasive models using a reference region (SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak).
 
 ## Installation
 
-`PETFit` can be executed either from R, or through a Docker container:
+PETFit can be run as a container (Docker / Apptainer), or as an R package.
 
-- **[R Package Usage](#r-package-usage)**: Install and use directly from within R
-- **[Docker Usage](#docker-usage)**: Use as a containerised BIDS app without installing R or dependencies locally
-
-## Usage Summary
-
-| Mode | R Usage | Docker Usage |
-|------|---------|--------------|
-| Interactive - Region Definition | `petfit_interactive(bids_dir = "/path/to/bids")` | `docker run -p 3838:3838 ... --func regiondef` |
-| Interactive - Modelling with Plasma Input | `petfit_interactive(app = "modelling_plasma", bids_dir, blood_dir)` | `docker run -p 3838:3838 ... --func modelling_plasma` |
-| Interactive - Modelling with Reference Tissue | `petfit_interactive(app = "modelling_ref", bids_dir)` | `docker run -p 3838:3838 ... --func modelling_ref` |
-| Automatic - Region Definition | `petfit_auto(app = "regiondef", derivatives_dir = "...")` | `docker run ... --func regiondef --mode automatic` |
-| Automatic - Modelling | `petfit_auto(app = "modelling_plasma", derivatives_dir = "...")` | `docker run ... --func modelling_plasma --mode automatic` |
-
-## R Package Usage
-
-### Installation
-
-You can install the development version of petfit like so:
-
-```r
-# Install development version from GitHub
-remotes::install_github("mathesong/petfit")
-```
-
-### Interactive Apps
-
-```r
-library(petfit)
-
-# Launch region definition app (default)
-petfit_interactive(
-  app = "regiondef",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Launch plasma input modelling app without preprocessing blood data
-petfit_interactive(
-  app = "modelling_plasma",
-  bids_dir = "/path/to/your/bids/dataset",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Launch plasma input modelling app after producing derivative blood data
-petfit_interactive(
-  app = "modelling_plasma",
-  bids_dir = "/path/to/your/bids/dataset",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood/data"
-)
-
-
-# Launch reference tissue modelling app
-petfit_interactive(
-  app = "modelling_ref",
-  derivatives_dir = "/path/to/derivatives",
-)
-```
-
-### Automatic Pipeline Execution
-
-**Two-Step Workflow:**
-
-Automatic processing requires running region definition first, then modelling.
-
-**Step 1: Region Definition**
-```r
-# Create combined TACs from preprocessing derivatives
-# Searches for petfit_regions.tsv in either:
-#   - derivatives_dir/petfit/petfit_regions.tsv
-#   - bids_dir/code/petfit/petfit_regions.tsv
-
-petfit_auto(
-  app = "regiondef",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Or with BIDS directory
-petfit_auto(
-  app = "regiondef",
-  bids_dir = "/path/to/bids"
-)
-```
-
-**Step 2: Modelling Pipeline**
-```r
-# Execute complete modelling pipeline
-# Uses "Primary_Analysis" analysis folder by default
-# Pipeline type (plasma vs reference) is auto-detected from config
-
-petfit_auto(
-  app = "modelling_plasma",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood"
-)
-
-# Or using bids_dir (which will use bids_dir/derivatives)
-petfit_auto(
-  app = "modelling_plasma",
-  bids_dir = "/path/to/bids",
-  blood_dir = "/path/to/blood"
-)
-
-# Specify a custom analysis folder
-petfit_auto(
-  app = "modelling_plasma",
-  analysis_foldername = "Baseline_only",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood"
-)
-
-# Execute specific modelling step
-petfit_auto(
-  app = "modelling_plasma",
-  derivatives_dir = "/path/to/derivatives",
-  step = "weights"
-)
-```
-
-## Docker Usage
-
-### Pull Pre-built Image
+**Docker:**
 
 ```bash
 docker pull mathesong/petfit:latest
 ```
 
-Alternatively, build the container locally:
+**R package:**
 
-```bash
-docker build -f docker/Dockerfile -t mathesong/petfit:latest .
+```r
+# install.packages("remotes")
+remotes::install_github("mathesong/petfit")
 ```
 
-### Interactive Mode
+See the [installation guide](https://petfit.readthedocs.io/en/latest/installation.html) for full details, including Apptainer/HPC usage.
 
-**Region Definition App**
+## Quick start
+
+A PETFit workflow has two stages: define regions once for the dataset, then run one or more modelling analyses. Launch each app interactively with Docker, then open `http://localhost:3838` in your browser.
+
+**Region definition:**
+
 ```bash
 docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func regiondef
-
-# Then open http://localhost:3838 in your browser
-```
-
-**Modelling App with Plasma Input**
-```bash
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma
-
-# Then open http://localhost:3838 in your browser
-```
-
-**Modelling App with Reference Tissue**
-```bash
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
-
-# Then open http://localhost:3838 in your browser
-```
-
-### Automatic Processing Mode
-
-**Two-Step Workflow:**
-
-Automatic processing requires running region definition first, then modelling:
-
-**Step 1: Region Definition**
-```bash
-# Create combined TACs from preprocessing derivatives
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
   mathesong/petfit:latest \
   --func regiondef \
-  --mode automatic
+  --cores 1
 ```
 
-*Note:* Region definition requires a `petfit_regions.tsv` file in either `derivatives/petfit/` or `bids_dir/code/petfit/`.
+**Modelling with plasma input:**
 
-**Step 2: Modelling Pipeline**
 ```bash
-# Run complete pipeline with plasma input models
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
+docker run -it --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  -p 3838:3838 \
   mathesong/petfit:latest \
   --func modelling_plasma \
-  --mode automatic
+  --cores 1
+```
 
-# ... Or run complete pipeline with reference tissue models
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+**Modelling with reference tissue:**
+
+```bash
+docker run -it --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -p 3838:3838 \
   mathesong/petfit:latest \
   --func modelling_ref \
-  --mode automatic
-
-# Run specific analysis step
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
-  --step weights
-
-# Use a custom analysis folder
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
-  --analysis_folder Baseline_only
+  --cores 1
 ```
 
-
-
-### Docker Command Line Options
-
-- `--func`: Application to run (`regiondef`, `modelling_plasma`, `modelling_ref`)
-- `--mode`: Execution mode (`interactive` [default] or `automatic`)
-- `--step`: Specific analysis step for automatic mode (optional)
-- `--analysis_foldername`: Analysis folder name for modelling outputs (default: `Primary_Analysis`)
-
-### Docker Mount Points
-
-- **BIDS Directory** (read-only): `/data/bids_dir:ro` - Your BIDS dataset
-- **Derivatives Directory** (read-write): `/data/derivatives_dir:rw` - Folder into which a `petfit` directory will be created
-- **Blood Directory** (read-only, optional): `/data/blood_dir:ro` - Blood data for plasma input models
-
-### Docker File Permissions Note
-
-On Linux systems, if you encounter permission issues where output files are owned by root, you have two options:
-
-1. **Add the user flag** to run the container with your user ID:
-   ```bash
-   docker run --user $(id -u):$(id -g) \
-     # ... rest of your docker command
-   ```
-
-2. **Fix permissions afterward** using chown:
-   ```bash
-   sudo chown -R $(id -u):$(id -g) /path/to/derivatives
-   ```
-
-## Apptainer Usage
-
-PETFit can also be run with [Apptainer](https://apptainer.org/) (formerly Singularity) by converting the Docker image into a SIF file and binding the same directories used in the Docker examples. See the `apptainer/` folder and [Apptainer documentation](docs/containers/apptainer.md) for HPC integration examples.
-
-### Build SIF from Docker Hub
-
-```bash
-apptainer build petfit_latest.sif docker://mathesong/petfit:latest
-```
-
-### Interactive Mode
-
-**Region Definition App**
-```bash
-apptainer run --cleanenv \
-  -B /path/to/your/bids:/data/bids_dir:ro \
-  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func regiondef
-
-# Then open http://localhost:3838 in your browser
-```
-
-**Modelling App with Plasma Input**
-```bash
-apptainer run --cleanenv \
-  -B /path/to/your/bids:/data/bids_dir:ro \
-  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/your/blood:/data/blood_dir:ro \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_plasma
-
-# Then open http://localhost:3838 in your browser
-```
-
-**Modelling App with Reference Tissue**
-```bash
-apptainer run --cleanenv \
-  -B /path/to/your/bids:/data/bids_dir:ro \
-  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_ref
-
-# Then open http://localhost:3838 in your browser
-```
-
-### Automatic Processing Mode
-
-Use the same two-step workflow as Docker, substituting `apptainer run` and the SIF image:
-
-```bash
-# Step 1: Region Definition
-apptainer run --cleanenv \
-  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func regiondef \
-  --mode automatic
-
-# Step 2: Modelling Pipeline (plasma input example)
-apptainer run --cleanenv \
-  -B /path/to/your/bids:/data/bids_dir:ro \
-  -B /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/your/blood:/data/blood_dir:ro \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_plasma \
-  --mode automatic
-```
-
-## Outputs
-
-The region definition apps create files in the main `derivatives/petfit` folder.
-
-- **Region combination file**: `petfit_regions.tsv` contains all region combination names, and can be transferred to new studies and datasets with the same other pipelines.
-- **Combined TACs file**: `desc-combinedregions_tacs.tsv` contains all the TACs after regional combinations.
-
-The modelling apps generate the following outputs in `derivatives/petfit/<analysis_foldername>/`:
-
-- **Output file**: Parameters and outputs for each PET measurement are created in the relevant subject folders.
-- **HTML reports**: Reports in `reports/` subfolder for each analysis step
-
-## Directory Structure
-
-PETFit uses a hierarchical directory structure:
-
-- **bids_dir**: Your raw BIDS dataset containing source data
-- **derivatives_dir**: The top-level derivatives folder (default: `{bids_dir}/derivatives`)
-- **petfit directory**: `{derivatives_dir}/petfit/`
-- **analysis_folder**: Analysis-specific subfolders within `{derivatives_dir}/petfit/{analysis_folder}` for modelling app outputs (default: `Primary_Analysis`).
-
-The idea of the analysis folders is that the region definition app produces combined region TACs which are common to all analyses, and the analysis folders allow for using different data subsets (e.g. baseline-only), or measurement properties (e.g. restricting the TACs to a shorter duration) or different modelling approaches (e.g. plasma vs. reference tissue).
-This allows the user to be flexible within the petfit directory and produce analyses with descriptive names.
-
-```
-bids_directory/                         # Raw BIDS data (bids_dir)
-├── participants.tsv
-├── code/petfit/
-│   └── petfit_regions.tsv        # Region definitions
-└── sub-*/ses-*/pet/
-
-derivatives/                       # Processed outputs
-└── petfit/                       # PETFit outputs
-    ├── desc-combinedregions_tacs.tsv  # Combined TACs
-    └── Analysis_Name/             # Analysis-specific folder
-        ├── desc-petfitoptions_config.json
-        ├── sub-01/sub-01_desc-combinedregions_tacs.tsv
-        ├── sub-01/sub-01_model-1TCM_kinpar.tsv
-        ├── ...
-        └── reports/               # HTML reports
-```
-
-## Supported Models
-
-### Invasive Models (Require Blood Input)
-- **1TCM**: Single tissue compartment model
-- **2TCM**: Two tissue compartment model
-- **2TCM_irr**: Two tissue compartment model with irreversible binding
-- **Logan**: Logan graphical analysis
-- **MA1**: Multilinear analysis
-- **Patlak**: Patlak graphical analysis
-
-### Non-Invasive Models (Reference Region Based) (in development...)
-- **SRTM**: Simplified reference tissue model
-- **SRTM2**: Simplified reference tissue model 2
-- **refLogan**: Reference Logan analysis
-- **MRTM1**: Multilinear reference tissue model
-- **MRTM2**: Multilinear reference tissue model 2
-- **refPatlak**: Reference Patlak analysis
-
-<!--## Workflow Overview-->
-<!---->
-<!--### Region Definition-->
-<!--1. Specify BIDS directory and segmentation files-->
-<!--2. Define custom regions from individual segments-->
-<!--3. Generate volume-weighted combined TACs-->
-<!--4. Export region configuration-->
-<!---->
-<!--### Modelling Apps-->
-<!--1. **Data Definition**: Subset data by subject, session, tracer, and select regions-->
-<!--2. **Weights Calculation**: Choose from predefined or custom weighting methods-->
-<!--3. **Delay Estimation** (optional): Estimate blood-tissue temporal delays-->
-<!--4. **Model Configuration**: Configure up to 3 models with parameter bounds and options-->
-<!--5. **Interactive Exploration**: Test model configurations on individual measurements-->
+For the full walkthrough — automatic processing, Apptainer/HPC, configuration, outputs, and troubleshooting — see the [Quick start](https://petfit.readthedocs.io/en/latest/quickstart.html) and [Usage](https://petfit.readthedocs.io/en/latest/usage/index.html) guides.
 
 ## Citation
 
@@ -456,11 +101,5 @@ Contributions are welcome! Please report issues or submit pull requests on GitHu
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
-
-- Built around the *kinfitr* package for PET kinetic modelling
-- Uses the Shiny framework for interactive web applications
-- Docker implementation based on rocker/shiny-verse
-- Follows BIDS conventions for neuroimaging data organisation

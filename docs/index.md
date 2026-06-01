@@ -11,7 +11,7 @@ PETFit is currently in active development (v0.1.3). If you encounter any bugs, p
 PETFit can be used in two ways:
 
 - **Interactive mode**: Use graphical web applications to configure your analysis step-by-step, preview results, and generate configuration files.
-- **Automatic mode**: Run the full pipeline non-interactively using a pre-defined configuration file. This is ideal for batch processing and HPC environments.
+- **Automatic mode**: Run the full pipeline non-interactively using a pre-defined configuration file. This is ideal for re-running analysis on updated data, or HPC environments.
 
 The typical workflow has two stages:
 
@@ -20,7 +20,7 @@ The typical workflow has two stages:
 
 ## Three apps
 
-PETFit provides three separate Shiny web applications:
+PETFit provides three separate Shiny web applications for interactive mode:
 
 - **Region Definition App** — Creates combined regional TACs from PET preprocessing derivative data.
 - **Modelling App with Plasma Input** — Configures invasive kinetic models (1TCM, 2TCM, Logan, MA1, Patlak) that require blood input data.

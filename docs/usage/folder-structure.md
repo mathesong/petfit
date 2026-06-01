@@ -1,6 +1,6 @@
 # PETFit folder structures
 
-PETFit organises its outputs in a structured hierarchy within the BIDS derivatives directory. Understanding this structure is key to running multiple analyses efficiently.
+PETFit organises its outputs in a structured hierarchy within the BIDS derivatives directory.
 
 ## Overview
 
@@ -40,7 +40,8 @@ derivatives/
 
 ## Region definition: shared across all analyses
 
-Region definition combines individual brain regions from your PET preprocessing derivatives into analysis-ready TACs. The outputs are written to the `derivatives/petfit/` directory and are shared by every analysis folder:
+Region definition combines individual brain regions from your PET preprocessing derivatives into analysis-ready TACs. 
+The outputs are written to the `derivatives/petfit/` directory and are shared by every analysis folder:
 
 - **`petfit_regions.tsv`** — defines which brain regions to combine and how. This file can be reused across studies that share the same preprocessing pipeline and segmentation.
 - **`desc-combinedregions_tacs.tsv`** — the combined TACs for all PET measurements, regions, and time frames, with integrated BIDS metadata (subject, session, tracer, injected radioactivity, body weight, etc.).
@@ -57,8 +58,7 @@ Different analyses let you explore your data in different ways without overwriti
 
 - **Baseline only** — include only baseline measurements by filtering on session.
 - **Shortened scans** — use only the first 60 minutes of data by restricting frame timing.
-- **Plasma vs reference** — run invasive models on one subset and non-invasive models on another.
-- **Different region subsets** — analyse high-binding regions separately from low-binding regions.
+- **Different region subsets** — analyse e.g. high-binding regions separately from low-binding regions with different settings.
 - **Different model configurations** — compare model parameter bounds, weighting approaches, or delay estimation methods.
 
 Each analysis folder contains its own configuration file (`desc-petfitoptions_config.json`), individual TAC files, weight files, kinetic parameter files, and HTML reports. The configuration file records every choice so the analysis is fully reproducible.
@@ -102,7 +102,8 @@ petfit_interactive(
 )
 
 # Automatic
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   analysis_foldername = "Baseline_Only"
 )
@@ -120,7 +121,8 @@ Within each analysis, you can configure up to three kinetic models to fit simult
 
 ### Model inheritance
 
-Models within the same analysis can inherit parameter estimates from earlier models. This is particularly useful for reference tissue models that require a k2prime value:
+Models within the same analysis can inherit parameter estimates from earlier models. This is useful for when models inherit parameters from a previous run.
+For instance, for reference tissue modelling, a model can inherit the average `k2prime` from another run:
 
 - **Model 2** can inherit k2prime from Model 1 (e.g. mean or median across regions).
 - **Model 3** can inherit k2prime from Model 1 or Model 2.
@@ -129,13 +131,14 @@ A typical workflow is to fit MRTM1 as Model 1 to estimate k2prime, then use that
 
 ## Ancillary analysis folders
 
-Sometimes you want to estimate a parameter (such as the blood-tissue delay or k2prime) from a subset of well-behaved regions, then use that estimate in your main analysis across all regions. This is the purpose of ancillary analysis folders.
+Sometimes you want to estimate a parameter (such as the blood-tissue delay or k2prime) from a subset of well-behaved regions, then use that estimate in your main analysis across all regions. 
+This is the purpose of ancillary analysis folders.
 
 ### How it works
 
-1. **Create an ancillary analysis** that includes only the regions you trust for parameter estimation. For example, select a few high-binding regions with clean TACs and good signal-to-noise.
+1. **Create an ancillary analysis** that includes only the regions you trust for parameter estimation. For example, select a few high-quality regions with clean TACs and good signal-to-noise.
 2. **Run the pipeline** in the ancillary folder to estimate the parameter of interest (delay or k2prime).
-3. **Create your primary analysis** and point it to the ancillary folder. The primary analysis inherits the parameter estimates instead of re-estimating them.
+3. **Create your primary analysis** and point it to the ancillary folder. The primary analysis inherits the parameter estimates for certain parameters (e.g. `k2prime`) instead of re-estimating them.
 
 Ancillary and primary analyses are **sibling folders** under `derivatives/petfit/` — they sit at the same level in the directory hierarchy.
 
@@ -192,14 +195,18 @@ apptainer run \
 ````{tab-item} R
 ```r
 # Step 1: Run ancillary analysis with well-behaved regions
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood",
   analysis_foldername = "Ancillary_Delay"
 )
 
 # Step 2: Run primary analysis, inheriting delay estimates
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood",
   analysis_foldername = "Primary_Analysis",
   ancillary_analysis_folder = "Ancillary_Delay"
 )
@@ -240,7 +247,8 @@ apptainer run \
 
 ````{tab-item} R
 ```r
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives",
   analysis_foldername = "Primary_Analysis",
   ancillary_analysis_folder = "Ancillary_k2prime"
@@ -254,4 +262,4 @@ petfit_modelling_auto(
 
 - **Delay estimation**: When some regions have noisy TACs that produce unreliable delay estimates, estimate the delay from cleaner regions and apply it everywhere.
 - **k2prime estimation**: When using constrained models (MRTM2, SRTM2), estimate k2prime from a subset of regions where the unconstrained model (MRTM1, SRTM) fits well.
-- **Quality control**: Running a quick ancillary analysis first lets you validate parameter estimates before committing to a full analysis.
+- **Parameter setting**: Estimating a parameter such as `vB` to set it in the primary analysis.

@@ -13,7 +13,9 @@ Region definitions are stored in a TSV file called `petfit_regions.tsv`. This fi
 
 Each row defines a combined region by listing its constituent parts. The interactive app helps you create this file, or you can write it manually.
 
-Because this file is independent of the data, you can transfer it between studies that use the same preprocessing pipelines and segmentations.
+Because this file is independent of the data, you can transfer it between studies that use the same preprocessing pipelines and segmentations. 
+So groups who have typical combined region definitions (e.g. Frontal Cortex) can share `petfit_regions.tsv` files between studies provided they extract the same segmentations using BIDS preprocessing tools (e.g. the `gtm` segmentation from `PETPrep`).
+
 
 ### BIDS entity matching
 
@@ -37,9 +39,6 @@ sub-P3_ses-01_run-2_seg-gtm_tacs.tsv → sub-P3_seg-gtm_morph.tsv
 sub-P3_ses-02_run-1_seg-gtm_tacs.tsv → sub-P3_seg-gtm_morph.tsv
 ```
 
-**Ignored entities:**
-
-The following entities are shown in the UI but not used for matching: `pvc` (partial volume correction), `desc`, `rec`, `task`.
 
 ### Volume-weighted combination
 
@@ -105,7 +104,8 @@ petfit_interactive(
 )
 
 # Automatic
-petfit_regiondef_auto(
+petfit_auto(
+  app = "regiondef",
   derivatives_dir = "/path/to/derivatives"
 )
 ```

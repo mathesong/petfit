@@ -1,12 +1,12 @@
 # Usage guide
 
-PETFit provides three independent Shiny web applications that together form a complete PET kinetic modelling pipeline.
+PETFit provides a complete PET kinetic modelling pipeline. It is steered by configuration files, which themselves can be generated using three independent Shiny web applications.
 
 ## The two-step workflow
 
 Every PETFit analysis follows two stages:
 
-1. **Region definition** — Combine brain regions from PET preprocessing derivatives into analysis-ready TACs. This step runs once per dataset and the results are shared across all analyses.
+1. **Region definition** — Combine brain regions from PET preprocessing derivatives into analysis-ready TACs. This step aimed to be run once once per dataset and the results can be shared across all analyses.
 2. **Kinetic modelling** — Configure and run kinetic models on the combined TACs. Choose either the plasma input app (for invasive models requiring blood data) or the reference tissue app (for non-invasive models using a reference region).
 
 ## The three apps
@@ -22,21 +22,24 @@ Every PETFit analysis follows two stages:
 
 ## Interactive vs automatic mode
 
-Both modes produce identical results. The difference is how you interact with the pipeline. Docker is the recommended way to run both modes.
+Both modes produce identical results. The difference is how you interact with the pipeline.
 
 **Interactive mode** launches a Shiny web app in your browser. You configure each step visually, run steps individually, and review results as you go. The app automatically saves a JSON configuration file that records all your choices.
 
-**Automatic mode** reads an existing JSON configuration file and runs the full pipeline (or a specific step) without any user interaction. This is designed for batch processing, HPC clusters, and reproducible workflows.
+**Automatic mode** reads an existing JSON configuration file and runs the full pipeline (or a specific step) without any user interaction.
 
-A common workflow is to use interactive mode once to set up and validate your configuration, then switch to automatic mode for production runs.
+A common workflow is to use interactive mode once to set up and validate your configuration, then switch to automatic mode for re-running the pipeline as new data are collected and added to the dataset.
 
 ## Configuration files
 
 The interactive apps automatically generate JSON configuration files (`desc-petfitoptions_config.json`) in each analysis folder. These files record every setting — subsetting, weights, delay/reference TAC options, model parameters, and bounds — so the analysis is fully reproducible.
 
-You do not need to write configuration files by hand. Use the interactive app to create and validate your configuration, then use the same analysis folder in automatic mode. The configuration file will be read automatically.
+You do not need to write configuration files by hand, and probably should not do so either because it can be easy to make mistakes. 
+For editing the configuration file, when you reopen the interactive app and point it to an existing analysis folder, all settings will be restored from the configuration file for editing.
 
-When you reopen the interactive app and point it to an existing analysis folder, all settings are restored from the configuration file.
+For using automatic mode, it's recommended to use the interactive app to create and validate your configuration, then use the same analysis folder in automatic mode for future re-analyses. 
+The configuration file will be read automatically. 
+
 
 ## Analysis folders
 

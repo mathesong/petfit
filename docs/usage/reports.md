@@ -37,42 +37,11 @@ For example, if you configure 2TCM as Model 1 and Logan as Model 2, PETFit uses 
 
 Available model templates: 1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak, SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak.
 
-## Report features
 
-All reports share a common structure:
-
-- **Table of contents** with collapsible navigation
-- **Analysis configuration summary** showing which parameters were used
-- **Interactive Plotly plots** — hover for values, zoom, pan, and export
-- **Cross-filtering** — hover over one plot to highlight corresponding data in others
-- **Code folding** — implementation code is hidden by default but can be expanded
-- **Session information** — full R session info for reproducibility
-- **Timestamp** — when the report was generated
 
 ## Report content
 
-Reports are not just visualisations — they perform actual computational work. Each template contains the analysis logic, making the reports both transparent and reproducible. If you re-render a report with the same data and configuration, you get the same results.
+Reports are not just visualisations — they are where the computational work takes place. 
+You can visualise the R code used at each stage of the analysis if you would like to customise the analysis in R.
 
-### Typical report sections
 
-- Configuration and parameter summary tables
-- Data quality diagnostics
-- Model fit plots for each PET measurement and region
-- Parameter estimate tables with uncertainties
-- Summary statistics across measurements
-- Recommendations for next steps
-
-## Rendering reports manually
-
-Reports are R Markdown templates stored in the package's `inst/rmd/` directory. You can render them manually if needed:
-
-```r
-rmarkdown::render(
-  input = system.file("rmd", "2tcm_report.Rmd", package = "petfit"),
-  params = list(
-    analysis_folder = "/path/to/analysis/folder",
-    config_path = "/path/to/config.json"
-  ),
-  output_dir = "/path/to/output"
-)
-```

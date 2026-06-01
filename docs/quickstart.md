@@ -63,7 +63,8 @@ petfit_interactive(
 )
 
 # Automatic — runs non-interactively using an existing petfit_regions.tsv
-petfit_regiondef_auto(
+petfit_auto(
+  app = "regiondef",
   bids_dir = "/path/to/bids",
   derivatives_dir = "/path/to/derivatives"
 )
@@ -141,13 +142,15 @@ petfit_interactive(
 )
 
 # Automatic (full pipeline)
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood"
 )
 
 # Automatic (single step)
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   blood_dir = "/path/to/blood",
   step = "weights"
@@ -212,7 +215,8 @@ petfit_interactive(
 )
 
 # Automatic
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives"
 )
 ```
