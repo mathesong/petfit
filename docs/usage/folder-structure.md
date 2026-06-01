@@ -1,6 +1,6 @@
 # PETFit folder structures
 
-PETFit organises its outputs in a structured hierarchy within the BIDS derivatives directory. Understanding this structure is key to running multiple analyses efficiently.
+PETFit organises its outputs in a structured hierarchy within the BIDS derivatives directory.
 
 ## Overview
 
@@ -40,7 +40,8 @@ derivatives/
 
 ## Region definition: shared across all analyses
 
-Region definition combines individual brain regions from your PET preprocessing derivatives into analysis-ready TACs. The outputs are written to the `derivatives/petfit/` directory and are shared by every analysis folder:
+Region definition combines individual brain regions from your PET preprocessing derivatives into analysis-ready TACs. 
+The outputs are written to the `derivatives/petfit/` directory and are shared by every analysis folder:
 
 - **`petfit_regions.tsv`** — defines which brain regions to combine and how. This file can be reused across studies that share the same preprocessing pipeline and segmentation.
 - **`desc-combinedregions_tacs.tsv`** — the combined TACs for all PET measurements, regions, and time frames, with integrated BIDS metadata (subject, session, tracer, injected radioactivity, body weight, etc.).
@@ -57,16 +58,41 @@ Different analyses let you explore your data in different ways without overwriti
 
 - **Baseline only** — include only baseline measurements by filtering on session.
 - **Shortened scans** — use only the first 60 minutes of data by restricting frame timing.
-- **Plasma vs reference** — run invasive models on one subset and non-invasive models on another.
-- **Different region subsets** — analyse high-binding regions separately from low-binding regions.
+- **Different region subsets** — analyse e.g. high-binding regions separately from low-binding regions with different settings.
 - **Different model configurations** — compare model parameter bounds, weighting approaches, or delay estimation methods.
 
 Each analysis folder contains its own configuration file (`desc-petfitoptions_config.json`), individual TAC files, weight files, kinetic parameter files, and HTML reports. The configuration file records every choice so the analysis is fully reproducible.
 
 ### Creating an analysis folder
 
-Analysis folders are created automatically when you launch a modelling app or run `petfit_modelling_auto()`. Specify the folder name with the `analysis_foldername` parameter:
+Analysis folders are created automatically when you launch a modelling app. Specify the folder name with the `analysis_foldername` parameter:
 
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+docker run -it --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --analysis_foldername Baseline_Only
+```
+````
+
+````{tab-item} Apptainer
+```bash
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --analysis_foldername Baseline_Only
+```
+````
+
+````{tab-item} R
 ```r
 # Interactive
 petfit_interactive(
@@ -76,11 +102,15 @@ petfit_interactive(
 )
 
 # Automatic
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
   analysis_foldername = "Baseline_Only"
 )
 ```
+````
+
+`````
 
 ## Up to three models per analysis
 
@@ -91,7 +121,8 @@ Within each analysis, you can configure up to three kinetic models to fit simult
 
 ### Model inheritance
 
-Models within the same analysis can inherit parameter estimates from earlier models. This is particularly useful for reference tissue models that require a k2prime value:
+Models within the same analysis can inherit parameter estimates from earlier models. This is useful for when models inherit parameters from a previous run.
+For instance, for reference tissue modelling, a model can inherit the average `k2prime` from another run:
 
 - **Model 2** can inherit k2prime from Model 1 (e.g. mean or median across regions).
 - **Model 3** can inherit k2prime from Model 1 or Model 2.
@@ -100,54 +131,135 @@ A typical workflow is to fit MRTM1 as Model 1 to estimate k2prime, then use that
 
 ## Ancillary analysis folders
 
-Sometimes you want to estimate a parameter (such as the blood-tissue delay or k2prime) from a subset of well-behaved regions, then use that estimate in your main analysis across all regions. This is the purpose of ancillary analysis folders.
+Sometimes you want to estimate a parameter (such as the blood-tissue delay or k2prime) from a subset of well-behaved regions, then use that estimate in your main analysis across all regions. 
+This is the purpose of ancillary analysis folders.
 
 ### How it works
 
-1. **Create an ancillary analysis** that includes only the regions you trust for parameter estimation. For example, select a few high-binding regions with clean TACs and good signal-to-noise.
+1. **Create an ancillary analysis** that includes only the regions you trust for parameter estimation. For example, select a few high-quality regions with clean TACs and good signal-to-noise.
 2. **Run the pipeline** in the ancillary folder to estimate the parameter of interest (delay or k2prime).
-3. **Create your primary analysis** and point it to the ancillary folder. The primary analysis inherits the parameter estimates instead of re-estimating them.
+3. **Create your primary analysis** and point it to the ancillary folder. The primary analysis inherits the parameter estimates for certain parameters (e.g. `k2prime`) instead of re-estimating them.
 
 Ancillary and primary analyses are **sibling folders** under `derivatives/petfit/` — they sit at the same level in the directory hierarchy.
 
 ### Delay inheritance (plasma input)
 
-For plasma input pipelines, you can estimate the blood-tissue delay in an ancillary analysis and inherit it in the primary analysis:
+For plasma input pipelines, you can estimate the blood-tissue delay in an ancillary analysis and inherit it in the primary analysis.
 
+In the primary analysis configuration, set the delay model to `"ancillary_estimate"` so that the pipeline copies the delay values from the ancillary folder instead of fitting them.
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Step 1: Run ancillary analysis with well-behaved regions
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Ancillary_Delay
+
+# Step 2: Run primary analysis, inheriting delay estimates
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_Delay
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Step 1: Run ancillary analysis with well-behaved regions
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Ancillary_Delay
+
+# Step 2: Run primary analysis, inheriting delay estimates
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  --bind /path/to/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_Delay
+```
+````
+
+````{tab-item} R
 ```r
 # Step 1: Run ancillary analysis with well-behaved regions
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood",
   analysis_foldername = "Ancillary_Delay"
 )
 
 # Step 2: Run primary analysis, inheriting delay estimates
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_plasma",
   derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood",
   analysis_foldername = "Primary_Analysis",
   ancillary_analysis_folder = "Ancillary_Delay"
 )
 ```
+````
 
-In the primary analysis configuration, set the delay model to `"ancillary_estimate"` so that the pipeline copies the delay values from the ancillary folder instead of fitting them.
+`````
 
 ### k2prime inheritance (reference tissue)
 
-For reference tissue pipelines, you can estimate k2prime in an ancillary analysis and use it in constrained models (MRTM2, SRTM2, refLogan) in the primary analysis:
+For reference tissue pipelines, you can estimate k2prime in an ancillary analysis and use it in constrained models (MRTM2, SRTM2, refLogan) in the primary analysis.
 
+In the primary analysis configuration, set the k2prime source to values like `"ancillary_model1_median"` or `"ancillary_model1_mean"` to use the aggregated k2prime from the ancillary analysis.
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+docker run --rm \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_k2prime
+```
+````
+
+````{tab-item} Apptainer
+```bash
+apptainer run \
+  --bind /path/to/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref --mode automatic \
+  --analysis_foldername Primary_Analysis \
+  --ancillary_analysis_folder Ancillary_k2prime
+```
+````
+
+````{tab-item} R
 ```r
-# Primary analysis inherits k2prime from ancillary Model 1
-petfit_modelling_auto(
+petfit_auto(
+  app = "modelling_ref",
   derivatives_dir = "/path/to/derivatives",
   analysis_foldername = "Primary_Analysis",
   ancillary_analysis_folder = "Ancillary_k2prime"
 )
 ```
+````
 
-In the primary analysis configuration, set the k2prime source to values like `"ancillary_model1_median"` or `"ancillary_model1_mean"` to use the aggregated k2prime from the ancillary analysis.
+`````
 
 ### When to use ancillary analyses
 
 - **Delay estimation**: When some regions have noisy TACs that produce unreliable delay estimates, estimate the delay from cleaner regions and apply it everywhere.
 - **k2prime estimation**: When using constrained models (MRTM2, SRTM2), estimate k2prime from a subset of regions where the unconstrained model (MRTM1, SRTM) fits well.
-- **Quality control**: Running a quick ancillary analysis first lets you validate parameter estimates before committing to a full analysis.
+- **Parameter setting**: Estimating a parameter such as `vB` to set it in the primary analysis.

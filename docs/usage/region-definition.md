@@ -2,49 +2,9 @@
 
 The region definition app combines individual brain regions from PET preprocessing derivatives into analysis-ready TACs. This is always the first step in a PETFit workflow.
 
-## Launching the app
+## How it works
 
-`````{tab-set}
-
-````{tab-item} R
-```r
-library(petfit)
-
-# Interactive
-petfit_interactive(
-  app = "regiondef",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic
-petfit_regiondef_auto(
-  derivatives_dir = "/path/to/derivatives"
-)
-```
-````
-
-````{tab-item} Docker
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func regiondef
-
-# Automatic
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func regiondef \
-  --mode automatic
-```
-````
-
-`````
-
-## The petfit_regions.tsv file
+### The petfit_regions.tsv file
 
 Region definitions are stored in a TSV file called `petfit_regions.tsv`. This file can live in either:
 
@@ -53,18 +13,20 @@ Region definitions are stored in a TSV file called `petfit_regions.tsv`. This fi
 
 Each row defines a combined region by listing its constituent parts. The interactive app helps you create this file, or you can write it manually.
 
-Because this file is independent of the data, you can transfer it between studies that use the same preprocessing pipelines and segmentations.
+Because this file is independent of the data, you can transfer it between studies that use the same preprocessing pipelines and segmentations. 
+So groups who have typical combined region definitions (e.g. Frontal Cortex) can share `petfit_regions.tsv` files between studies provided they extract the same segmentations using BIDS preprocessing tools (e.g. the `gtm` segmentation from `PETPrep`).
 
-## BIDS entity matching
+
+### BIDS entity matching
 
 PETFit uses BIDS entities to match TAC files with their corresponding morphometry (volume) files.
 
-### Required entities
+**Required entities:**
 
 - **sub** — Subject identifier. Must match exactly between TACs and morph files.
 - **seg** or **label** — Segmentation type (e.g. `seg-gtm`) or region label (e.g. `label-semiovale`). Must match exactly. Files must have one or the other.
 
-### Hierarchical entities
+**Hierarchical entities:**
 
 - **ses** — Session identifier. If the morph file specifies a session, the TACs file must have the same session. If the morph file has no session, it matches all sessions for that subject.
 - **run** — Run identifier. Same hierarchical logic as session.
@@ -77,19 +39,79 @@ sub-P3_ses-01_run-2_seg-gtm_tacs.tsv → sub-P3_seg-gtm_morph.tsv
 sub-P3_ses-02_run-1_seg-gtm_tacs.tsv → sub-P3_seg-gtm_morph.tsv
 ```
 
-### Ignored entities
 
-The following entities are shown in the UI but not used for matching: `pvc` (partial volume correction), `desc`, `rec`, `task`.
-
-## Volume-weighted combination
+### Volume-weighted combination
 
 When combining regions, PETFit computes a volume-weighted average of the constituent TACs. Region volumes are read from the morph files.
 
 If no matching morph file is found for a TAC, PETFit falls back to equal weighting (volume = 1 for all regions) and displays a warning.
 
-## Segmentation mean TAC
+### Segmentation mean TAC
 
 During region combination, PETFit also calculates a `seg_meanTAC` column — a volume-weighted mean TAC across *all* regions within each segmentation. This is useful for weights calculation later in the pipeline, as it provides a representative whole-brain TAC without needing to access the original BIDS directory.
+
+## Running region definition
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func regiondef
+# Then open http://localhost:3838
+
+# Automatic
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func regiondef \
+  --mode automatic
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func regiondef
+# Then open http://localhost:3838
+
+# Automatic
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func regiondef \
+  --mode automatic
+```
+````
+
+````{tab-item} R
+```r
+library(petfit)
+
+# Interactive
+petfit_interactive(
+  app = "regiondef",
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic
+petfit_auto(
+  app = "regiondef",
+  derivatives_dir = "/path/to/derivatives"
+)
+```
+````
+
+`````
 
 ## Outputs
 

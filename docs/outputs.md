@@ -43,32 +43,6 @@ The region definition file listing all combined regions and their constituents. 
 
 The combined TACs file containing all PET measurements and regions with BIDS metadata.
 
-**Column order:**
-
-| Column | Description |
-|--------|-------------|
-| `sub` | Subject identifier |
-| `ses` | Session |
-| `trc` | Tracer |
-| `rec` | Reconstruction |
-| `task` | Task |
-| `run` | Run |
-| `segmentation` | Full preprocessing pipeline identifier (e.g. `petprep: seg-gtm_pvc-AGTM`) |
-| `pet` | PET measurement identifier (only BIDS attributes that vary across the dataset) |
-| `InjectedRadioactivity` | Injected radioactivity in kBq |
-| `bodyweight` | Body weight in kg (for SUV calculations) |
-| *(participant columns)* | Optional columns from `participants.tsv` (e.g. age, sex) |
-| `region` | Combined region name |
-| `volume_mm3` | Total region volume in mm³ |
-| `frame_start` | Frame start time |
-| `frame_end` | Frame end time |
-| `frame_dur` | Frame duration |
-| `frame_mid` | Frame midpoint |
-| `TAC` | Volume-weighted average TAC |
-| `seg_meanTAC` | Volume-weighted mean TAC for the entire segmentation |
-
-All BIDS identifiers are preserved as character types (e.g. subject `"01"` stays as `"01"`, not numeric `1`).
-
 ## Modelling outputs
 
 These files are created within analysis-specific subfolders.
@@ -77,20 +51,6 @@ These files are created within analysis-specific subfolders.
 
 One file per PET measurement, named `{pet_id}_desc-combinedregions_tacs.tsv`.
 
-**Column order:**
-
-| Column | Description |
-|--------|-------------|
-| `pet` | PET measurement identifier |
-| `region` | Region name |
-| `volume_mm3` | Region volume in mm³ |
-| `InjectedRadioactivity` | Injected radioactivity in kBq |
-| `bodyweight` | Body weight in kg |
-| `frame_start` | Frame start time |
-| `frame_end` | Frame end time |
-| `frame_dur` | Frame duration |
-| `frame_mid` | Frame midpoint |
-| `TAC` | TAC value |
 
 ### Weight files
 
@@ -98,7 +58,9 @@ One file per PET measurement, named `{pet_id}_desc-weights_weights.tsv`. Contain
 
 ### Kinetic parameter files
 
-One file per PET measurement per model, named `{pet_id}_model-{MODEL}_kinpar.tsv`. Contains the fitted kinetic parameters for each region.
+One file per PET measurement per model, named `{pet_id}_model-{MODEL}_kinpar.tsv`. 
+Contains the fitted kinetic parameters for each region._
+There is also a global kinetic parameter file for all subjects in the analysis created in the main analysis folder, named `model_{MODEL}_desc-{MODEL_NUMBER}_kinpar.tsv`
 
 ### Configuration file
 

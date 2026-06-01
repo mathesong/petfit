@@ -2,55 +2,6 @@
 
 The reference tissue modelling app configures and runs non-invasive kinetic models that use a reference brain region instead of arterial blood data. This is the appropriate choice when blood data is not available.
 
-## Launching the app
-
-`````{tab-set}
-
-````{tab-item} R
-```r
-library(petfit)
-
-# Interactive
-petfit_interactive(
-  app = "modelling_ref",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic — full pipeline
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic — single step
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives",
-  step = "model1"
-)
-```
-````
-
-````{tab-item} Docker
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
-
-# Automatic — full pipeline
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref \
-  --mode automatic
-```
-````
-
-`````
-
 ## Pipeline steps
 
 The reference tissue pipeline runs these steps in order:
@@ -73,19 +24,16 @@ Configures how the reference region TAC is handled before being used for model f
 
 **Reference TAC methods:**
 
-- **Raw reference TAC** (default) — Uses the reference region TAC without modification.
+- **Raw reference TAC** (default) — Uses the reference region TAC without modification. This is usually recommended.
 - **Feng+1TC reference model** — Fits the reference TAC with a pharmacokinetic model to reduce noise.
-- **Spline model** — Fits the reference TAC with a smooth spline function.
+- **Spline model** — Fits the reference TAC with a smooth spline function to reduce noise.
 
 **Noise approximation** (available with Raw reference TAC only):
 
-When enabled, compares the noise level in the reference region to target regions using a spline-based estimate. This helps identify whether the reference region is particularly noisy relative to targets — useful for quality control.
+When enabled, compares the noise level in the reference region to target regions using a spline-based estimate. 
+This helps identify whether the reference region is particularly noisy relative to targets, which can necessitate fitting the reference region.
+But usually, the raw reference TAC is sufficient.
 
-**Reference TAC weighting:**
-
-- Same weights as the target TAC (default)
-- Independent weighting method
-- Custom formula
 
 ### 4. Model fitting
 
@@ -98,6 +46,94 @@ Models that require a **k2prime** value (SRTM2, MRTM2, refLogan) can obtain it f
 - A fixed value you provide
 - The fitted results of another model in the same analysis (e.g. MRTM1's k2a estimate)
 - An ancillary analysis folder (when using the ancillary analysis workflow)
+
+## Running the pipeline
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref \
+  --mode automatic
+
+# Automatic — single step
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref \
+  --mode automatic \
+  --step model1
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref \
+  --mode automatic
+
+# Automatic — single step
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  petfit_latest.sif \
+  --func modelling_ref \
+  --mode automatic \
+  --step model1
+```
+````
+
+````{tab-item} R
+```r
+library(petfit)
+
+# Interactive
+petfit_interactive(
+  app = "modelling_ref",
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic — full pipeline
+petfit_auto(
+  app = "modelling_ref",
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic — single step
+petfit_auto(
+  app = "modelling_ref",
+  derivatives_dir = "/path/to/derivatives",
+  step = "model1"
+)
+```
+````
+
+`````
 
 ## Interactive exploration
 
