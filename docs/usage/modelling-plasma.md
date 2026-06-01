@@ -2,77 +2,6 @@
 
 The plasma input modelling app configures and runs invasive kinetic models that require an arterial blood input function. This is used when you have blood data (either raw `_blood.tsv` files or processed `_inputfunction.tsv` files).
 
-## Launching the app
-
-`````{tab-set}
-
-````{tab-item} R
-```r
-library(petfit)
-
-# Interactive
-petfit_interactive(
-  app = "modelling_plasma",
-  bids_dir = "/path/to/your/bids/dataset",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood/data"
-)
-
-# Automatic — full pipeline
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood"
-)
-
-# Automatic — single step
-petfit_modelling_auto(
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood",
-  step = "weights"
-)
-
-# Automatic — custom analysis folder
-petfit_modelling_auto(
-  analysis_foldername = "Baseline_only",
-  derivatives_dir = "/path/to/derivatives",
-  blood_dir = "/path/to/blood"
-)
-```
-````
-
-````{tab-item} Docker
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma
-
-# Automatic — full pipeline
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic
-
-# Automatic — single step
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
-  --step weights
-```
-````
-
-`````
-
 ## Pipeline steps
 
 The plasma input pipeline runs these steps in order:
@@ -134,6 +63,127 @@ Each model has configurable:
 - Start values, lower bounds, and upper bounds for all parameters
 - Whether to fit vB (blood volume fraction)
 - Whether to use weights
+
+## Running the pipeline
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_plasma
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --mode automatic
+
+# Automatic — single step
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --mode automatic \
+  --step weights
+
+# Automatic — custom analysis folder
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma \
+  --mode automatic \
+  --analysis_foldername Baseline_only
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  --bind /path/to/your/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma
+# Then open http://localhost:3838
+
+# Automatic — full pipeline
+apptainer run \
+  --bind /path/to/your/bids:/data/bids_dir \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  --bind /path/to/your/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --mode automatic
+
+# Automatic — single step
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  --bind /path/to/your/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --mode automatic \
+  --step weights
+
+# Automatic — custom analysis folder
+apptainer run \
+  --bind /path/to/your/derivatives:/data/derivatives_dir \
+  --bind /path/to/your/blood:/data/blood_dir \
+  petfit_latest.sif \
+  --func modelling_plasma \
+  --mode automatic \
+  --analysis_foldername Baseline_only
+```
+````
+
+````{tab-item} R
+```r
+library(petfit)
+
+# Interactive
+petfit_interactive(
+  app = "modelling_plasma",
+  bids_dir = "/path/to/your/bids/dataset",
+  derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood/data"
+)
+
+# Automatic — full pipeline
+petfit_modelling_auto(
+  derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood"
+)
+
+# Automatic — single step
+petfit_modelling_auto(
+  derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood",
+  step = "weights"
+)
+
+# Automatic — custom analysis folder
+petfit_modelling_auto(
+  analysis_foldername = "Baseline_only",
+  derivatives_dir = "/path/to/derivatives",
+  blood_dir = "/path/to/blood"
+)
+```
+````
+
+`````
 
 ## Interactive exploration
 

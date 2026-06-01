@@ -35,7 +35,7 @@ PETFit provides three separate Shiny web applications:
 :link: installation
 :link-type: doc
 
-Install the R package, pull a Docker image, or build an Apptainer container.
+Pull the Docker image, build an Apptainer container, or install the R package.
 :::
 
 :::{grid-item-card} Quick start

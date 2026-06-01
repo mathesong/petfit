@@ -1,31 +1,6 @@
 # Installation
 
-PETFit can be installed and run in three ways. Choose the approach that best suits your environment.
-
-## R package
-
-Install the development version directly from GitHub:
-
-```r
-# Install remotes if needed
-install.packages("remotes")
-
-# Install petfit
-remotes::install_github("mathesong/petfit")
-```
-
-### Prerequisites
-
-- **R** >= 4.0
-- The [kinfitr](https://github.com/mathesong/kinfitr) package (installed automatically as a dependency)
-- Standard R package build tools (`Rtools` on Windows, `r-base-dev` on Linux)
-
-### Verifying the installation
-
-```r
-library(petfit)
-?petfit_interactive
-```
+PETFit can be installed and run in three ways. Docker and Apptainer are the recommended approaches for most users; the R package is intended mainly for development.
 
 ## Docker
 
@@ -76,3 +51,28 @@ apptainer build petfit_latest.sif apptainer/petfit.def
 - Internet access during the build
 
 See [Apptainer usage](containers/apptainer.md) for full details, including HPC integration with SLURM, PBS, and LSF.
+
+## R package (for development)
+
+If you need to run PETFit outside a container — for example, during development or debugging — you can install the R package directly.
+
+```r
+# Install remotes if needed
+install.packages("remotes")
+
+# Install petfit
+remotes::install_github("mathesong/petfit")
+```
+
+### Prerequisites
+
+- **R** >= 4.0
+- The [kinfitr](https://github.com/mathesong/kinfitr) package (installed automatically as a dependency)
+- Standard R package build tools (`Rtools` on Windows, `r-base-dev` on Linux)
+
+### Verifying the installation
+
+```r
+library(petfit)
+?petfit_interactive
+```

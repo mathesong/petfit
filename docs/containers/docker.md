@@ -1,5 +1,7 @@
 # Docker
 
+For a quick introduction, see the [Quick start](../quickstart.md). This page covers advanced options and detailed reference.
+
 ## Getting the image
 
 ```bash

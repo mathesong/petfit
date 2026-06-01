@@ -10,25 +10,6 @@ Region definition combines individual brain regions from your preprocessing deri
 
 `````{tab-set}
 
-````{tab-item} R
-```r
-library(petfit)
-
-# Interactive — opens the region definition app in your browser
-petfit_interactive(
-  app = "regiondef",
-  bids_dir = "/path/to/bids",
-  derivatives_dir = "/path/to/derivatives"
-)
-
-# Automatic — runs non-interactively using an existing petfit_regions.tsv
-petfit_regiondef_auto(
-  bids_dir = "/path/to/bids",
-  derivatives_dir = "/path/to/derivatives"
-)
-```
-````
-
 ````{tab-item} Docker
 ```bash
 # Interactive
@@ -62,10 +43,30 @@ apptainer run --cleanenv \
 
 # Automatic
 apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
   -B /path/to/derivatives:/data/derivatives_dir:rw \
   -B /tmp:/tmp \
   petfit_latest.sif \
   --func regiondef --mode automatic
+```
+````
+
+````{tab-item} R
+```r
+library(petfit)
+
+# Interactive — opens the region definition app in your browser
+petfit_interactive(
+  app = "regiondef",
+  bids_dir = "/path/to/bids",
+  derivatives_dir = "/path/to/derivatives"
+)
+
+# Automatic — runs non-interactively using an existing petfit_regions.tsv
+petfit_regiondef_auto(
+  bids_dir = "/path/to/bids",
+  derivatives_dir = "/path/to/derivatives"
+)
 ```
 ````
 
@@ -80,9 +81,56 @@ Choose the modelling pipeline that matches your data:
 
 The interactive app guides you through configuration and generates a JSON config file. In automatic mode, this config file drives the pipeline without any user interaction.
 
+### Plasma input models
+
 `````{tab-set}
 
-````{tab-item} R (plasma input)
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_plasma
+# Then open http://localhost:3838
+
+# Automatic
+docker run --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/blood:/data/blood_dir:ro \
+  mathesong/petfit:latest \
+  --func modelling_plasma --mode automatic
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma
+# Then open http://localhost:3838
+
+# Automatic
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/blood:/data/blood_dir:ro \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_plasma --mode automatic
+```
+````
+
+````{tab-item} R
 ```r
 # Interactive
 petfit_interactive(
@@ -107,7 +155,54 @@ petfit_modelling_auto(
 ```
 ````
 
-````{tab-item} R (reference tissue)
+`````
+
+### Reference tissue models
+
+`````{tab-set}
+
+````{tab-item} Docker
+```bash
+# Interactive
+docker run -it --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -p 3838:3838 \
+  mathesong/petfit:latest \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic
+docker run --rm \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func modelling_ref --mode automatic
+```
+````
+
+````{tab-item} Apptainer
+```bash
+# Interactive
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_ref
+# Then open http://localhost:3838
+
+# Automatic
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
+  petfit_latest.sif \
+  --func modelling_ref --mode automatic
+```
+````
+
+````{tab-item} R
 ```r
 # Interactive
 petfit_interactive(
@@ -120,88 +215,6 @@ petfit_interactive(
 petfit_modelling_auto(
   derivatives_dir = "/path/to/derivatives"
 )
-```
-````
-
-````{tab-item} Docker (plasma input)
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma
-
-# Automatic
-docker run --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma --mode automatic
-```
-````
-
-````{tab-item} Docker (reference tissue)
-```bash
-# Interactive
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
-
-# Automatic
-docker run --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref --mode automatic
-```
-````
-
-````{tab-item} Apptainer (plasma input)
-```bash
-# Interactive
-apptainer run --cleanenv \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/blood:/data/blood_dir:ro \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_plasma
-
-# Automatic
-apptainer run --cleanenv \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/blood:/data/blood_dir:ro \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_plasma --mode automatic
-```
-````
-
-````{tab-item} Apptainer (reference tissue)
-```bash
-# Interactive
-apptainer run --cleanenv \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_ref
-
-# Automatic
-apptainer run --cleanenv \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /tmp:/tmp \
-  petfit_latest.sif \
-  --func modelling_ref --mode automatic
 ```
 ````
 
