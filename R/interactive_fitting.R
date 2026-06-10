@@ -202,25 +202,13 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
       stop("This model requires weights, but no *_weights.tsv was found for ", basename(pet_dir),
            ". Run the Weights step first.")
     }
-    w <- readr::read_tsv(wfiles[1], show_col_types = FALSE)
-
-    if ("region" %in% colnames(w)) {
-      # Region-labelled weights: join on region + frame.
-      wsel <- dplyr::select(w, dplyr::any_of(c("region", "frame_start", "weights")))
-      region_data <- dplyr::inner_join(region_data, wsel, by = c("region", "frame_start"))
-    } else {
-      # Some pipelines write a weights file without a region column: weights are
-      # stored per frame, with one row per (region, frame) but no region label.
-      # The batch reports inner_join these by frame, producing a many-to-many match
-      # whose weighted least-squares objective is equivalent to weighting each frame
-      # by the SUM of the per-frame weights. Aggregating to that sum reproduces the
-      # batch fit while keeping exactly one row per frame (and, for a clean file with
-      # a single weight per frame, is an identity).
-      wsum <- w %>%
-        dplyr::group_by(.data$frame_start) %>%
-        dplyr::summarise(weights = sum(.data$weights), .groups = "drop")
-      region_data <- dplyr::inner_join(region_data, wsum, by = "frame_start")
-    }
+    # Weights are a single per-frame series (consistent across regions for every
+    # region_type), so we join by frame. distinct() guards against any legacy file
+    # that duplicated the series per region.
+    w <- readr::read_tsv(wfiles[1], show_col_types = FALSE) %>%
+      dplyr::select(dplyr::any_of(c("frame_start", "weights"))) %>%
+      dplyr::distinct(.data$frame_start, .keep_all = TRUE)
+    region_data <- dplyr::inner_join(region_data, w, by = "frame_start")
   }
 
   region_data %>%
@@ -303,10 +291,13 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
 
 # Resolve the vB value (or NULL when the nonlinear model should fit vB).
 .resolve_vB <- function(model_config, type, pet_dir, region) {
+  nonlinear <- type %in% c("1TCM", "2TCM", "2TCM_irr")
   vB_source <- if (!is.null(model_config$vB_source)) {
     model_config$vB_source
-  } else if (!is.null(model_config$vB$fit)) {
-    if (isTRUE(model_config$vB$fit)) "fit" else "set"
+  } else if (nonlinear) {
+    # Model 1 nonlinear: vB is controlled by the vB$fit boolean, which the batch
+    # reports default to TRUE (fit vB) when absent.
+    if (isTRUE(model_config$vB$fit %||% TRUE)) "fit" else "set"
   } else {
     "set"
   }

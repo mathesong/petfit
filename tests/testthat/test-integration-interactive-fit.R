@@ -1,30 +1,19 @@
 # Integration tests: interactive single-measurement fitting
 #
 # Builds a real analysis folder from ds004869, runs the full batch pipeline,
-# then checks that fit_single_measurement_plasma()/_ref() assemble the data and
-# fit the saved-config model end-to-end, returning well-formed estimates.
-#
-# Note on exactness: when the weights file has one weight per frame (the normal
-# case, e.g. the ds004869_mini development dataset) the interactive fit reproduces
-# the batch kinpar exactly. The bundled ds004869 fixture's weights file stores
-# region-specific weights without a region label, so the batch fits a many-to-many
-# blow-up; we therefore assert structural validity and finite estimates here rather
-# than bit-exact equality. Exact interactive == batch equivalence is verified
-# manually on clean single-weight-per-frame data.
+# then checks that fit_single_measurement_plasma()/_ref() reproduce the batch
+# kinpar values for the same measurement + region (interactive == batch).
 #
 # Requires: PETFIT_INTEGRATION_TESTS=true
 
-expect_well_formed_fit <- function(fit, expected_params) {
-  testthat::expect_type(fit, "list")
-  testthat::expect_s3_class(fit$par, "data.frame")
-  testthat::expect_s3_class(fit$par.se, "data.frame")
-  testthat::expect_equal(nrow(fit$par), 1)
-  testthat::expect_equal(nrow(fit$par.se), 1)
-
-  present <- intersect(expected_params, names(fit$par))
-  testthat::expect_gt(length(present), 0)
-  for (p in present) {
-    testthat::expect_true(is.finite(fit$par[[p]][1]), info = paste("parameter", p, "should be finite"))
+# Compare interactive estimates to a batch kinpar row, on shared numeric columns.
+expect_matches_batch <- function(par, kinpar_row, tolerance = 1e-4) {
+  shared <- intersect(names(par), names(kinpar_row))
+  shared <- shared[vapply(shared, function(n) is.numeric(par[[n]]), logical(1))]
+  testthat::expect_gt(length(shared), 0)
+  for (n in shared) {
+    testthat::expect_equal(as.numeric(par[[n]][1]), as.numeric(kinpar_row[[n]][1]),
+                           tolerance = tolerance, info = paste("parameter", n))
   }
 }
 
@@ -32,7 +21,7 @@ expect_well_formed_fit <- function(fit, expected_params) {
 # Plasma (2TCM)
 # ---------------------------------------------------------------------------
 
-test_that("fit_single_measurement_plasma fits the saved-config model end-to-end", {
+test_that("fit_single_measurement_plasma reproduces the batch fit", {
   skip_if_no_integration()
 
   dataset_dir <- ensure_testdata()
@@ -48,6 +37,7 @@ test_that("fit_single_measurement_plasma fits the saved-config model end-to-end"
   if (!res$success) skip(paste("Plasma pipeline failed:", paste(res$messages, collapse = "\n")))
 
   analysis_folder <- file.path(ws$derivatives_dir, "petfit", "Primary_Analysis")
+  # The combined (study-level) kinpar lives at the analysis-folder root.
   kinpar_file <- list.files(analysis_folder, "model_.*_desc-model1_kinpar.tsv",
                             full.names = TRUE, recursive = FALSE)[1]
   skip_if(is.na(kinpar_file) || !file.exists(kinpar_file), "No model1 kinpar produced")
@@ -64,7 +54,9 @@ test_that("fit_single_measurement_plasma fits the saved-config model end-to-end"
   ))
 
   expect_equal(fit$type, "2TCM")
-  expect_well_formed_fit(fit, c("K1", "k2", "k3", "k4", "VT", "BPnd"))
+  expect_equal(nrow(fit$par), 1)
+  expect_equal(nrow(fit$par.se), 1)
+  expect_matches_batch(fit$par, kinpar[kinpar$region == region, , drop = FALSE])
   # plot() must produce a ggplot for the app to render
   expect_s3_class(plot(fit$fit, roiname = region), "ggplot")
 })
@@ -73,7 +65,7 @@ test_that("fit_single_measurement_plasma fits the saved-config model end-to-end"
 # Reference (SRTM)
 # ---------------------------------------------------------------------------
 
-test_that("fit_single_measurement_ref fits the saved-config model end-to-end", {
+test_that("fit_single_measurement_ref reproduces the batch fit", {
   skip_if_no_integration()
 
   dataset_dir <- ensure_testdata()
@@ -105,6 +97,9 @@ test_that("fit_single_measurement_ref fits the saved-config model end-to-end", {
   ))
 
   expect_equal(fit$type, "SRTM")
-  expect_well_formed_fit(fit, c("R1", "k2", "BPnd"))
+  expect_equal(nrow(fit$par), 1)
+  expect_equal(nrow(fit$par.se), 1)
+  # SRTM is fitted via nonlinear least squares; allow a small tolerance.
+  expect_matches_batch(fit$par, kinpar[kinpar$region == region, , drop = FALSE], tolerance = 1e-2)
   expect_s3_class(plot(fit$fit, roiname = region), "ggplot")
 })

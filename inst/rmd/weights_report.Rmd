@@ -182,7 +182,7 @@ mean_tacdata <- weights_tacdata %>%
   select(-pet) %>% 
   unnest(tacs) %>%
   # Calculate volume-weighted mean across all regions for each PET measurement
-  group_by(pet, frame_start, frame_end, frame_dur, frame_mid, TAC) %>% 
+  group_by(pet, frame_start, frame_end, frame_dur, frame_mid) %>%
   summarise(
     TAC = sum(TAC * volume_mm3) / sum(volume_mm3),  # Volume-weighted mean
     .groups = "drop"
