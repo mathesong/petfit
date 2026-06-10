@@ -11,6 +11,11 @@ PETFit is a BIDS app and Shiny UI for performing PET kinetic modelling using kin
 \author{
 \strong{Maintainer}: Granville Matheson \email{granville.matheson@ki.se}
 
+Authors:
+\itemize{
+  \item Granville Matheson \email{granville.matheson@ki.se}
+}
+
 Other contributors:
 \itemize{
   \item Alessio Giacomel \email{alessio.giacomel@kcl.ac.uk} [contributor]

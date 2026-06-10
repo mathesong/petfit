@@ -22,6 +22,7 @@ Matching rules:
 \itemize{
 \item EXACT: sub, seg/label must match exactly
 \item HIERARCHICAL: morph without ses/run matches all ses/run values for that subject
+\item FALLBACK: a single available subject/segmentation morph can be reused across sessions/runs
 \item IGNORED: pvc, desc, rec, task not used for matching
 }
 }
