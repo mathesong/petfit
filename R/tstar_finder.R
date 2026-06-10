@@ -53,8 +53,15 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
   tac_files <- list.files(analysis_folder, pattern = tac_pattern,
                           recursive = TRUE, full.names = TRUE)
   if (length(tac_files) == 0) {
-    stop("No TAC files matching '", tac_pattern, "' found in ", analysis_folder,
-         ". Run the Data Definition step first.")
+    stop("No TAC files found in the analysis folder. Run the Data Definition step first.",
+         call. = FALSE)
+  }
+
+  # Reference t* needs the reference TACs; check upfront so the user gets a clear
+  # message instead of every measurement failing individually.
+  if (is_ref &&
+      length(list.files(analysis_folder, pattern = "_desc-ref_tacs.tsv", recursive = TRUE)) == 0) {
+    stop("No reference TAC files found. Run the Reference TAC step first.", call. = FALSE)
   }
 
   measurements <- tibble::tibble(path = tac_files) %>%
@@ -100,7 +107,12 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
       plt <- if (is_ref) {
         reffile <- list.files(dirname(m$path), pattern = "_desc-ref_tacs.tsv", full.names = TRUE)
         if (length(reffile) == 0) stop("No reference TAC found for ", m$stem, call. = FALSE)
-        reftac <- readr::read_tsv(reffile[1], show_col_types = FALSE)$RefTAC
+        ref <- readr::read_tsv(reffile[1], show_col_types = FALSE)
+        # Align the reference TAC to the region frames by frame timing (both in
+        # seconds here, since only frame_mid was converted to minutes above).
+        ridx <- match(hi$frame_start, ref$frame_start)
+        if (anyNA(ridx)) stop("Reference TAC frames do not match the target frames for ", m$stem, call. = FALSE)
+        reftac <- ref$RefTAC[ridx]
         switch(model,
           "MRTM1"    = kinfitr::mrtm1_tstar(t_tac, reftac, lo$TAC, md$TAC, hi$TAC),
           "refLogan" = kinfitr::refLogan_tstar(t_tac, reftac, lo$TAC, md$TAC, hi$TAC, k2prime = k2prime),
@@ -142,8 +154,10 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
       measurements <- measurements[measurements$ses %in% sess, , drop = FALSE]
     }
   } else if (selection == "random") {
-    n <- min(as.integer(n_random), nrow(measurements))
-    if (!is.na(n) && n >= 1 && n < nrow(measurements)) {
+    n_random <- suppressWarnings(as.integer(n_random))
+    if (is.na(n_random) || n_random < 1) n_random <- 5L
+    n <- min(n_random, nrow(measurements))
+    if (n < nrow(measurements)) {
       measurements <- measurements[sample(nrow(measurements), n), , drop = FALSE]
     }
   }
@@ -162,8 +176,9 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
     if (src == "analysis_folder") {
       kinfitr::bloodstream_import_inputfunctions(analysis_folder)
     } else {
-      stop("No input function files found. Provide a blood directory or run the ",
-           "Fit Delay step first so input functions exist.", call. = FALSE)
+      stop("No blood input functions found for this analysis. Provide a blood directory, ",
+           "or run the Fit Delay step first to generate input functions from the raw blood data.",
+           call. = FALSE)
     }
   }
 
@@ -172,12 +187,13 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
 
 # Pick the blood input function matching one measurement (join on shared BIDS keys).
 .tstar_blood_for <- function(blood_data, m) {
-  keys <- setdiff(intersect(colnames(blood_data), colnames(m)), "input")
-  cond <- rep(TRUE, nrow(blood_data))
-  for (k in keys) {
-    cond <- cond & (blood_data[[k]] == m[[k]])
+  keys <- setdiff(intersect(colnames(blood_data), colnames(m)), c("input", "path", "stem"))
+  if (length(keys) == 0) {
+    stop("Cannot match a blood input function for ", m$stem,
+         ": no shared BIDS identifiers.", call. = FALSE)
   }
-  matched <- blood_data[cond, , drop = FALSE]
+  # Use a join (NA-safe, like the reports) rather than vectorised `==`.
+  matched <- dplyr::inner_join(blood_data, m[, keys, drop = FALSE], by = keys)
   if (nrow(matched) == 0) {
     stop("No blood input function matched measurement ", m$stem, call. = FALSE)
   }

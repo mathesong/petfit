@@ -102,7 +102,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   need_weights <- type != "refLogan" || use_model_weights
   region_data <- .load_region_tac(tac_file, region, pet_dir, join_weights = need_weights)
 
-  reftac <- .load_reftac(pet_dir, nrow(region_data))
+  reftac <- .load_reftac(pet_dir, region_data)
   subset <- .subset_bounds(model_config$subset)
   weights <- region_data$weights
 
@@ -173,7 +173,8 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   tac_files <- list.files(analysis_folder, pattern = tac_pattern,
                           recursive = TRUE, full.names = TRUE)
   if (length(tac_files) == 0) {
-    stop("No TAC files matching '", tac_pattern, "' found in ", analysis_folder, ".")
+    stop("No TAC files found in the analysis folder. Run the Data Definition step first.",
+         call. = FALSE)
   }
   pet_ids <- get_pet_identifiers(tac_files, analysis_folder)
   idx <- which(pet_ids == pet)
@@ -220,19 +221,26 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     )
 }
 
-# Reference TAC vector aligned to the region's frames.
-.load_reftac <- function(pet_dir, n_frames) {
+# Reference TAC vector aligned to the region's frames by frame timing.
+.load_reftac <- function(pet_dir, region_data) {
   reffile <- list.files(pet_dir, pattern = "_desc-ref_tacs.tsv", full.names = TRUE)
   if (length(reffile) == 0) {
     stop("No reference TAC (*_desc-ref_tacs.tsv) found for ", basename(pet_dir),
-         ". Run the Reference TAC step first.")
+         ". Run the Reference TAC step first.", call. = FALSE)
   }
-  reftac <- readr::read_tsv(reffile[1], show_col_types = FALSE)$RefTAC
-  if (length(reftac) != n_frames) {
-    stop("Reference TAC has ", length(reftac), " frames but the target region has ",
-         n_frames, ".")
+  ref <- readr::read_tsv(reffile[1], show_col_types = FALSE)
+  if (!all(c("frame_start", "RefTAC") %in% colnames(ref))) {
+    stop("Reference TAC file for ", basename(pet_dir),
+         " is missing required columns (frame_start, RefTAC).", call. = FALSE)
   }
-  reftac
+  # Align by frame timing rather than position (region_data frame_start is in
+  # minutes; the reference file is in seconds), mirroring the reports' frame join.
+  idx <- match(round(region_data$frame_start, 6), round(ref$frame_start / 60, 6))
+  if (anyNA(idx)) {
+    stop("Reference TAC frames do not match the target region frames for ",
+         basename(pet_dir), ". Re-run the Reference TAC step.", call. = FALSE)
+  }
+  ref$RefTAC[idx]
 }
 
 .load_all_blood <- function(analysis_folder, bids_dir, blood_dir) {
@@ -245,8 +253,9 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     if (src == "analysis_folder") {
       kinfitr::bloodstream_import_inputfunctions(analysis_folder)
     } else {
-      stop("No input function files found. Provide a blood directory or run the ",
-           "Fit Delay step first.", call. = FALSE)
+      stop("No blood input functions found for this analysis. Provide a blood directory, ",
+           "or run the Fit Delay step first to generate input functions from the raw blood data.",
+           call. = FALSE)
     }
   }
   dplyr::select(bd, -dplyr::any_of(c("measurement", "desc")))
@@ -256,11 +265,13 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   attrs <- kinfitr:::bids_filename_attributes(basename(tac_file))
   attrs <- attrs[, setdiff(colnames(attrs), c("measurement", "desc")), drop = FALSE]
   keys <- intersect(colnames(blood_data), colnames(attrs))
-  cond <- rep(TRUE, nrow(blood_data))
-  for (k in keys) cond <- cond & (blood_data[[k]] == attrs[[k]][1])
-  matched <- blood_data[cond, , drop = FALSE]
+  if (length(keys) == 0) {
+    stop("Cannot match a blood input function: no shared BIDS identifiers.", call. = FALSE)
+  }
+  # Use a join (NA-safe, like the reports) rather than vectorised `==`.
+  matched <- dplyr::inner_join(blood_data, attrs[, keys, drop = FALSE], by = keys)
   if (nrow(matched) == 0) {
-    stop("No blood input function matched ", basename(tac_file), ".")
+    stop("No blood input function matched ", basename(tac_file), ".", call. = FALSE)
   }
   matched$input[[1]]
 }
@@ -320,11 +331,16 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   source_val <- model_config$k2prime_source %||% "set"
 
   if (source_val == "set") {
-    return(model_config$k2prime %||% 0.1)
+    # The app saves a fixed k2prime as `k2prime_value`; fall back to `k2prime`
+    # for backward compatibility. Matches the reference reports.
+    return(model_config$k2prime_value %||% model_config$k2prime %||% 0.1)
   }
 
   if (startsWith(source_val, "ancillary_model")) {
-    if (is.null(ancillary_path)) return(0.1)
+    if (is.null(ancillary_path)) {
+      stop("This model takes its k2prime from an ancillary analysis, but no ancillary ",
+           "analysis folder is configured for this session.", call. = FALSE)
+    }
     parsed <- parse_ancillary_k2prime_source(source_val)
     k2p <- tryCatch(
       read_ancillary_k2prime(ancillary_path = ancillary_path,
@@ -333,7 +349,10 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
                              pet_ids = pet),
       error = function(e) NULL
     )
-    if (is.null(k2p) || nrow(k2p) == 0) return(0.1)
+    if (is.null(k2p) || nrow(k2p) == 0) {
+      stop("Could not read a k2prime value for this measurement from the ancillary ",
+           "analysis. Check that the ancillary analysis has been run.", call. = FALSE)
+    }
     return(k2p$k2prime[1])
   }
 
@@ -345,9 +364,18 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   inh_model <- stringr::str_match(source_string, "inherit_(model\\d)")[, 2]
   inh_type  <- stringr::str_match(source_string, "inherit_model\\d_(\\w*)")[, 2]
 
+  # Unparseable source string: fall back to the default rather than erroring.
+  if (is.na(inh_model)) return(default)
+
   kpfile <- list.files(pet_dir, pattern = paste0("_desc-", inh_model, "_kinpar.tsv"),
                        full.names = TRUE)
-  if (length(kpfile) == 0) return(default)
+  if (length(kpfile) == 0) {
+    model_label <- sub("model", "Model ", inh_model)
+    stop("This model inherits its ", param, " value from ", model_label,
+         ", but ", model_label, " has not been fitted yet for this measurement. ",
+         "Run ", model_label, " first (or change the ", param, " source to a fixed value).",
+         call. = FALSE)
+  }
 
   kp <- readr::read_tsv(kpfile[1], show_col_types = FALSE)
   if (!param %in% colnames(kp)) return(default)
