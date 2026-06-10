@@ -145,6 +145,28 @@ detect_mounted_directories <- function() {
   ))
 }
 
+# Patch: reinstall petfit from a mounted local checkout, if present.
+# The wrapper's --patch option bind-mounts a host petfit source tree to
+# /patch/petfit. We reinstall it into a user-writable library (prepended to
+# .libPaths) so the non-root container user can overwrite the baked-in package
+# and library(petfit) below loads the patched copy.
+patch_dir <- "/patch/petfit"
+if (dir.exists(patch_dir)) {
+  cat("=== Patch detected ===\n")
+  cat("Reinstalling petfit from mounted source:", patch_dir, "\n")
+  patch_lib <- file.path(tempdir(), "petfit_patchlib")
+  dir.create(patch_lib, showWarnings = FALSE, recursive = TRUE)
+  .libPaths(c(patch_lib, .libPaths()))
+  devtools::install(
+    patch_dir,
+    dependencies = FALSE,   # dependencies are already installed in the image
+    upgrade = "never",
+    quick = TRUE,           # skip vignette/manual rebuild for faster startup
+    quiet = FALSE
+  )
+  cat("\n")
+}
+
 # Load petfit app package
 library(petfit)
 

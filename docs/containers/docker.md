@@ -82,6 +82,17 @@ requests `--platform linux/amd64` by default so Docker does not emit a platform
 mismatch warning on Apple Silicon. Override this with `--platform` if a native or
 multi-architecture image is available.
 
+Test a local petfit checkout without rebuilding the image with `--patch` (or
+`-f`), mirroring the PETPrep Docker wrapper. The wrapper bind-mounts the source
+into the container, where petfit is reinstalled from it at startup so it
+overrides the version baked into the image:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref \
+  --patch /path/to/your/petfit/checkout
+```
+
 ## Interactive mode
 
 Interactive mode launches a Shiny web app accessible in your browser at `http://localhost:3838`.

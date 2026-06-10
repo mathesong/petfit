@@ -150,6 +150,52 @@ class DockerCommandTests(unittest.TestCase):
             self.assertIn("-e", command)
             self.assertIn("PETFIT_SHINY_PORT=3840", command)
 
+    def test_patch_mounts_local_petfit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids = root / "bids"
+            derivatives = root / "derivatives"
+            patch = root / "petfit"
+            bids.mkdir()
+            patch.mkdir()
+
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    "regiondef",
+                    "--patch",
+                    str(patch),
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            command = build_docker_command(opts)
+
+            self.assertIn(f"{abs_path(patch)}:/patch/petfit:ro", command)
+
+    def test_patch_works_with_shell(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            patch = Path(tmpdir) / "petfit"
+            patch.mkdir()
+
+            opts = _parser().parse_args(
+                [
+                    "--shell",
+                    "--patch",
+                    str(patch),
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            command = build_docker_command(opts)
+
+            self.assertIn(f"{abs_path(patch)}:/patch/petfit:ro", command)
+
     def test_regiondef_rejects_step(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

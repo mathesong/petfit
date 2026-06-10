@@ -84,6 +84,24 @@ Open a shell in the image:
 petfit-docker --shell -i mathesong/petfit:latest
 ```
 
+## Patching a local petfit
+
+Use `--patch` (or `-f`) to point the wrapper at a local petfit checkout and test
+your local changes without rebuilding the image. The wrapper bind-mounts the
+source into the container, where it is reinstalled from source at startup so it
+overrides the petfit baked into the image:
+
+```bash
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref \
+  --patch /path/to/your/petfit/checkout
+```
+
+This mirrors the `--patch` option of the PETPrep Docker wrapper. Because petfit
+is an R package it is reinstalled (not run directly from source), so the first
+few seconds of startup are spent installing the patched package. The patch
+works with every mode, including `--shell`.
+
 ## Apple Silicon
 
 The published PETFit Docker images are currently `linux/amd64` only. The

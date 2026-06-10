@@ -94,6 +94,13 @@ def _parser() -> argparse.ArgumentParser:
     developer = parser.add_argument_group("Developer options", "Tools for testing and debugging PETFit")
     developer.add_argument("--shell", action="store_true", help="open shell in image instead of running PETFit")
     developer.add_argument(
+        "-f",
+        "--patch",
+        action=PathAction,
+        help="local petfit checkout to install over the image's petfit at container "
+        "start (for testing local changes without rebuilding the image)",
+    )
+    developer.add_argument(
         "-e",
         "--env",
         nargs=2,
@@ -209,6 +216,10 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
         command.extend(["-v", _mount_argument(blood_dir, "/data/blood_dir", "ro")])
     if work_dir:
         command.extend(["-v", _mount_argument(work_dir, "/data/work_dir", "rw")])
+
+    patch_dir = _absolute_path(opts.patch) if opts.patch else None
+    if patch_dir:
+        command.extend(["-v", _mount_argument(patch_dir, "/patch/petfit", "ro")])
 
     if opts.shell:
         command.extend(["--entrypoint", "/bin/bash", opts.image])
