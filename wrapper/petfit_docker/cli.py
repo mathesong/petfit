@@ -61,15 +61,32 @@ def _parser() -> argparse.ArgumentParser:
         "Wrapper options",
         "Standard options that require mapping files into the container; see petfit usage for complete descriptions",
     )
-    wrapper.add_argument("--app", choices=APPS, default="regiondef", help="PETFit app to run")
-    wrapper.add_argument("--mode", choices=MODES, default="interactive", help="execution mode")
+    wrapper.add_argument(
+        "--app",
+        choices=APPS,
+        default="regiondef",
+        help=(
+            "PETFit app to run: "
+            "'regiondef' = define brain regions and build combined TACs; "
+            "'modelling_plasma' = invasive plasma-input models "
+            "(1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak), requires blood data; "
+            "'modelling_ref' = non-invasive reference-tissue models "
+            "(SRTM, SRTM2, refLogan, MRTM1, MRTM2)"
+        ),
+    )
+    wrapper.add_argument(
+        "--mode",
+        choices=MODES,
+        default="interactive",
+        help="execution mode; or use the --interactive / --automatic shorthands below",
+    )
     wrapper.add_argument(
         "--interactive",
         dest="mode",
         action="store_const",
         const="interactive",
         default=argparse.SUPPRESS,
-        help="run the Shiny app",
+        help="shorthand for --mode interactive (launch the Shiny app in the browser)",
     )
     wrapper.add_argument(
         "--automatic",
@@ -77,13 +94,21 @@ def _parser() -> argparse.ArgumentParser:
         action="store_const",
         const="automatic",
         default=argparse.SUPPRESS,
-        help="run the automatic pipeline",
+        help="shorthand for --mode automatic (run the non-interactive pipeline)",
     )
     wrapper.add_argument("--step", choices=STEPS, help="single automatic modelling step to run")
     wrapper.add_argument("--blood-dir", action=PathAction, help="blood data directory for plasma input models")
     wrapper.add_argument("-w", "--work-dir", action=PathAction, help="working directory to mount in the container")
     wrapper.add_argument("--petfit-output-foldername", default="petfit", help="petfit output folder within derivatives")
-    wrapper.add_argument("--analysis-foldername", default="Primary_Analysis", help="analysis folder name")
+    wrapper.add_argument(
+        "--analysis-foldername",
+        default="Primary_Analysis",
+        help=(
+            "name of the analysis subfolder holding this run's config and outputs; "
+            "multiple can sit side by side, e.g. 'Reference_Analysis', "
+            "'Baseline_Only'"
+        ),
+    )
     wrapper.add_argument("--cores", type=int, default=1, help="number of cores for parallel processing")
     wrapper.add_argument(
         "--ancillary-analysis-folder",
