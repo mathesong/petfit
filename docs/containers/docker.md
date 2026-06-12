@@ -14,6 +14,87 @@ cd petfit
 docker build -f docker/Dockerfile -t mathesong/petfit:latest .
 ```
 
+## Docker wrapper
+
+PETFit also includes a lightweight Python wrapper, `petfit-docker`, inspired by
+the PETPrep Docker wrapper (petprep-docker). It accepts a BIDS-App-like command line, maps host
+directories into the container, checks whether the image exists locally, and then
+runs the PETFit Docker image.
+Interactive Shiny mode is the default; use `--automatic` or `--mode automatic`
+to run a non-interactive pipeline.
+
+Install it from this checkout:
+
+```bash
+cd wrapper
+python -m pip install -e .
+```
+
+Launch the default region definition app:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives/petfit participant
+```
+
+The wrapper follows the BIDS App positional argument convention:
+
+```text
+petfit-docker <bids_dir> <output_dir> participant
+```
+
+Launch region definition:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef
+```
+
+The positional `output_dir` may be the derivatives root or the final PETFit
+output folder. For example, `/path/to/derivatives` and
+`/path/to/derivatives/petfit` both map to the container's derivatives root when
+using the default `--petfit-output-foldername petfit`.
+
+Launch plasma-input modelling:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood
+```
+
+Run plasma-input modelling automatically:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic
+```
+
+Print the generated Docker command without executing it:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref \
+  --dry-run
+```
+
+The published PETFit images are currently `linux/amd64` only. The wrapper
+requests `--platform linux/amd64` by default so Docker does not emit a platform
+mismatch warning on Apple Silicon. Override this with `--platform` if a native or
+multi-architecture image is available.
+
+Test a local petfit checkout without rebuilding the image with `--patch` (or
+`-f`), mirroring the PETPrep Docker wrapper. The wrapper bind-mounts the source
+into the container, where petfit is reinstalled from it at startup so it
+overrides the version baked into the image:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref \
+  --patch /path/to/your/petfit/checkout
+```
+
 ## Interactive mode
 
 Interactive mode launches a Shiny web app accessible in your browser at `http://localhost:3838`.

@@ -72,9 +72,11 @@ cat("\n")
 
 # Determine an available localhost port near the preferred one.
 is_port_available <- function(port) {
-  con <- tryCatch(
-    socketConnection(host = "127.0.0.1", port = port, open = "r+", blocking = TRUE, timeout = 0.2),
-    error = function(e) NULL
+  con <- suppressWarnings(
+    tryCatch(
+      socketConnection(host = "127.0.0.1", port = port, open = "r+", blocking = TRUE, timeout = 0.2),
+      error = function(e) NULL
+    )
   )
 
   if (is.null(con)) {
@@ -143,6 +145,28 @@ detect_mounted_directories <- function() {
   ))
 }
 
+# Patch: reinstall petfit from a mounted local checkout, if present.
+# The wrapper's --patch option bind-mounts a host petfit source tree to
+# /patch/petfit. We reinstall it into a user-writable library (prepended to
+# .libPaths) so the non-root container user can overwrite the baked-in package
+# and library(petfit) below loads the patched copy.
+patch_dir <- "/patch/petfit"
+if (dir.exists(patch_dir)) {
+  cat("=== Patch detected ===\n")
+  cat("Reinstalling petfit from mounted source:", patch_dir, "\n")
+  patch_lib <- file.path(tempdir(), "petfit_patchlib")
+  dir.create(patch_lib, showWarnings = FALSE, recursive = TRUE)
+  .libPaths(c(patch_lib, .libPaths()))
+  devtools::install(
+    patch_dir,
+    dependencies = FALSE,   # dependencies are already installed in the image
+    upgrade = "never",
+    quick = TRUE,           # skip vignette/manual rebuild for faster startup
+    quiet = FALSE
+  )
+  cat("\n")
+}
+
 # Load petfit app package
 library(petfit)
 
@@ -165,7 +189,18 @@ cat("\n")
 
 # Execute based on mode
 if (opt$mode == "interactive") {
-  requested_port <- suppressWarnings(as.integer(Sys.getenv("SHINY_PORT", unset = "3838")))
+  # rocker/shiny images can carry Shiny Server environment variables. When
+  # launched through runApp(), Shiny may try to parse these and fail if the
+  # value is not a plain version string.
+  Sys.unsetenv("SHINY_SERVER_VERSION")
+
+  requested_port_value <- Sys.getenv("PETFIT_SHINY_PORT", unset = NA_character_)
+  if (is.na(requested_port_value) || requested_port_value == "") {
+    requested_port_value <- Sys.getenv("SHINY_PORT", unset = "3838")
+  }
+  Sys.unsetenv("SHINY_PORT")
+
+  requested_port <- suppressWarnings(as.integer(requested_port_value))
   if (is.na(requested_port) || requested_port < 1L || requested_port > 65535L) {
     requested_port <- 3838L
   }

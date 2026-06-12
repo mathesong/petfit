@@ -4,3 +4,10 @@
 .Ruserdata
 docs/_build/
 .positai
+
+# Python (wrapper/)
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/

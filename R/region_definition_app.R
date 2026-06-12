@@ -155,6 +155,7 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   }
 
   # Try to create TACs list, with error handling
+  cat("Loading app, please wait...\n")
   tacs_list <- tryCatch({
     create_tacs_list(derivatives_dir)
   }, error = function(e) {
