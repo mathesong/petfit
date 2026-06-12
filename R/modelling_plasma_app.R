@@ -532,6 +532,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              p("The t* finder generates kinfitr diagnostic plots that help you choose a t* value for linear models. It uses a high-, medium- and low-binding region, and saves one plot per measurement to ", tags$code("reports/tstar_finder/"), " (no HTML report).",
                                style = "font-size:14px; margin-bottom:10px;"),
                              p("This step is ", tags$b("optional"), " — it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
+                               style = "font-size:14px; margin-bottom:10px;"),
+                             p("These plots are intended as a visual guide for selecting an appropriate t* value. It is recommended to choose a single t* timepoint that works broadly across measurements, and to use that same timepoint for all individuals for a given region.",
                                style = "font-size:14px; margin-bottom:20px;"),
                              fluidRow(
                                column(4,
