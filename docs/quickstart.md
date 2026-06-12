@@ -4,6 +4,8 @@ PETFit analyses have two steps: **region definition** (once per dataset) and **k
 
 You will need a BIDS dataset with PET preprocessing derivatives (e.g. from [PETPrep](https://petprep.readthedocs.io/)).
 
+The Docker examples below use the [`petfit-docker`](https://pypi.org/project/petfit-docker/) wrapper (`pip install petfit-docker`), which builds the `docker run` command for you. Run `petfit-docker --help` to see all options, and see the [Docker guide](containers/docker.md) for the equivalent raw `docker run` commands.
+
 ## Step 1: Define regions
 
 Region definition combines individual brain regions from your preprocessing derivatives into analysis-ready TACs. This produces a shared `desc-combinedregions_tacs.tsv` file used by all subsequent analyses.
@@ -13,20 +15,15 @@ Region definition combines individual brain regions from your preprocessing deri
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func regiondef
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app regiondef \
+  --cores 1
 # Then open http://localhost:3838
 
 # Automatic
-docker run --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func regiondef --mode automatic
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app regiondef --automatic \
+  --cores 1
 ```
 ````
 
@@ -89,22 +86,18 @@ The interactive app guides you through configuration and generates a JSON config
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/blood \
+  --cores 1
 # Then open http://localhost:3838
 
 # Automatic
-docker run --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma --mode automatic
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/blood \
+  --automatic \
+  --cores 1
 ```
 ````
 
@@ -167,20 +160,15 @@ petfit_auto(
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref \
+  --cores 1
 # Then open http://localhost:3838
 
 # Automatic
-docker run --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref --mode automatic
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref --automatic \
+  --cores 1
 ```
 ````
 

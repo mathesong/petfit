@@ -23,11 +23,17 @@ runs the PETFit Docker image.
 Interactive Shiny mode is the default; use `--automatic` or `--mode automatic`
 to run a non-interactive pipeline.
 
-Install it from this checkout:
+Install it from PyPI:
 
 ```bash
-cd wrapper
-python -m pip install -e .
+pip install petfit-docker
+```
+
+Run `petfit-docker --help` to see all available options, including descriptions
+of each app, the execution modes, and the analysis folder:
+
+```bash
+petfit-docker --help
 ```
 
 Launch the default region definition app:
@@ -99,7 +105,16 @@ petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
 
 Interactive mode launches a Shiny web app accessible in your browser at `http://localhost:3838`.
 
+The examples below show the `petfit-docker` wrapper command first, followed by the equivalent raw `docker run` command.
+
 **Region definition:**
+
+```bash
+pip install petfit-docker
+
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef
+```
 
 ```bash
 docker run -it --rm \
@@ -111,6 +126,12 @@ docker run -it --rm \
 ```
 
 **Modelling with plasma input:**
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood
+```
 
 ```bash
 docker run -it --rm \
@@ -125,6 +146,11 @@ docker run -it --rm \
 **Modelling with reference tissue:**
 
 ```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref
+```
+
+```bash
 docker run -it --rm \
   -v /path/to/your/bids:/data/bids_dir:ro \
   -v /path/to/your/derivatives:/data/derivatives_dir:rw \
@@ -137,9 +163,22 @@ The container exits cleanly when you close the app.
 
 ## Automatic mode
 
-Automatic mode runs the pipeline non-interactively. The container exits when processing is complete.
+Automatic mode runs the pipeline non-interactively. The container exits when processing is complete. As above, each example shows the `petfit-docker` wrapper command first, then the equivalent raw `docker run` command.
 
 **Full pipeline:**
+
+```bash
+# Plasma input
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic
+
+# Reference tissue
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref \
+  --automatic
+```
 
 ```bash
 # Plasma input
@@ -163,6 +202,14 @@ docker run --rm \
 **Single step:**
 
 ```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic \
+  --step weights
+```
+
+```bash
 docker run --rm \
   -v /path/to/your/derivatives:/data/derivatives_dir:rw \
   -v /path/to/your/blood:/data/blood_dir:ro \
@@ -173,6 +220,14 @@ docker run --rm \
 ```
 
 **Custom analysis folder:**
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic \
+  --analysis-foldername Baseline_only
+```
 
 ```bash
 docker run --rm \

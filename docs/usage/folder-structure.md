@@ -71,14 +71,14 @@ Analysis folders are created automatically when you launch a modelling app. Spec
 
 ````{tab-item} Docker
 ```bash
-docker run -it --rm \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --analysis_foldername Baseline_Only
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/blood \
+  --analysis-foldername Baseline_Only
 ```
+
+Install the wrapper with `pip install petfit-docker`; see the
+[Docker guide](../containers/docker.md) for the equivalent raw `docker run` commands.
 ````
 
 ````{tab-item} Apptainer
@@ -153,21 +153,15 @@ In the primary analysis configuration, set the delay model to `"ancillary_estima
 ````{tab-item} Docker
 ```bash
 # Step 1: Run ancillary analysis with well-behaved regions
-docker run --rm \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma --mode automatic \
-  --analysis_foldername Ancillary_Delay
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma --automatic \
+  --analysis-foldername Ancillary_Delay
 
 # Step 2: Run primary analysis, inheriting delay estimates
-docker run --rm \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma --mode automatic \
-  --analysis_foldername Primary_Analysis \
-  --ancillary_analysis_folder Ancillary_Delay
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma --automatic \
+  --analysis-foldername Primary_Analysis \
+  --ancillary-analysis-folder Ancillary_Delay
 ```
 ````
 
@@ -225,12 +219,10 @@ In the primary analysis configuration, set the k2prime source to values like `"a
 
 ````{tab-item} Docker
 ```bash
-docker run --rm \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref --mode automatic \
-  --analysis_foldername Primary_Analysis \
-  --ancillary_analysis_folder Ancillary_k2prime
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref --automatic \
+  --analysis-foldername Primary_Analysis \
+  --ancillary-analysis-folder Ancillary_k2prime
 ```
 ````
 

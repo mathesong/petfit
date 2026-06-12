@@ -24,11 +24,17 @@ docker run --rm -it \
   --func modelling_plasma --mode interactive
 ```
 
-## Install for development
+## Installation
 
 ```bash
-cd wrapper
-python -m pip install -e .
+pip install petfit-docker
+```
+
+Run `petfit-docker --help` at any time to see all available options, including
+descriptions of each app and analysis folder:
+
+```bash
+petfit-docker --help
 ```
 
 ## Examples
