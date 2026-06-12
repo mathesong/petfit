@@ -575,19 +575,58 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                     # Tab panel for tstar ----
                     tabPanel("Find t*",
                              br(),
-                             # h4("t* Finder"),
-                             p("This functionality is coming soon.", 
-                               style = "font-size:16px; font-weight:bold; color:#0066cc; margin-bottom:20px;"),
-                             p("The t* finder helps determine the optimal start time (t*) for linear kinetic models by analyzing when equilibrium conditions are met.",
+                             p("The t* finder generates kinfitr diagnostic plots that help you choose a t* value for linear reference-tissue models. It uses a high-, medium- and low-binding region, and saves one plot per measurement to ", tags$code("reports/tstar_finder/"), " (no HTML report).",
+                               style = "font-size:14px; margin-bottom:10px;"),
+                             p("This step is ", tags$b("optional"), " — it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
+                               style = "font-size:14px; margin-bottom:10px;"),
+                             p("These plots are intended as a visual guide for selecting an appropriate t* value. It is recommended to choose a single t* timepoint that works broadly across measurements, and to use that same timepoint for all individuals for a given region.",
                                style = "font-size:14px; margin-bottom:20px;"),
-                             
-                             selectInput("tstar_model", "Select a model for determining t*:",
-                                         choices = c("No Model Selected" = "none",
-                                                     "refLogan" = "refLogan",
-                                                     "MRTM1" = "MRTM1",
-                                                     "MRTM2" = "MRTM2"),
-                                         selected = "none",
-                                         width = "60%")
+                             fluidRow(
+                               column(4,
+                                 wellPanel(
+                                   h4(tags$b("t* Setup"), style = "margin-top:0;"),
+                                   selectInput("tstar_model", "Model:",
+                                               choices = c("MRTM1" = "MRTM1",
+                                                           "refLogan" = "refLogan",
+                                                           "MRTM2" = "MRTM2"),
+                                               selected = "MRTM1", width = "100%"),
+                                   conditionalPanel(
+                                     condition = "input.tstar_model == 'refLogan' || input.tstar_model == 'MRTM2'",
+                                     numericInput("tstar_k2prime", "k2prime:",
+                                                  value = 0.1, min = 0, step = 0.01, width = "100%")),
+                                   actionButton("tstar_scan_regions", "🔍 Scan Regions",
+                                                class = "btn-info btn-sm", width = "100%"),
+                                   p("Populates the region menus below.",
+                                     style = "font-size: 11px; color: #666; margin-top: 5px; margin-bottom: 15px;"),
+                                   selectInput("tstar_high_region", "High binding region:",
+                                               choices = c("Scan regions first" = "none"), width = "100%"),
+                                   selectInput("tstar_med_region", "Medium binding region:",
+                                               choices = c("Scan regions first" = "none"), width = "100%"),
+                                   selectInput("tstar_low_region", "Low binding region:",
+                                               choices = c("Scan regions first" = "none"), width = "100%"),
+                                   hr(),
+                                   radioButtons("tstar_selection", "Measurements to fit:",
+                                                choices = c("Random selection" = "random",
+                                                            "All PET measurements" = "all",
+                                                            "Subset by sub/ses" = "subset"),
+                                                selected = "random"),
+                                   conditionalPanel(
+                                     condition = "input.tstar_selection == 'random'",
+                                     numericInput("tstar_n_random", "Number to fit:",
+                                                  value = 5, min = 1, step = 1, width = "100%")),
+                                   conditionalPanel(
+                                     condition = "input.tstar_selection == 'subset'",
+                                     textInput("tstar_sub", "sub", value = ""),
+                                     textInput("tstar_ses", "ses", value = "")),
+                                   hr(),
+                                   actionButton("run_tstar", "▶ Generate t* Plots",
+                                                class = "btn-success btn-lg", width = "100%")
+                                 )
+                               ),
+                               column(8,
+                                 uiOutput("tstar_status")
+                               )
+                             )
                     ),
                     # Tab panel for Model 1 ----
                     tabPanel("Model 1",
@@ -1114,52 +1153,56 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                     tabPanel("Interactive Sandbox",
                              br(),
                              h4("Interactive Data Exploration"),
-                             p("Load and visualize individual TAC data for quality control and exploration.",
+                             p("Load and visualise an individual TAC, then fit the selected model to it using the saved configuration, to preview how it will behave before running the whole cohort.",
                                style = "font-size:14px; margin-bottom:20px;"),
-                             
-                             # Sidebar layout
-                             fluidRow(
-                               # Left sidebar - Controls
-                               column(4,
-                                 wellPanel(
-                                   h5("Data Selection"),
-                                   
-                                   actionButton("scan_folder", "🔍 Scan Analysis Folder", class = "btn-info btn-sm", width = "100%"),
-                                   p("This populates the menus below with available data files.", 
-                                     style = "font-size: 11px; color: #666; margin-top: 5px; margin-bottom: 15px;"),
-                                   
+
+                             # Controls (full-width bar)
+                             wellPanel(
+                               h4(tags$b("Data Selection"), style = "margin-top:0;"),
+                               fluidRow(
+                                 column(3,
+                                   actionButton("scan_folder", "🔍 Scan Analysis Folder",
+                                                class = "btn-info", width = "100%"),
+                                   p("Populates the menus.",
+                                     style = "font-size: 11px; color: #666; margin-top: 5px;")),
+                                 column(3,
                                    selectInput("interactive_pet", "PET Measurement:",
                                              choices = c("Run 'Scan Analysis Folder' first" = "none"),
-                                             selected = "none",
-                                             width = "100%"),
-                                   
+                                             selected = "none", width = "100%")),
+                                 column(3,
                                    selectInput("interactive_region", "Region:",
                                              choices = c("Run 'Scan Analysis Folder' first" = "none"),
-                                             selected = "none", 
-                                             width = "100%"),
-                                   
+                                             selected = "none", width = "100%")),
+                                 column(3,
                                    selectInput("interactive_model", "Model:",
                                              choices = c("None" = "none",
                                                          "Model 1" = "model1",
-                                                         "Model 2" = "model2", 
+                                                         "Model 2" = "model2",
                                                          "Model 3" = "model3"),
-                                             selected = "model1",
-                                             width = "100%"),
-                                   
-                                   hr(),
-                                   actionButton("load_data", "▶ Load Data", class = "btn-success btn-lg", width = "100%"),
-                                   br(), br(),
-                                   actionButton("fit_model", "▶ Fit Model", class = "btn-success btn-lg", width = "100%")
-                                 )
+                                             selected = "model1", width = "100%"))
                                ),
-                               
-                               # Right main area - Plot
-                               column(8,
-                                 conditionalPanel(
-                                   condition = "input.load_data > 0",
-                                   # h5("Time Activity Curve"),
-                                   plotOutput("tac_plot", height = "500px")
-                                 )
+                               fluidRow(
+                                 column(6, actionButton("load_data", "▶ Load Data",
+                                                        class = "btn-success", width = "100%")),
+                                 column(6, actionButton("fit_model", "▶ Fit Model",
+                                                        class = "btn-success", width = "100%"))
+                               )
+                             ),
+
+                             # Full-width plot area: the fit plot replaces the loaded-data TAC plot
+                             conditionalPanel(
+                               condition = "output.sandbox_view == 'tac'",
+                               plotOutput("tac_plot", width = "100%", height = "520px")
+                             ),
+                             conditionalPanel(
+                               condition = "output.sandbox_view == 'fit'",
+                               uiOutput("fit_status"),
+                               plotOutput("fit_plot", width = "100%", height = "520px"),
+                               br(),
+                               fluidRow(
+                                 column(6, h5("Parameter Estimates"), tableOutput("fit_par_table")),
+                                 column(6, h5("Standard Errors (fraction of estimate)"),
+                                        tableOutput("fit_se_table"))
                                )
                              )
                     )
@@ -2555,7 +2598,13 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     
     # Create reactive value to store plot data (only updates on button press)
     plot_data <- reactiveVal(NULL)
-    
+
+    # Which plot the sandbox shows: "none", "tac" (loaded data) or "fit".
+    # The fit plot replaces the loaded-data TAC plot.
+    sandbox_view <- reactiveVal("none")
+    output$sandbox_view <- reactive({ sandbox_view() })
+    outputOptions(output, "sandbox_view", suspendWhenHidden = FALSE)
+
     # Handle Load Data button
     observeEvent(input$load_data, {
       # Check if PET and Region are selected
@@ -2595,8 +2644,9 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             model = input$interactive_model,
             model_display = model_display
           ))
-          
-          showNotification(paste("Loaded TAC data for", input$interactive_region, "in", input$interactive_pet, "| View:", model_display), 
+          sandbox_view("tac")
+
+          showNotification(paste("Loaded TAC data for", input$interactive_region, "in", input$interactive_pet, "| View:", model_display),
                           type = "message", duration = 3)
         } else {
           showNotification("No data found for selected region", type = "warning", duration = 3)
@@ -2608,14 +2658,162 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       })
     })
     
-    # Handle Fit Model button (placeholder for now)
+    # Handle Fit Model button: fit the selected measurement using the saved config
+    fit_result <- reactiveVal(NULL)
+
     observeEvent(input$fit_model, {
-      req(input$load_data > 0)
-      
-      showNotification("Model fitting functionality coming soon", 
-                      type = "message", duration = 3)
+      fit_result(NULL)
+
+      if (input$interactive_pet == "none" || input$interactive_region == "none") {
+        showNotification("PET and Region must be selected before fitting.",
+                        type = "error", duration = 5)
+        return()
+      }
+      if (is.null(input$interactive_model) || input$interactive_model == "none") {
+        showNotification("Select Model 1, 2 or 3 to fit.", type = "error", duration = 5)
+        return()
+      }
+
+      res <- tryCatch(
+        withProgress(message = "Fitting model...", value = 0.5, {
+          suppressWarnings(fit_single_measurement_ref(
+            analysis_folder = output_dir,
+            model_number = input$interactive_model,
+            pet = input$interactive_pet,
+            region = input$interactive_region,
+            ancillary_path = ancillary_path
+          ))
+        }),
+        error = function(e) {
+          showNotification(paste("Fit failed:", e$message), type = "error", duration = 9)
+          NULL
+        }
+      )
+
+      if (!is.null(res)) {
+        fit_result(res)
+        sandbox_view("fit")
+        showNotification(paste0("Fitted ", res$type, " for ", res$pet, " : ", res$region),
+                        type = "message", duration = 4)
+      }
     })
-    
+
+    output$fit_status <- renderUI({
+      res <- fit_result()
+      if (is.null(res)) {
+        return(tags$p("Select PET, Region and Model, then click Fit Model.",
+                      style = "color:#666;"))
+      }
+      tags$p(tags$strong(paste0(res$type, " fit")), " — ", res$pet, " : ", res$region)
+    })
+
+    output$fit_plot <- renderPlot({
+      res <- fit_result()
+      req(res)
+      plot(res$fit, roiname = res$region) +
+        ggplot2::labs(title = paste0(res$pet, " : ", res$region, "  (", res$type, ")")) +
+        ggplot2::theme_light()
+    }, res = 96)
+
+    output$fit_par_table <- renderTable({
+      res <- fit_result()
+      req(res)
+      res$par
+    }, digits = 4, rownames = FALSE)
+
+    output$fit_se_table <- renderTable({
+      res <- fit_result()
+      req(res)
+      res$par.se
+    }, digits = 4, rownames = FALSE)
+
+    # t* finder ----
+    observeEvent(input$tstar_scan_regions, {
+      tryCatch({
+        tac_files <- list.files(output_dir, pattern = "_desc-targetregions_tacs.tsv",
+                                recursive = TRUE, full.names = TRUE)
+        if (length(tac_files) == 0) {
+          showNotification("No target-region TAC files found. Run Data Definition first.",
+                          type = "warning", duration = 6)
+          return()
+        }
+        regions <- sort(unique(readr::read_tsv(tac_files[1], show_col_types = FALSE)$region))
+        regions <- regions[!is.na(regions)]
+        if (length(regions) == 0) {
+          showNotification("No regions found in TAC files.", type = "warning", duration = 5)
+          return()
+        }
+        n <- length(regions)
+        updateSelectInput(session, "tstar_high_region", choices = regions, selected = regions[1])
+        updateSelectInput(session, "tstar_med_region", choices = regions, selected = regions[min(2, n)])
+        updateSelectInput(session, "tstar_low_region", choices = regions, selected = regions[n])
+        showNotification(paste("Found", n, "regions"), type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error scanning regions:", e$message), type = "error", duration = 5)
+      })
+    })
+
+    tstar_result <- reactiveVal(NULL)
+
+    observeEvent(input$run_tstar, {
+      regs <- c(input$tstar_high_region, input$tstar_med_region, input$tstar_low_region)
+      if (any(is.null(regs)) || any(regs %in% c("none", ""))) {
+        showNotification("Scan regions and select High, Medium and Low regions first.",
+                        type = "error", duration = 6)
+        return()
+      }
+      tstar_result(NULL)
+
+      written <- tryCatch(
+        withProgress(message = paste0("Generating t* plots (", input$tstar_model, ")..."),
+                     value = 0, {
+          run_tstar_finder(
+            analysis_folder = output_dir,
+            config_type = "reference tissue",
+            model = input$tstar_model,
+            high_region = input$tstar_high_region,
+            med_region = input$tstar_med_region,
+            low_region = input$tstar_low_region,
+            selection = input$tstar_selection,
+            sub_filter = input$tstar_sub %||% "",
+            ses_filter = input$tstar_ses %||% "",
+            n_random = input$tstar_n_random %||% 5,
+            k2prime = input$tstar_k2prime %||% 0.1,
+            bids_dir = bids_dir,
+            progress = function(frac, msg) setProgress(value = frac, detail = msg)
+          )
+        }),
+        error = function(e) {
+          showNotification(paste("t* finder failed:", e$message), type = "error", duration = 9)
+          NULL
+        }
+      )
+
+      if (!is.null(written)) {
+        tstar_result(written)
+        showNotification(paste("Generated", length(written), "t* plot(s)."),
+                        type = "message", duration = 5)
+      }
+    })
+
+    output$tstar_status <- renderUI({
+      written <- tstar_result()
+      if (is.null(written)) {
+        return(tags$p("Select a model and regions, choose which measurements to fit, then click Generate t* Plots.",
+                      style = "color:#666;"))
+      }
+      if (length(written) == 0) {
+        return(tags$p("No plots were generated (check the console for warnings).",
+                      style = "color:#c0392b;"))
+      }
+      out_rel <- file.path("reports", "tstar_finder", input$tstar_model)
+      tagList(
+        tags$p(tags$strong(paste0(length(written), " t* plot(s) saved to ")),
+               tags$code(out_rel)),
+        tags$ul(lapply(basename(written), function(x) tags$li(x)))
+      )
+    })
+
     # Generate TAC plot (only uses data stored by Load Data button)
     output$tac_plot <- renderPlot({
       # Only react to the stored plot data, not the input values
@@ -2656,7 +2854,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
              cex = 1, col = "red", adj = 0.5)
         cat("Error in tac_plot:", e$message, "\n")
       })
-    }, width = 800, height = 500, res = 96)
+    }, res = 96)
     
   }
   

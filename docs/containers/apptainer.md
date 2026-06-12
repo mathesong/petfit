@@ -34,6 +34,22 @@ apptainer build \
   petfit_latest.sif apptainer/petfit.def
 ```
 
+## Simplified workflow: the `petfit` alias
+
+Apptainer auto-mounts your `$HOME`, `$PWD`, and `/tmp`, and runs as your own user. So for data under your home directory you need no `-B` flags at all. Define an alias once (in `~/.bashrc`):
+
+```bash
+alias petfit='apptainer run petfit_latest.sif'
+```
+
+then run with bare host paths:
+
+```bash
+petfit --func modelling_plasma --bids_dir ~/data/bids --blood_dir ~/data/blood
+```
+
+For data outside `$HOME` (e.g. `/scratch`), add an explicit `-B /scratch:/scratch`, or ask your admin to add `bind path = /scratch` to `/etc/apptainer/apptainer.conf`. Otherwise, the explicit `-B` examples below work everywhere.
+
 ## Interactive mode
 
 Interactive mode launches a Shiny web app accessible in your browser.

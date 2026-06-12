@@ -18,6 +18,13 @@ ssh -L 3838:localhost:3838 username@servername
 
 Then run apptainer directly — see the [main README](../README.md#apptainer-usage) for ready-to-copy interactive and automatic invocations.
 
+Apptainer auto-mounts your `$HOME`, so for data under your home directory you can skip the `-B` flags entirely. An alias makes this even shorter:
+
+```bash
+alias petfit='apptainer run petfit_latest.sif'
+petfit --func modelling_plasma --bids_dir ~/data/bids --blood_dir ~/data/blood
+```
+
 ## Building from source
 
 If you need to build the SIF locally (e.g. to customise the definition or work offline):

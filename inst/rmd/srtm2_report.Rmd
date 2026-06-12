@@ -135,7 +135,7 @@ if (!is.null(model_config) && model_config$type == "SRTM2") {
     config_items[["k2prime Parameter Source"]] <- k2prime_source_display
   } else {
     # Model 1 system - use k2prime value directly
-    k2prime_value <- model_config$k2prime %||% "Not set"
+    k2prime_value <- model_config$k2prime_value %||% model_config$k2prime %||% "Not set"
     config_items[["k2prime Value"]] <- k2prime_value
   }
 
@@ -406,7 +406,7 @@ multstart_iter <- model_config$multstart_iter %||% 1
 # Set k2prime if not being inherited
 k2prime_source <- model_config$k2prime_source %||% "set"
 if(k2prime_source == "set") {
-  model_data$k2prime <- model_config$k2prime %||% 0.1
+  model_data$k2prime <- model_config$k2prime_value %||% model_config$k2prime %||% 0.1
 }
 
 # Extract TAC subset parameters
@@ -699,7 +699,7 @@ k2prime_source_desc <- if (!is.null(model_config$k2prime_source) &&
                             str_detect(model_config$k2prime_source, "^ancillary_"))) {
   config_items[["k2prime Parameter Source"]]
 } else {
-  paste0("Set to fixed value: ", model_config$k2prime %||% 0.1)
+  paste0("Set to fixed value: ", model_config$k2prime_value %||% model_config$k2prime %||% 0.1)
 }
 
 savepar_pet <- savepar_pet %>%

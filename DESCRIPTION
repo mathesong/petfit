@@ -12,7 +12,6 @@ Description: PETFit is a BIDS app and Shiny UI for performing PET kinetic
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 Imports:
     shiny,
     shinythemes,
@@ -48,3 +47,4 @@ Suggests:
 Config/testthat/edition: 3
 Remotes: 
     mathesong/kinfitr
+Config/roxygen2/version: 8.0.0
