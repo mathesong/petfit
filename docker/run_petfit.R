@@ -160,7 +160,7 @@ if (dir.exists(patch_dir)) {
   devtools::install(
     patch_dir,
     dependencies = FALSE,   # dependencies are already installed in the image
-    upgrade = "never",
+    upgrade = FALSE,        # never upgrade deps
     quick = TRUE,           # skip vignette/manual rebuild for faster startup
     quiet = FALSE
   )
