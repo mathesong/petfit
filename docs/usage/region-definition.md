@@ -57,21 +57,17 @@ During region combination, PETFit also calculates a `seg_meanTAC` column — a v
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func regiondef
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef
 # Then open http://localhost:3838
 
 # Automatic
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func regiondef \
-  --mode automatic
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef --automatic
 ```
+
+Install the wrapper with `pip install petfit-docker`; see the
+[Docker guide](../containers/docker.md) for the equivalent raw `docker run` commands.
 ````
 
 ````{tab-item} Apptainer

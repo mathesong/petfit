@@ -54,30 +54,22 @@ Models that require a **k2prime** value (SRTM2, MRTM2, refLogan) can obtain it f
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref
 # Then open http://localhost:3838
 
 # Automatic — full pipeline
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref \
-  --mode automatic
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref --automatic
 
 # Automatic — single step
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  mathesong/petfit:latest \
-  --func modelling_ref \
-  --mode automatic \
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref --automatic \
   --step model1
 ```
+
+Install the wrapper with `pip install petfit-docker`; see the
+[Docker guide](../containers/docker.md) for the equivalent raw `docker run` commands.
 ````
 
 ````{tab-item} Apptainer

@@ -161,7 +161,8 @@ Another strategy is using multiple starting points when fitting nonlinear models
 **Fix:** Increase the number of CPU cores with the `--cores` flag (Docker / Apptainer) or the `cores` argument (R). The computationally heavy steps — delay fitting and model fitting — are run in parallel across PET measurements, so allocating more cores can speed things up a great deal:
 
 ```bash
-docker run --rm ... mathesong/petfit:latest --func modelling_plasma --mode automatic --cores 8
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma --automatic --cores 8
 ```
 
 ```r

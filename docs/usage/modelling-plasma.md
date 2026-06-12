@@ -71,42 +71,34 @@ Each model has configurable:
 ````{tab-item} Docker
 ```bash
 # Interactive
-docker run -it --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood
 # Then open http://localhost:3838
 
 # Automatic — full pipeline
-docker run --rm \
-  -v /path/to/your/bids:/data/bids_dir:ro \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic
 
 # Automatic — custom analysis folder
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
-  --analysis_foldername Baseline_only
-  
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic \
+  --analysis-foldername Baseline_only
+
 # Automatic — single step
-docker run --rm \
-  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/your/blood:/data/blood_dir:ro \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
-  --mode automatic \
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/your/blood \
+  --automatic \
   --step weights
 ```
+
+Install the wrapper with `pip install petfit-docker`; see the
+[Docker guide](../containers/docker.md) for the equivalent raw `docker run` commands.
 ````
 
 ````{tab-item} Apptainer

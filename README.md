@@ -31,6 +31,13 @@ PETFit can be run as a container (Docker / Apptainer), or as an R package.
 docker pull mathesong/petfit:latest
 ```
 
+The easiest way to drive the Docker image is the [`petfit-docker`](https://pypi.org/project/petfit-docker/) command-line wrapper. It turns a simple BIDS-App-style command into the matching `docker run` invocation, mapping your directories into the container for you:
+
+```bash
+pip install petfit-docker
+petfit-docker --help   # see all options
+```
+
 **R package:**
 
 ```r
@@ -42,44 +49,34 @@ See the [installation guide](https://petfit.readthedocs.io/en/latest/installatio
 
 ## Quick start
 
-A PETFit workflow has two stages: define regions once for the dataset, then run one or more modelling analyses. Launch each app interactively with Docker, then open `http://localhost:3838` in your browser.
+A PETFit workflow has two stages: define regions once for the dataset, then run one or more modelling analyses. Launch each app interactively with the `petfit-docker` wrapper, then open `http://localhost:3838` in your browser.
 
 **Region definition:**
 
 ```bash
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func regiondef \
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app regiondef \
   --cores 1
 ```
 
 **Modelling with plasma input:**
 
 ```bash
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -v /path/to/blood:/data/blood_dir:ro \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_plasma \
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_plasma \
+  --blood-dir /path/to/blood \
   --cores 1
 ```
 
 **Modelling with reference tissue:**
 
 ```bash
-docker run -it --rm \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
-  -p 3838:3838 \
-  mathesong/petfit:latest \
-  --func modelling_ref \
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref \
   --cores 1
 ```
+
+For the equivalent raw `docker run` commands (useful if you ever hit an issue with the wrapper), see the [Docker usage guide](https://petfit.readthedocs.io/en/latest/containers/docker.html).
 
 For the full walkthrough — automatic processing, Apptainer/HPC, configuration, outputs, and troubleshooting — see the [Quick start](https://petfit.readthedocs.io/en/latest/quickstart.html) and [Usage](https://petfit.readthedocs.io/en/latest/usage/index.html) guides.
 
