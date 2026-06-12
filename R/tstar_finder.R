@@ -176,8 +176,9 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
     if (src == "analysis_folder") {
       kinfitr::bloodstream_import_inputfunctions(analysis_folder)
     } else {
-      stop("No blood input functions found for this analysis. Provide a blood directory, ",
-           "or run the Fit Delay step first to generate input functions from the raw blood data.",
+      stop("No blood input functions found. Please run the previous steps ",
+           "(Data Definition, Weights and Fit Delay) first, or launch the app with a ",
+           "blood directory, so that blood input functions are available.",
            call. = FALSE)
     }
   }
