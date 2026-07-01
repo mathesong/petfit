@@ -195,6 +195,13 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
       )$description
     )
 
+  all_mappings <- add_run_level_description_variants(
+    all_mappings,
+    folder_col = "folder",
+    description_col = "description",
+    path_col = "tacs_filename"
+  )
+
   # Join with original regions config
   regions_files <- regions_config %>%
     dplyr::inner_join(
@@ -204,6 +211,31 @@ create_petfit_regions_files <- function(petfit_regions_file, derivatives_folder)
     )
 
   if (nrow(regions_files) == 0) {
+    ambiguous_base_descriptions <- all_mappings %>%
+      dplyr::filter(stringr::str_detect(description, "_runlevel-(combined|individual)$")) %>%
+      dplyr::mutate(
+        base_description = stringr::str_remove(description,
+                                               "_runlevel-(combined|individual)$")
+      ) %>%
+      dplyr::distinct(folder, base_description)
+
+    requested_ambiguous_descriptions <- regions_config %>%
+      dplyr::inner_join(
+        ambiguous_base_descriptions,
+        by = c("folder", "description" = "base_description")
+      )
+
+    if (nrow(requested_ambiguous_descriptions) > 0) {
+      stop(
+        paste0(
+          "The selected TAC description is ambiguous because both combined-run ",
+          "and run-specific TACs are present. Recreate the region definition ",
+          "and choose either the runlevel-combined or runlevel-individual TACs option."
+        ),
+        call. = FALSE
+      )
+    }
+
     stop("No regions could be matched to valid file pairs. Check that descriptions in petfit_regions.tsv match the tacs file attributes.")
   }
 
@@ -1208,7 +1240,14 @@ create_tacs_list <- function(derivatives_folder) {
     ) %>%
     # Join with original descriptions
     dplyr::filter(desc_from_path == description) %>%
-    dplyr::select(path, foldername, description, tacs_path, morph_path) %>%
+    dplyr::select(path, foldername, description, tacs_path, morph_path)
+
+  tacs_with_mappings <- add_run_level_description_variants(
+    tacs_with_mappings,
+    folder_col = "foldername",
+    description_col = "description",
+    path_col = "tacs_path"
+  ) %>%
     dplyr::mutate(tacs_filedescription = paste0(foldername, ": ", description))
 
   # Sort alphabetically by display description for organized dropdown
@@ -1216,6 +1255,87 @@ create_tacs_list <- function(derivatives_folder) {
     dplyr::arrange(tacs_filedescription)
 
   return(tacs_with_mappings)
+}
+
+
+add_run_level_description_variants <- function(data, folder_col, description_col, path_col) {
+  if (nrow(data) == 0) {
+    return(data)
+  }
+
+  attrs <- purrr::map_dfr(data[[path_col]], extract_bids_attributes_from_filename)
+  attrs$.row_id <- seq_len(nrow(data))
+  attrs$.folder <- data[[folder_col]]
+  attrs$.base_description <- data[[description_col]]
+  attrs$.run_missing <- is.na(attrs$run) | trimws(attrs$run) == ""
+
+  measurement_cols <- intersect(
+    c("sub", "ses", "trc", "rec", "task", "acq"),
+    colnames(attrs)
+  )
+  group_cols <- c(".folder", ".base_description", measurement_cols)
+
+  run_status_by_measurement <- attrs %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) %>%
+    dplyr::summarise(
+      .group_has_run = any(!.run_missing),
+      .group_has_no_run = any(.run_missing),
+      .groups = "drop"
+    )
+
+  run_status_by_description <- run_status_by_measurement %>%
+    dplyr::group_by(.folder, .base_description) %>%
+    dplyr::summarise(
+      .has_mixed_run_level = any(.group_has_run & .group_has_no_run),
+      .groups = "drop"
+    )
+
+  attrs <- attrs %>%
+    dplyr::left_join(run_status_by_measurement, by = group_cols) %>%
+    dplyr::left_join(run_status_by_description,
+                     by = c(".folder", ".base_description"))
+
+  if (!any(attrs$.has_mixed_run_level)) {
+    return(data)
+  }
+
+  mixed_descriptions <- attrs %>%
+    dplyr::filter(.has_mixed_run_level) %>%
+    dplyr::distinct(.folder, .base_description)
+
+  warning(
+    paste0(
+      "Found both no-run and run-specific TACs for ",
+      nrow(mixed_descriptions),
+      " folder/description combination(s). Creating separate ",
+      "runlevel-combined and runlevel-individual selections."
+    ),
+    call. = FALSE
+  )
+
+  original_rows <- data[!attrs$.has_mixed_run_level, , drop = FALSE]
+
+  combined_ids <- attrs$.row_id[
+    attrs$.has_mixed_run_level & attrs$.run_missing
+  ]
+  individual_ids <- attrs$.row_id[
+    attrs$.has_mixed_run_level &
+      (!attrs$.run_missing | (attrs$.run_missing & !attrs$.group_has_run))
+  ]
+
+  combined_rows <- data[combined_ids, , drop = FALSE]
+  combined_rows[[description_col]] <- paste0(
+    combined_rows[[description_col]],
+    "_runlevel-combined"
+  )
+
+  individual_rows <- data[individual_ids, , drop = FALSE]
+  individual_rows[[description_col]] <- paste0(
+    individual_rows[[description_col]],
+    "_runlevel-individual"
+  )
+
+  dplyr::bind_rows(original_rows, combined_rows, individual_rows)
 }
 
 

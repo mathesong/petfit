@@ -103,3 +103,156 @@ test_that("create_tacs_list discovers seg-only TACs with matching morph files", 
   expect_equal(tacs_list$morph_path, morph_file)
   expect_equal(tacs_list$description, "seg-hammers_desc-preproc")
 })
+
+test_that("create_tacs_list separates combined-run and individual-run TAC variants", {
+  derivatives_dir <- file.path(tempdir(), "petfit_mixed_runlevel_derivatives")
+  unlink(derivatives_dir, recursive = TRUE)
+
+  pipeline_dir <- file.path(derivatives_dir, "petprep")
+  pet_dirs <- file.path(pipeline_dir, c("sub-50507", "sub-50509"), "ses-01", "pet")
+  anat_dirs <- file.path(pipeline_dir, c("sub-50507", "sub-50509"), "ses-01", "anat")
+  purrr::walk(c(pet_dirs, anat_dirs), dir.create, recursive = TRUE, showWarnings = FALSE)
+
+  tacs_files <- file.path(
+    c(rep(pet_dirs[1], 3), pet_dirs[2]),
+    c(
+      "sub-50507_ses-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_tacs.tsv"
+    )
+  )
+  morph_files <- file.path(
+    anat_dirs,
+    c(
+      "sub-50507_ses-01_desc-preproc_seg-gtm_morph.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_morph.tsv"
+    )
+  )
+  file.create(c(tacs_files, morph_files))
+
+  expect_warning(
+    tacs_list <- create_tacs_list(derivatives_dir),
+    "Found both no-run and run-specific TACs"
+  )
+
+  expect_setequal(
+    unique(tacs_list$description),
+    c("seg-gtm_desc-preproc_runlevel-combined",
+      "seg-gtm_desc-preproc_runlevel-individual")
+  )
+
+  combined_files <- basename(tacs_list$tacs_path[
+    tacs_list$description == "seg-gtm_desc-preproc_runlevel-combined"
+  ])
+  individual_files <- basename(tacs_list$tacs_path[
+    tacs_list$description == "seg-gtm_desc-preproc_runlevel-individual"
+  ])
+
+  expect_setequal(
+    combined_files,
+    c("sub-50507_ses-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_tacs.tsv")
+  )
+  expect_setequal(
+    individual_files,
+    c("sub-50507_ses-01_run-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_tacs.tsv")
+  )
+})
+
+test_that("create_petfit_regions_files maps selected run-level variant only", {
+  derivatives_dir <- file.path(tempdir(), "petfit_mixed_runlevel_mapping")
+  unlink(derivatives_dir, recursive = TRUE)
+
+  pipeline_dir <- file.path(derivatives_dir, "petprep")
+  pet_dirs <- file.path(pipeline_dir, c("sub-50507", "sub-50509"), "ses-01", "pet")
+  anat_dirs <- file.path(pipeline_dir, c("sub-50507", "sub-50509"), "ses-01", "anat")
+  purrr::walk(c(pet_dirs, anat_dirs), dir.create, recursive = TRUE, showWarnings = FALSE)
+
+  tacs_files <- file.path(
+    c(rep(pet_dirs[1], 3), pet_dirs[2]),
+    c(
+      "sub-50507_ses-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_tacs.tsv"
+    )
+  )
+  morph_files <- file.path(
+    anat_dirs,
+    c(
+      "sub-50507_ses-01_desc-preproc_seg-gtm_morph.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_morph.tsv"
+    )
+  )
+  file.create(c(tacs_files, morph_files))
+
+  petfit_dir <- file.path(derivatives_dir, "petfit")
+  dir.create(petfit_dir, recursive = TRUE, showWarnings = FALSE)
+  regions_file <- file.path(petfit_dir, "petfit_regions.tsv")
+  readr::write_tsv(
+    tibble::tibble(
+      RegionName = "WholeGTM",
+      folder = "petprep",
+      description = "seg-gtm_desc-preproc_runlevel-individual",
+      ConstituentRegion = "RegionA"
+    ),
+    regions_file
+  )
+
+  expect_warning(
+    mapping <- create_petfit_regions_files(regions_file, derivatives_dir),
+    "Found both no-run and run-specific TACs"
+  )
+
+  expect_setequal(
+    basename(mapping$tacs_filename),
+    c("sub-50507_ses-01_run-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50509_ses-01_desc-preproc_seg-gtm_tacs.tsv")
+  )
+  expect_false(any(basename(mapping$tacs_filename) ==
+                     "sub-50507_ses-01_desc-preproc_seg-gtm_tacs.tsv"))
+})
+
+test_that("create_petfit_regions_files errors clearly for ambiguous legacy description", {
+  derivatives_dir <- file.path(tempdir(), "petfit_mixed_runlevel_legacy")
+  unlink(derivatives_dir, recursive = TRUE)
+
+  pipeline_dir <- file.path(derivatives_dir, "petprep")
+  pet_dir <- file.path(pipeline_dir, "sub-50507", "ses-01", "pet")
+  anat_dir <- file.path(pipeline_dir, "sub-50507", "ses-01", "anat")
+  purrr::walk(c(pet_dir, anat_dir), dir.create, recursive = TRUE, showWarnings = FALSE)
+
+  file.create(file.path(
+    pet_dir,
+    c(
+      "sub-50507_ses-01_desc-preproc_seg-gtm_tacs.tsv",
+      "sub-50507_ses-01_run-01_desc-preproc_seg-gtm_tacs.tsv"
+    )
+  ))
+  file.create(file.path(
+    anat_dir,
+    "sub-50507_ses-01_desc-preproc_seg-gtm_morph.tsv"
+  ))
+
+  petfit_dir <- file.path(derivatives_dir, "petfit")
+  dir.create(petfit_dir, recursive = TRUE, showWarnings = FALSE)
+  regions_file <- file.path(petfit_dir, "petfit_regions.tsv")
+  readr::write_tsv(
+    tibble::tibble(
+      RegionName = "WholeGTM",
+      folder = "petprep",
+      description = "seg-gtm_desc-preproc",
+      ConstituentRegion = "RegionA"
+    ),
+    regions_file
+  )
+
+  expect_error(
+    suppressWarnings(create_petfit_regions_files(regions_file, derivatives_dir)),
+    "choose either the runlevel-combined or runlevel-individual"
+  )
+})
