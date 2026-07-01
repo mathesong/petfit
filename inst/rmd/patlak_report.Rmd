@@ -296,7 +296,7 @@ tac_data_files <- tac_data %>%
   filter(!duplicated(filename)) %>% 
    select(any_of(names(raw_data)), filename)
 
-save_data <- inner_join(raw_data, tac_data_files) %>% 
+save_data <- bids_hierarchical_inner_join(tac_data_files, raw_data) %>%
   mutate(filename = str_remove(filename, "_desc.*")) %>% 
   mutate(filename = str_remove(filename, "_weights.*")) %>% 
   mutate(filename = str_remove(filename, "_tacs.*")) %>% 
@@ -446,7 +446,7 @@ tac_data_nested <- tac_data %>%
                                            "run", "pet", "filename", "region")))) %>% 
   nest(.key="tacs")
 
-model_data <- inner_join(tac_data_nested, blood_data) %>% 
+model_data <- bids_hierarchical_inner_join(tac_data_nested, blood_data) %>%
   ungroup() %>% 
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 

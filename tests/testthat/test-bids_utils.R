@@ -181,3 +181,98 @@ test_that("get_pet_identifiers removes file extensions correctly", {
   expect_equal(file_pet_ids[1], "sub-01_ses-01_trc-18FFDG")
   expect_equal(file_pet_ids[2], "sub-02_ses-01_trc-18FFDG")
 })
+
+test_that("bids_hierarchical_inner_join matches session-level blood to PET runs", {
+  tac_data <- tibble::tibble(
+    sub = c("50419", "50507", "50507"),
+    ses = "01",
+    run = c(NA_character_, "01", "02"),
+    filename = c(
+      "sub-50419_ses-01_desc-combinedregions_tacs.tsv",
+      "sub-50507_ses-01_run-01_desc-combinedregions_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-combinedregions_tacs.tsv"
+    )
+  )
+
+  blood_data <- tibble::tibble(
+    sub = c("50419", "50507"),
+    ses = "01",
+    run = NA_character_,
+    blooddata = c("blood-50419", "blood-50507")
+  )
+
+  joined <- bids_hierarchical_inner_join(tac_data, blood_data)
+
+  expect_equal(nrow(joined), 3)
+  expect_equal(joined$blooddata, c("blood-50419", "blood-50507", "blood-50507"))
+  expect_equal(joined$run, c(NA_character_, "01", "02"))
+})
+
+test_that("bids_hierarchical_inner_join prefers specific blood entities", {
+  tac_data <- tibble::tibble(
+    sub = c("50507", "50507"),
+    ses = "01",
+    run = c("01", "02"),
+    filename = c(
+      "sub-50507_ses-01_run-01_desc-combinedregions_tacs.tsv",
+      "sub-50507_ses-01_run-02_desc-combinedregions_tacs.tsv"
+    )
+  )
+
+  blood_data <- tibble::tibble(
+    sub = c("50507", "50507"),
+    ses = "01",
+    run = c(NA_character_, "01"),
+    input = c("session-level", "run-specific")
+  )
+
+  joined <- bids_hierarchical_inner_join(tac_data, blood_data)
+
+  expect_equal(nrow(joined), 2)
+  expect_equal(joined$input, c("run-specific", "session-level"))
+  expect_equal(joined$run, c("01", "02"))
+})
+
+test_that("bids_hierarchical_inner_join falls back to parser-expanded entities", {
+  tac_data <- tibble::tibble(
+    sub = "50507",
+    ses = "01",
+    run = NA_character_,
+    filename = "sub-50507_ses-01_desc-combinedregions_tacs.tsv"
+  )
+
+  blood_data <- tibble::tibble(
+    sub = "50507",
+    ses = "01",
+    run = "01",
+    input = "run-specific"
+  )
+
+  joined <- bids_hierarchical_inner_join(tac_data, blood_data)
+
+  expect_equal(nrow(joined), 1)
+  expect_equal(joined$input, "run-specific")
+  expect_equal(joined$run, NA_character_)
+})
+
+test_that("bids_hierarchical_inner_join prefers generic entities for missing PET entity", {
+  tac_data <- tibble::tibble(
+    sub = "50507",
+    ses = "01",
+    run = NA_character_,
+    filename = "sub-50507_ses-01_desc-combinedregions_tacs.tsv"
+  )
+
+  blood_data <- tibble::tibble(
+    sub = c("50507", "50507"),
+    ses = "01",
+    run = c("01", NA_character_),
+    input = c("parser-expanded", "session-level")
+  )
+
+  joined <- bids_hierarchical_inner_join(tac_data, blood_data)
+
+  expect_equal(nrow(joined), 1)
+  expect_equal(joined$input, "session-level")
+  expect_equal(joined$run, NA_character_)
+})

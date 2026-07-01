@@ -2,6 +2,7 @@
 
 export("%>%")
 export(attributes_to_title)
+export(bids_hierarchical_inner_join)
 export(blooddata2inputfunction_tsv)
 export(calculate_segmentation_mean_tac)
 export(cleanup_individual_tacs_files)
