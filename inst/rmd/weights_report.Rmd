@@ -166,17 +166,15 @@ tacs_files <- list.files(analysis_folder,
                       pattern = "*_desc-combinedregions_tacs.tsv",
                       recursive = TRUE)
 
-# Use unified BIDS parsing to get consistent pet identifiers
-bids_attributes <- bids_parse_files(analysis_folder)
-bids_attributes$pet <- attributes_to_title(bids_attributes)
-
 weights_tacdata <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
-  # Join with unified BIDS attributes to get consistent pet column
-  left_join(select(bids_attributes, -filedata)) %>%
+  # The key comes from each measurement's own path, so it does not move when the
+  # cohort changes. This used to parse the whole study and join the result back
+  # on, which made the identifier depend on which other scans were present.
+  mutate(pet = petfit::pet_key(filename)) %>%
   group_by(filename) %>% 
   select(-filename, -basename, -measurement, -desc) %>% 
   ungroup()

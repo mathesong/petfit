@@ -1159,7 +1159,7 @@ summarise_tacs_descriptions <- function(dir_path) {
     dplyr::distinct()
 
   # Filter for files with seg or label attributes (silently exclude others)
-  # kinfitr::bids_parse_files() should provide seg and label columns if present
+  # kinfitr::bids_parse_derivatives() provides seg and label columns if present
   if ("seg" %in% colnames(unnested_tacfiledata) || "label" %in% colnames(unnested_tacfiledata)) {
     if (!"seg" %in% colnames(unnested_tacfiledata)) {
       unnested_tacfiledata$seg <- NA_character_

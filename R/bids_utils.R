@@ -1,5 +1,13 @@
 #' Extract a pet variable from BIDS attributes
 #'
+#' @description Deprecated. Use [pet_key()] for identity
+#'   and [pet_label()] for display.
+#'
+#'   This builds an identifier from only the attributes that vary across the
+#'   data it is handed, so identity depends on the cohort: adding a scan renames
+#'   the existing measurements, and a single measurement is named in a way that
+#'   matches none of its own files.
+#'
 #' @param bidsdata The result of bids_parse_files()
 #' @param all_attributes Make a column including attributes which are all the same.
 #'
@@ -12,6 +20,17 @@
 #' studydata$pet <- attributes_to_title(studydata)
 #' }
 attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
+
+  warning(
+    "attributes_to_title() is deprecated in favour of pet_key() for identity ",
+    "and pet_label() for display, and will be removed in 2027.\n",
+    "It builds an identifier from only the attributes that vary across the ",
+    "data it is given, so the same measurement is named differently depending ",
+    "on what else is being analysed. Adding one scan to a study renames the ",
+    "others and orphans their files, and a study of a single measurement ",
+    "produces a name matching no file at all.",
+    call. = FALSE)
+
   
   
   if( !all_attributes ) {

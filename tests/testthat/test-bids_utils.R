@@ -1,110 +1,9 @@
-test_that("attributes_to_title formats BIDS attributes correctly", {
-  
-  # Create test BIDS data structure that matches kinfitr::bids_parse_files output
-  test_bidsdata <- tibble::tibble(
-    sub = c("01", "02"),
-    ses = c("01", "02"), 
-    trc = c("18FFDG", "11CRACWAY"),
-    rec = c("", "rec1"),
-    task = c("", "rest"),
-    run = c("", "1"),
-    desc = c("freesurfer", "spm"),
-    filedata = c("sub-01_ses-01_trc-18FFDG_desc-freesurfer_tacs.tsv", 
-                 "sub-02_ses-02_trc-11CRACWAY_rec-rec1_task-rest_run-1_desc-spm_tacs.tsv")
-  )
-  
-  # Test with all_attributes = FALSE (default)
-  result <- attributes_to_title(test_bidsdata)
-  expect_type(result, "character")
-  expect_true(length(result) == nrow(test_bidsdata))
-  
-  # Should include main attributes
-  expect_true(all(grepl("sub-01|sub-02", result)))
-  expect_true(all(grepl("ses-01|ses-02", result)))
-  expect_true(all(grepl("trc-18FFDG|trc-11CRACWAY", result)))
-  
-  # Test with all_attributes = TRUE
-  result_all <- attributes_to_title(test_bidsdata, all_attributes = TRUE)
-  expect_type(result_all, "character")
-  expect_true(length(result_all) == nrow(test_bidsdata))
-  
-  # Should include optional attributes when present
-  expect_true(any(grepl("rec-rec1", result_all)))
-  expect_true(any(grepl("task-rest", result_all)))
-  expect_true(any(grepl("run-1", result_all)))
-  expect_true(any(grepl("desc-freesurfer|desc-spm", result_all)))
-})
-
-test_that("attributes_to_title handles minimal BIDS data", {
-  
-  # Test with only required attributes (must include filedata column)
-  minimal_data <- tibble::tibble(
-    sub = "01",
-    ses = "01",
-    trc = "18FFDG",
-    task = "",
-    filedata = "sub-01_ses-01_trc-18FFDG_tacs.tsv"
-  )
-  
-  result <- attributes_to_title(minimal_data)
-  expect_equal(length(result), 1)
-  expect_true(grepl("sub-01", result))
-  expect_true(grepl("ses-01", result))
-  # For single row, function only uses sub, ses, task, so trc may not appear
-  expect_type(result, "character")
-})
-
-test_that("attributes_to_title handles empty optional fields", {
-  
-  # Test with empty optional fields
-  test_data <- tibble::tibble(
-    sub = "01",
-    ses = "01",
-    trc = "18FFDG",
-    rec = "",
-    task = "",
-    run = "",
-    desc = "freesurfer",
-    filedata = "sub-01_ses-01_trc-18FFDG_desc-freesurfer_tacs.tsv"
-  )
-  
-  result <- attributes_to_title(test_data, all_attributes = TRUE)
-  
-  # With all_attributes = TRUE, all fields are included even if empty
-  expect_true(grepl("desc-freesurfer", result))
-  # Empty fields will show as "field-" in the output
-  expect_true(grepl("rec-", result))  # Will show as rec- (empty value)
-  expect_true(grepl("task-", result)) # Will show as task- (empty value)
-  expect_true(grepl("run-", result))  # Will show as run- (empty value)
-})
-
-test_that("attributes_to_title handles edge cases", {
-  
-  # Test with empty data frame that has proper structure
-  empty_data <- tibble::tibble(
-    sub = character(0),
-    ses = character(0),
-    trc = character(0),
-    task = character(0),
-    filedata = character(0)
-  )
-  result <- attributes_to_title(empty_data)
-  # Function may still produce 1 empty result even with 0 rows
-  expect_type(result, "character")
-  
-  # Test with single row
-  single_row <- tibble::tibble(
-    sub = "01",
-    ses = "01",
-    trc = "18FFDG",
-    task = "",
-    filedata = "sub-01_ses-01_trc-18FFDG_tacs.tsv"
-  )
-  
-  result <- attributes_to_title(single_row)
-  expect_equal(length(result), 1)
-  expect_type(result, "character")
-})
+# attributes_to_title() is deprecated and its behaviour is deliberately not
+# pinned here. It builds an identifier from whichever attributes vary across the
+# data it is handed, which is the defect this work removes -- tests asserting
+# that output stays the same would be protecting the bug. What is worth holding
+# is that it still announces itself as deprecated, and that pet_key(), which
+# replaces it, is correct.
 
 test_that("the model entity is visible to the BIDS parser", {
 
@@ -128,6 +27,18 @@ test_that("the model entity is visible to the BIDS parser", {
   expect_equal(irr$model, "2TCMirr")
 })
 
+
+test_that("attributes_to_title says it is deprecated", {
+
+  bidsdata <- tibble::tibble(
+    sub = c("01", "02"),
+    ses = c("01", "02"),
+    filedata = list(tibble::tibble(x = 1), tibble::tibble(x = 2))
+  )
+
+  expect_warning(attributes_to_title(bidsdata), "deprecated")
+  expect_warning(attributes_to_title(bidsdata), "pet_key")
+})
 
 test_that("pet_key is built from a measurement's own path", {
 
