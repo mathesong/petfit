@@ -75,18 +75,13 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
 #' @description Build each measurement's identifier from the entities that
 #'   measurement's own path carries, and nothing else.
 #'
-#'   The key must not depend on which other measurements happen to be analysed
-#'   alongside it. The identifier this replaces was built from only the
-#'   attributes that *varied* across the current cohort, so three subjects all in
-#'   `ses-test` were identified as `sub-01`, `sub-02`, `sub-03`, and adding one
-#'   retest scan silently renamed every one of them to `sub-01_ses-test` and so
-#'   on. Previously written files were orphaned, saved configurations referred to
-#'   measurements that no longer existed, and an analysis containing a single
-#'   measurement produced a key matching no file at all -- which is what left the
-#'   PET dropdown empty.
+#'   The key does not depend on which other measurements are analysed alongside
+#'   it, so it never moves: a measurement keeps the same key whether it is
+#'   analysed alone or in a cohort of fifty, and the files written under it stay
+#'   findable when the study grows.
 #'
-#'   Because the key is exactly the stem its files are written under, reading it
-#'   back is not a lookup and so cannot fail.
+#'   It is exactly the stem its files are written under, so reading it back is
+#'   not a lookup and cannot fail. Use [pet_label()] for display.
 #'
 #' @param file_paths Vector of file paths.
 #' @param analysis_folder Path to the analysis folder the paths sit in. Entities

@@ -152,9 +152,8 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     result$report_path <- report_file
 
   }, error = function(e) {
-    # `<<-` so the reason reaches the returned result, and thence the batch
-    # pipeline log. With `<-` it would only ever set a copy local to this
-    # handler, and callers would see an empty message.
+    # `<<-`, not `<-`: `<-` here would set a copy local to this handler, and
+    # the returned result would carry an empty message.
     result$message <<- paste("Error during data subsetting:", e$message)
     notify(result$message, "error")
     cat("Error:", e$message, "\n")

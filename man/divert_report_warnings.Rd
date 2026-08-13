@@ -13,19 +13,17 @@ Invisibly \code{NULL}, called for its side effect.
 Install a knitr hook that writes chunk warnings to \code{stderr()}
 and puts nothing in the rendered document.
 
-The templates previously set \code{warning = FALSE}, which does not route
-warnings to the console as knitr's documentation suggests — it discards
-them outright. That mattered: dplyr warns when a join finds an unexpected
-many-to-many relationship, which is precisely the signature of a duplicated
-record silently multiplying TAC rows, and petfit was throwing that warning
-away.
+Warnings inside a report would make it unreadable, so the templates set
+\code{warning = TRUE} to route them here and this hook sends them to \code{stderr()}
+instead. The rendering subprocess passes that to the terminal, or to
+\verb{reports/logs/<step>_report.log} under \code{save_logs = TRUE}.
 
-Warnings printed into the reports themselves would make them unreadable, so
-the templates set \code{warning = TRUE} to route warnings here, and this hook
-diverts them. Reports stay clean; the warning reaches the terminal, or the
-step log when \code{save_logs = TRUE}.
+knitr's \code{warning = FALSE} is not an alternative: despite its documentation,
+it discards warnings rather than printing them to the console. The one that
+matters is dplyr's unexpected many-to-many join, which is what a duplicated
+record multiplying TAC rows looks like.
 
-Called inside the rendering subprocess, so it never alters knitr's
-behaviour for anything else in the session.
+Called inside the rendering subprocess, so knitr's behaviour elsewhere in
+the session is untouched.
 }
 \keyword{internal}
