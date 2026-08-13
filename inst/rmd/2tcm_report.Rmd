@@ -451,7 +451,10 @@ tac_data_nested <- tac_data %>%
                                            "run", "pet", "filename", "region")))) %>% 
   nest(.key="tacs")
 
-model_data <- inner_join(tac_data_nested, blood_data) %>% 
+model_data <- inner_join(tac_data_nested, blood_data,
+                         # One blood record per measurement. A duplicate would
+                         # otherwise multiply every region's TAC rows silently.
+                         relationship = "many-to-one") %>% 
   ungroup() %>% 
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
@@ -460,12 +463,12 @@ model_data <- inner_join(tac_data_nested, blood_data) %>%
   mutate(output_stem = str_remove(output_stem, "_tacs.*"))
 
 model_data <- model_data %>% 
-  left_join(delay_data)
+  left_join(delay_data, relationship = "many-to-one")
 ```
 
 ```{r combine-vB, echo=vB_inheritance, eval=vB_inheritance}
 model_data <- model_data %>% 
-  left_join(vB_data)
+  left_join(vB_data, relationship = "many-to-one")
 ```
 
 

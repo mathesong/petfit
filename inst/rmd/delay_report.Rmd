@@ -352,7 +352,10 @@ tac_data_nested <- tac_data %>%
                                            "run", "pet", "filename", "region")))) %>% 
   nest(.key="tacs")
 
-model_data <- inner_join(tac_data_nested, blood_data) %>% 
+model_data <- inner_join(tac_data_nested, blood_data,
+                         # One blood record per measurement. A duplicate would
+                         # otherwise multiply every region's TAC rows silently.
+                         relationship = "many-to-one") %>% 
   ungroup() %>% 
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
