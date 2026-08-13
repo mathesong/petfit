@@ -103,3 +103,34 @@ test_that("create_tacs_list discovers seg-only TACs with matching morph files", 
   expect_equal(tacs_list$morph_path, morph_file)
   expect_equal(tacs_list$description, "seg-hammers_desc-preproc")
 })
+
+test_that("extract_bids_attributes_from_filename fills absent entities with NA", {
+
+  # The combined TACs file is built from this function's output, so whatever it
+  # writes for an absent entity is what subsetting later has to validate
+  # against. It emits every selector column unconditionally, using NA — not ""
+  # — where the filename is silent.
+
+  full <- extract_bids_attributes_from_filename(
+    "sub-01_ses-test_trc-pf974_rec-acdyn_task-rest_run-1_desc-preproc_tacs.tsv")
+
+  expect_equal(full$sub, "01")
+  expect_equal(full$ses, "test")
+  expect_equal(full$trc, "pf974")
+  expect_equal(full$rec, "acdyn")
+  expect_equal(full$task, "rest")
+  expect_equal(full$run, "1")
+
+  sparse <- extract_bids_attributes_from_filename("sub-01_desc-preproc_tacs.tsv")
+
+  # Every selector column is still present...
+  expect_true(all(c("sub", "ses", "trc", "rec", "task", "run") %in% names(sparse)))
+  # ...and the ones the filename omits are NA, not empty strings
+  expect_equal(sparse$sub, "01")
+  expect_true(is.na(sparse$ses))
+  expect_true(is.na(sparse$trc))
+  expect_true(is.na(sparse$rec))
+  expect_true(is.na(sparse$task))
+  expect_true(is.na(sparse$run))
+  expect_false(any(c(sparse$ses, sparse$trc, sparse$rec) %in% ""))
+})

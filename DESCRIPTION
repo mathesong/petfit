@@ -43,7 +43,8 @@ Imports:
     tidyverse
 Suggests:
     testthat (>= 3.0.0),
-    here
+    here,
+    withr
 Config/testthat/edition: 3
 Remotes: 
     mathesong/kinfitr

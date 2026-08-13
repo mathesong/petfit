@@ -1,79 +1,117 @@
 #' Parse Semicolon-Separated Values
 #'
-#' @description Parse semicolon-separated string into vector
+#' @description Parse a semicolon-separated subsetting string into a vector of
+#'   values.
+#'
+#'   Values are separated by `;` and **may not contain commas**. A comma is
+#'   always a mistyped separator, and silently treating `"A, B"` as one value is
+#'   what caused analyses to run on fewer regions than were asked for.
+#'
+#'   A string whose first non-whitespace character is `-` selects everything
+#'   *except* the values listed, so `"-test;retest"` means "neither test nor
+#'   retest". The `-` applies to the whole field, so including and excluding
+#'   cannot be mixed within a single field. Each subsetting field reads its own
+#'   prefix independently.
+#'
 #' @param input_string Character string with semicolon-separated values
-#' @return Character vector of parsed values, or NULL if empty
+#' @param field Optional name of the field being parsed, used to make error and
+#'   warning messages specific (e.g. `"Regions"`).
+#' @return Character vector of parsed values, or `NULL` if empty. The result
+#'   carries a `negate` attribute — `TRUE` when the field was prefixed with `-`,
+#'   otherwise `FALSE`. Read it with `attr(x, "negate")`.
 #' @export
-parse_semicolon_values <- function(input_string) {
-  if (is.null(input_string) || input_string == "") {
+parse_semicolon_values <- function(input_string, field = NULL) {
+  if (is.null(input_string) || length(input_string) == 0) {
     return(NULL)
   }
-  
+
+  input_string <- stringr::str_trim(as.character(input_string)[1])
+
+  if (is.na(input_string) || input_string == "") {
+    return(NULL)
+  }
+
+  # A leading "-" negates the whole field, not just the first value
+  negate <- stringr::str_starts(input_string, stringr::fixed("-"))
+  if (negate) {
+    input_string <- stringr::str_sub(input_string, 2)
+  }
+
   # Split by semicolon and trim whitespace
   values <- stringr::str_split(input_string, ";")[[1]]
   values <- stringr::str_trim(values)
-  
+
   # Remove empty values
   values <- values[values != ""]
-  
+
   if (length(values) == 0) {
+    if (negate) {
+      warning(subset_field_prefix(field),
+              "\"-\" on its own excludes nothing; no filter applied.",
+              call. = FALSE)
+    }
     return(NULL)
   }
-  
+
+  check_no_commas(values, field)
+
+  attr(values, "negate") <- negate
+
   return(values)
 }
 
 #' Subset Combined TACs Data
 #'
-#' @description Filter combined TACs data based on subsetting criteria
+#' @description Filter combined TACs data based on subsetting criteria.
+#'
+#'   Every value is validated first — see [validate_subset_params()]. A value
+#'   you asked to include that matches nothing is an error rather than a silent
+#'   no-op.
+#'
+#'   A field parsed from a string prefixed with `-` (see
+#'   [parse_semicolon_values()]) excludes its values instead of including them.
+#'   Note the asymmetry around missing entities: including `ses = "test"` drops
+#'   rows whose session is `NA`, whereas excluding `ses = "-test"` **keeps**
+#'   them, since a measurement with no session at all is indeed not `ses-test`.
+#'
 #' @param combined_tacs_data Tibble with combined TACs data
 #' @param subset_params List of subsetting parameters
 #' @return Filtered tibble
 #' @export
 subset_combined_tacs <- function(combined_tacs_data, subset_params) {
-  
+
   if (is.null(combined_tacs_data) || nrow(combined_tacs_data) == 0) {
     return(tibble::tibble())
   }
-  
+
+  validate_subset_params(combined_tacs_data, subset_params)
+
   filtered_data <- combined_tacs_data
-  
+
   # Apply filters for each parameter
-  if (!is.null(subset_params$sub)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(sub %in% subset_params$sub)
+  for (field in names(subset_field_columns)) {
+    values <- subset_params[[field]]
+    if (is.null(values) || length(values) == 0) {
+      next
+    }
+
+    column <- subset_field_columns[[field]]
+    if (!column %in% colnames(filtered_data)) {
+      # Only reachable for an exclusion; an inclusion has already errored.
+      next
+    }
+
+    # as.character() on both sides mirrors what %in% does anyway, and base
+    # subsetting keeps NA rows under negation rather than dropping them the way
+    # dplyr::filter() would.
+    keep <- as.character(filtered_data[[column]]) %in% as.character(values)
+    if (isTRUE(attr(values, "negate"))) {
+      keep <- !keep
+    }
+
+    filtered_data <- filtered_data[keep, , drop = FALSE]
   }
-  
-  if (!is.null(subset_params$ses)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(ses %in% subset_params$ses)
-  }
-  
-  if (!is.null(subset_params$task)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(task %in% subset_params$task)
-  }
-  
-  if (!is.null(subset_params$trc)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(trc %in% subset_params$trc)
-  }
-  
-  if (!is.null(subset_params$rec)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(rec %in% subset_params$rec)
-  }
-  
-  if (!is.null(subset_params$run)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(run %in% subset_params$run)
-  }
-  
-  if (!is.null(subset_params$regions)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(region %in% subset_params$regions)
-  }
-  
+
   return(filtered_data)
 }
 

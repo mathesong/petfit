@@ -15,5 +15,15 @@ subset_combined_tacs(combined_tacs_data, subset_params)
 Filtered tibble
 }
 \description{
-Filter combined TACs data based on subsetting criteria
+Filter combined TACs data based on subsetting criteria.
+
+Every value is validated first — see \code{\link[=validate_subset_params]{validate_subset_params()}}. A value
+you asked to include that matches nothing is an error rather than a silent
+no-op.
+
+A field parsed from a string prefixed with \code{-} (see
+\code{\link[=parse_semicolon_values]{parse_semicolon_values()}}) excludes its values instead of including them.
+Note the asymmetry around missing entities: including \code{ses = "test"} drops
+rows whose session is \code{NA}, whereas excluding \code{ses = "-test"} \strong{keeps}
+them, since a measurement with no session at all is indeed not \code{ses-test}.
 }

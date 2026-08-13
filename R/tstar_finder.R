@@ -141,18 +141,35 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
   invisible(written)
 }
 
+# Apply one sub/ses filter, honouring the exclusion prefix. The column can be
+# absent entirely: kinfitr::bids_filename_attributes() spreads only the entities
+# a filename carries, so a sessionless study yields no `ses` column at all.
+.tstar_apply_filter <- function(measurements, column, values) {
+  if (is.null(values) || !column %in% colnames(measurements)) {
+    return(measurements)
+  }
+
+  keep <- as.character(measurements[[column]]) %in% as.character(values)
+  if (isTRUE(attr(values, "negate"))) {
+    keep <- !keep
+  }
+
+  measurements[keep, , drop = FALSE]
+}
+
 # Apply the measurement-selection mode to the discovered measurements tibble.
 .tstar_select_measurements <- function(measurements, selection,
                                        sub_filter, ses_filter, n_random) {
   if (selection == "subset") {
-    subs <- parse_semicolon_values(sub_filter)
-    sess <- parse_semicolon_values(ses_filter)
-    if (!is.null(subs) && "sub" %in% colnames(measurements)) {
-      measurements <- measurements[measurements$sub %in% subs, , drop = FALSE]
-    }
-    if (!is.null(sess) && "ses" %in% colnames(measurements)) {
-      measurements <- measurements[measurements$ses %in% sess, , drop = FALSE]
-    }
+    subs <- parse_semicolon_values(sub_filter, field = "sub")
+    sess <- parse_semicolon_values(ses_filter, field = "ses")
+
+    # Catch values that match nothing before filtering, so a typo errors rather
+    # than quietly shrinking the selection.
+    validate_subset_params(measurements, list(sub = subs, ses = sess))
+
+    measurements <- .tstar_apply_filter(measurements, "sub", subs)
+    measurements <- .tstar_apply_filter(measurements, "ses", sess)
   } else if (selection == "random") {
     n_random <- suppressWarnings(as.integer(n_random))
     if (is.na(n_random) || n_random < 1) n_random <- 5L

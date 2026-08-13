@@ -60,13 +60,13 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     # Extract subsetting parameters from config
     # Need to parse semicolon-separated values (empty strings -> NULL)
     subset_params <- list(
-      sub = parse_semicolon_values(config$Subsetting$sub),
-      ses = parse_semicolon_values(config$Subsetting$ses),
-      task = parse_semicolon_values(config$Subsetting$task),
-      trc = parse_semicolon_values(config$Subsetting$trc),
-      rec = parse_semicolon_values(config$Subsetting$rec),
-      run = parse_semicolon_values(config$Subsetting$run),
-      regions = parse_semicolon_values(config$Subsetting$Regions)
+      sub = parse_semicolon_values(config$Subsetting$sub, field = "sub"),
+      ses = parse_semicolon_values(config$Subsetting$ses, field = "ses"),
+      task = parse_semicolon_values(config$Subsetting$task, field = "task"),
+      trc = parse_semicolon_values(config$Subsetting$trc, field = "trc"),
+      rec = parse_semicolon_values(config$Subsetting$rec, field = "rec"),
+      run = parse_semicolon_values(config$Subsetting$run, field = "run"),
+      regions = parse_semicolon_values(config$Subsetting$Regions, field = "Regions")
     )
 
     # Apply subsetting
@@ -152,7 +152,10 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     result$report_path <- report_file
 
   }, error = function(e) {
-    result$message <- paste("Error during data subsetting:", e$message)
+    # `<<-` so the reason reaches the returned result, and thence the batch
+    # pipeline log. With `<-` it would only ever set a copy local to this
+    # handler, and callers would see an empty message.
+    result$message <<- paste("Error during data subsetting:", e$message)
     notify(result$message, "error")
     cat("Error:", e$message, "\n")
   })
@@ -219,7 +222,8 @@ execute_weights_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Could not generate weights report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Could not generate weights report:", e$message)
     notify(result$message, "error")
     cat("Error generating weights report:", e$message, "\n")
   })
@@ -345,7 +349,8 @@ execute_delay_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Error generating delay report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Error generating delay report:", e$message)
     notify(result$message, "error")
     cat("Warning: Could not generate delay report:", e$message, "\n")
   })
@@ -411,7 +416,8 @@ execute_reference_tac_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Could not generate reference TAC report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Could not generate reference TAC report:", e$message)
     notify(result$message, "error")
     cat("Error generating reference TAC report:", e$message, "\n")
   })
@@ -496,7 +502,8 @@ execute_model_step <- function(config_path, model_num, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Error fitting Model", model_num, ":", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Error fitting Model", model_num, ":", e$message)
     notify(result$message, "error")
     cat("Warning: Could not generate Model", model_num, "report:", e$message, "\n")
   })

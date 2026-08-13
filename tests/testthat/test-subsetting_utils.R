@@ -1,16 +1,22 @@
 test_that("parse_semicolon_values handles normal input", {
-  
+
+  # ignore_attr because the result now carries a `negate` attribute recording
+  # whether the field was prefixed with "-"; asserted separately below.
+
   # Test basic semicolon separation
   result <- parse_semicolon_values("value1;value2;value3")
-  expect_equal(result, c("value1", "value2", "value3"))
-  
+  expect_equal(result, c("value1", "value2", "value3"), ignore_attr = TRUE)
+
   # Test with spaces
   result <- parse_semicolon_values("value1 ; value2 ; value3")
-  expect_equal(result, c("value1", "value2", "value3"))
-  
+  expect_equal(result, c("value1", "value2", "value3"), ignore_attr = TRUE)
+
   # Test single value
   result <- parse_semicolon_values("single_value")
-  expect_equal(result, "single_value")
+  expect_equal(result, "single_value", ignore_attr = TRUE)
+
+  # Plain input is an inclusion
+  expect_false(attr(result, "negate"))
 })
 
 test_that("parse_semicolon_values handles edge cases", {
@@ -29,7 +35,7 @@ test_that("parse_semicolon_values handles edge cases", {
   
   # Test mixed empty and valid values
   result <- parse_semicolon_values("value1;;value2;")
-  expect_equal(result, c("value1", "value2"))
+  expect_equal(result, c("value1", "value2"), ignore_attr = TRUE)
   
   # Test whitespace only
   result <- parse_semicolon_values("   ;   ;   ")
@@ -38,13 +44,70 @@ test_that("parse_semicolon_values handles edge cases", {
 
 test_that("parse_semicolon_values handles special characters", {
   
-  # Test values with special characters
+  # Test values with special characters. Note the hyphens here are interior, so
+  # none of these is an exclusion.
   result <- parse_semicolon_values("sub-01;ses-02;task_rest")
-  expect_equal(result, c("sub-01", "ses-02", "task_rest"))
-  
+  expect_equal(result, c("sub-01", "ses-02", "task_rest"), ignore_attr = TRUE)
+  expect_false(attr(result, "negate"))
+
   # Test values with numbers
   result <- parse_semicolon_values("18FFDG;11CRACWAY;15OH2O")
-  expect_equal(result, c("18FFDG", "11CRACWAY", "15OH2O"))
+  expect_equal(result, c("18FFDG", "11CRACWAY", "15OH2O"), ignore_attr = TRUE)
+})
+
+test_that("parse_semicolon_values rejects commas", {
+
+  # Bug 3, verbatim from analysis10's config: splitting on ";" alone yields
+  # "H_Striatum, H_CerebellarWM" as a single value, which matches no region and
+  # used to be dropped in silence, so only the amygdala ran.
+  expect_error(
+    parse_semicolon_values("H_Amygdala; H_Striatum, H_CerebellarWM", field = "Regions"),
+    "H_Striatum, H_CerebellarWM"
+  )
+  expect_error(
+    parse_semicolon_values("H_Amygdala; H_Striatum, H_CerebellarWM", field = "Regions"),
+    "may not contain commas"
+  )
+
+  # The message names the field and suggests the intended separator
+  expect_error(
+    parse_semicolon_values("H_Amygdala; H_Striatum, H_CerebellarWM", field = "Regions"),
+    "^Regions:"
+  )
+  expect_error(
+    parse_semicolon_values("a, b", field = "sub"),
+    "Did you mean:    \"a; b\""
+  )
+
+  # Still rejected when the field is negated
+  expect_error(parse_semicolon_values("-a, b"), "may not contain commas")
+})
+
+test_that("parse_semicolon_values reads the exclusion prefix", {
+
+  # The "-" binds to the field, not to the first value
+  result <- parse_semicolon_values("-test;retest")
+  expect_equal(result, c("test", "retest"), ignore_attr = TRUE)
+  expect_true(attr(result, "negate"))
+
+  # Surrounding and interior whitespace
+  result <- parse_semicolon_values("  - test ; retest  ")
+  expect_equal(result, c("test", "retest"), ignore_attr = TRUE)
+  expect_true(attr(result, "negate"))
+
+  # Single exclusion
+  result <- parse_semicolon_values("-pfmdd09")
+  expect_equal(result, "pfmdd09", ignore_attr = TRUE)
+  expect_true(attr(result, "negate"))
+
+  # Only the leading "-" is consumed; later values keep theirs
+  result <- parse_semicolon_values("-a;-b")
+  expect_equal(result, c("a", "-b"), ignore_attr = TRUE)
+
+  # A lone "-" excludes nothing and is far more likely a truncated entry
+  expect_warning(result <- parse_semicolon_values("-", field = "ses"),
+                 "excludes nothing")
+  expect_null(result)
 })
 
 test_that("subset_combined_tacs filters data correctly", {
@@ -108,13 +171,69 @@ test_that("subset_combined_tacs handles multiple filters", {
   expect_equal(result$trc, "18FFDG")
   expect_equal(result$ses, "01")
   
-  # Test filtering with no matches
+  # Test filtering with no matches. This used to return zero rows in silence,
+  # which is the defect behind bugs 2 and 3; an included value matching nothing
+  # is now an error naming the offender.
   subset_params <- list(
-    sub = c("99"), 
+    sub = c("99"),
     trc = c("18FFDG")
   )
-  result <- subset_combined_tacs(test_data, subset_params)
+  expect_error(subset_combined_tacs(test_data, subset_params), "sub: \"99\"")
+})
+
+test_that("subset_combined_tacs excludes values from a negated field", {
+
+  # Absent entities are NA here, as they are in real combined TACs files
+  test_data <- tibble::tibble(
+    sub    = c("01", "02", "03", "04"),
+    ses    = c("test", "test", "retest", NA_character_),
+    region = "cortex",
+    TAC    = c(100, 110, 90, 95)
+  )
+
+  negated <- function(x) parse_semicolon_values(x)
+
+  # Simple exclusion
+  result <- subset_combined_tacs(test_data, list(sub = negated("-02")))
+  expect_equal(result$sub, c("01", "03", "04"))
+
+  # Several values excluded at once
+  result <- subset_combined_tacs(test_data, list(sub = negated("-02;03")))
+  expect_equal(result$sub, c("01", "04"))
+
+  # Measurements with no session at all survive an exclusion: a measurement
+  # without a session is indeed not ses-test. This is the mirror image of
+  # inclusion, which drops NA rows.
+  result <- subset_combined_tacs(test_data, list(ses = negated("-test")))
+  expect_equal(result$sub, c("03", "04"))
+
+  result <- subset_combined_tacs(test_data, list(ses = negated("test")))
+  expect_equal(result$sub, c("01", "02"))
+
+  # A negated and a plain field compose, each reading its own prefix
+  result <- subset_combined_tacs(test_data,
+                                 list(sub = negated("-04"), ses = negated("test")))
+  expect_equal(result$sub, c("01", "02"))
+
+  # Excluding everything is allowed, and yields nothing
+  result <- subset_combined_tacs(test_data, list(sub = negated("-01;02;03;04")))
   expect_equal(nrow(result), 0)
+})
+
+test_that("subset_combined_tacs warns but proceeds on an unmatched exclusion", {
+
+  test_data <- tibble::tibble(
+    sub    = c("01", "02"),
+    region = "cortex",
+    TAC    = c(100, 110)
+  )
+
+  expect_warning(
+    result <- subset_combined_tacs(test_data,
+                                   list(sub = parse_semicolon_values("-99"))),
+    "nothing was excluded"
+  )
+  expect_equal(nrow(result), 2)
 })
 
 test_that("subset_combined_tacs handles optional BIDS entities", {

@@ -249,7 +249,11 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                 "All measurements fulfilling all the conditions will ",
                                 "be included. Leave options blank if no subsetting is desired, ",
                                 "i.e. leaving sub blank implies that all subjects should ",
-                                "be included."),
+                                "be included. ",
+                                "Begin a field with a minus sign to exclude rather than include: ",
+                                "-01;02 selects every measurement except 01 and 02. ",
+                                "A value matching nothing is an error when including, and a ",
+                                "warning when excluding."),
                            style = "font-size:14px;"
                          ),
                          br(),
@@ -567,7 +571,9 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                    conditionalPanel(
                                      condition = "input.tstar_selection == 'subset'",
                                      textInput("tstar_sub", "sub", value = ""),
-                                     textInput("tstar_ses", "ses", value = "")),
+                                     textInput("tstar_ses", "ses", value = ""),
+                                     p("Semi-colons separate values. Prefix the field with - to include all except those values.",
+                                       style = "font-size:12px;")),
                                    hr(),
                                    actionButton("run_tstar", "▶ Generate t* Plots",
                                                 class = "btn-success btn-lg", width = "100%")
