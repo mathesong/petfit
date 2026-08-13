@@ -786,7 +786,7 @@ savepar <- inner_join(par_table,
 
 write_tsv(savepar, 
           file=paste0(analysis_folder, "/", 
-                      "model_", "2TCM_irr","_",
+                      "model-", "2TCMirr","_",
                       "desc-", desc,"_",
                       "kinpar.tsv"))
 ```
@@ -808,7 +808,7 @@ savepar_pet <- savepar %>%
   nest(.key="kinpars") %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM_irr","_",
+                           "model-", "2TCMirr","_",
                             "desc-", desc,"_",
                             "kinpar.tsv"))
 
@@ -872,7 +872,7 @@ savefits <- model_data %>%
 savefits_pet <- savefits %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM_irr","_",
+                           "model-", "2TCMirr","_",
                             "desc-", desc,"fitted",
                             "_",
                             "tacs.tsv"))

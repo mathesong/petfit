@@ -52,6 +52,22 @@
   A knitr hook (`divert_report_warnings()`, called from each template's setup
   chunk) diverts them to `stderr()` and puts nothing in the document.
 
+## Model artifact naming
+
+* **Model artifacts are now named `model-2TCM` rather than `model_2TCM`.** The
+  underscore form is not a BIDS entity at all -- an underscore separates
+  entities, so a parser saw no `model` key and could not tie an artifact back to
+  the model that produced it. Affects all 11 model report templates, at the
+  study-level TSV and both per-pet artifacts (parameters and fitted TACs), plus
+  their JSON sidecars.
+
+* The irreversible two-tissue model is emitted as `model-2TCMirr`. It is called
+  `2TCM_irr` everywhere else in petfit, but that cannot be a BIDS label for the
+  same reason -- the underscore would split it.
+
+* Artifacts written by an earlier version keep their old names. Nothing reads
+  them, so they are inert; delete them if they get in the way.
+
 ## Containers
 
 * Both containers now set a UTF-8 locale explicitly (`LC_ALL=C.UTF-8` and a

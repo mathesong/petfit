@@ -181,3 +181,24 @@ test_that("get_pet_identifiers removes file extensions correctly", {
   expect_equal(file_pet_ids[1], "sub-01_ses-01_trc-18FFDG")
   expect_equal(file_pet_ids[2], "sub-02_ses-01_trc-18FFDG")
 })
+test_that("the model entity is visible to the BIDS parser", {
+
+  # This is the point of writing model-2TCM rather than model_2TCM. The
+  # underscore form is not an entity at all: an underscore separates entities,
+  # so the parser sees no `model` key and the artifact cannot be tied back to
+  # the model that produced it.
+  legacy <- kinfitr:::bids_filename_attributes(
+    "sub-01_ses-test_model_2TCM_desc-model1_kinpar.tsv")
+  expect_false("model" %in% colnames(legacy))
+
+  current <- kinfitr:::bids_filename_attributes(
+    "sub-01_ses-test_model-2TCM_desc-model1_kinpar.tsv")
+  expect_true("model" %in% colnames(current))
+  expect_equal(current$model, "2TCM")
+
+  # The irreversible 2TCM is stored as "2TCM_irr" everywhere else in petfit,
+  # which cannot be a label for the same reason. It is emitted as 2TCMirr.
+  irr <- kinfitr:::bids_filename_attributes(
+    "sub-01_model-2TCMirr_desc-model1_kinpar.tsv")
+  expect_equal(irr$model, "2TCMirr")
+})
