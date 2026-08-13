@@ -51,40 +51,96 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
   
 }
 
-#' Get PET identifiers from file paths using unified BIDS parsing
+#' Cohort-Invariant Key for a PET Measurement
 #'
-#' @param file_paths Vector of file paths
-#' @param analysis_folder Path to analysis folder
+#' @description Build each measurement's identifier from the entities that
+#'   measurement's own path carries, and nothing else.
 #'
-#' @returns Vector of PET identifiers matching the file paths
+#'   The key must not depend on which other measurements happen to be analysed
+#'   alongside it. The identifier this replaces was built from only the
+#'   attributes that *varied* across the current cohort, so three subjects all in
+#'   `ses-test` were identified as `sub-01`, `sub-02`, `sub-03`, and adding one
+#'   retest scan silently renamed every one of them to `sub-01_ses-test` and so
+#'   on. Previously written files were orphaned, saved configurations referred to
+#'   measurements that no longer existed, and an analysis containing a single
+#'   measurement produced a key matching no file at all -- which is what left the
+#'   PET dropdown empty.
+#'
+#'   Because the key is exactly the stem its files are written under, reading it
+#'   back is not a lookup and so cannot fail.
+#'
+#' @param file_paths Vector of file paths.
+#' @param analysis_folder Path to the analysis folder the paths sit in. Entities
+#'   are read relative to it, so directories above it cannot contribute.
+#'
+#' @returns Character vector of keys, one per path.
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #' tacs_files <- list.files("analysis/", pattern = "*_tacs.tsv", recursive = TRUE)
-#' pet_ids <- get_pet_identifiers(tacs_files, "analysis/")
+#' pet_key(tacs_files, "analysis/")
 #' }
-get_pet_identifiers <- function(file_paths, analysis_folder) {
+pet_key <- function(file_paths, analysis_folder = NULL) {
+
   if (length(file_paths) == 0) {
     return(character(0))
   }
-  
-  # Use kinfitr to parse the file structure and get standardized pet IDs
-  bidsdata <- kinfitr::bids_parse_files(analysis_folder)
-  pet_ids <- attributes_to_title(bidsdata)
-  
-  # Extract pet identifiers from filenames by removing suffix patterns
-  file_pet_ids <- stringr::str_remove(basename(file_paths), "_desc-.*$")
-  
-  # Return matching pet IDs in same order as input files
-  result <- character(length(file_paths))
-  for (i in seq_along(file_paths)) {
-    file_pet_id <- file_pet_ids[i]
-    match_idx <- which(pet_ids == file_pet_id)
-    if (length(match_idx) > 0) {
-      result[i] <- pet_ids[match_idx[1]]
-    }
+
+  relative <- file_paths
+  if (!is.null(analysis_folder)) {
+    root <- normalizePath(analysis_folder, mustWork = FALSE)
+    relative <- sub(paste0("^", stringr::fixed(root), "/?"), "",
+                    normalizePath(file_paths, mustWork = FALSE))
   }
-  
-  return(result)
+
+  selectors <- c("sub", "ses", "task", "trc", "rec", "run")
+
+  vapply(relative, function(path) {
+
+    attributes <- kinfitr::bids_filename_attributes(path)
+    present <- selectors[selectors %in% colnames(attributes)]
+    if (length(present) > 0) {
+      present <- present[!is.na(unlist(attributes[1, present]))]
+    }
+
+    if (length(present) == 0) {
+      return(NA_character_)
+    }
+
+    paste(paste0(present, "-", unlist(attributes[1, present])), collapse = "_")
+
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Display Label for a PET Measurement
+#'
+#' @description Shorten a set of keys for display by dropping the entities they
+#'   all share.
+#'
+#'   This is deliberately cohort-dependent, which is safe only because it is
+#'   never persisted: labels are shown to a user, while [pet_key()] is what goes
+#'   into filenames, joins and saved configurations. Making *identity*
+#'   cohort-dependent is what orphaned files whenever a dataset grew.
+#'
+#' @param keys Character vector of keys, as returned by [pet_key()].
+#'
+#' @returns Character vector of labels. Never use these as values.
+#' @export
+#'
+#' @examples
+#' pet_label(c("sub-01_ses-test", "sub-02_ses-test"))
+pet_label <- function(keys) {
+
+  if (length(keys) < 2) {
+    return(keys)
+  }
+
+  parts <- strsplit(keys, "_", fixed = TRUE)
+  shared <- Reduce(intersect, parts)
+
+  vapply(parts, function(p) {
+    kept <- setdiff(p, shared)
+    if (length(kept) == 0) paste(p, collapse = "_") else paste(kept, collapse = "_")
+  }, character(1))
 }

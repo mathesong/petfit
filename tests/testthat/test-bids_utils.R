@@ -106,81 +106,6 @@ test_that("attributes_to_title handles edge cases", {
   expect_type(result, "character")
 })
 
-test_that("get_pet_identifiers extracts PET IDs correctly", {
-  
-  # Since get_pet_identifiers depends on kinfitr::bids_parse_files(), 
-  # we'll test the basic functionality with empty input
-  temp_dir <- tempdir()
-  analysis_folder <- file.path(temp_dir, "test_analysis")
-  dir.create(analysis_folder, recursive = TRUE, showWarnings = FALSE)
-  
-  # Test with empty file list
-  result <- get_pet_identifiers(character(0), analysis_folder)
-  expect_type(result, "character")
-  expect_equal(length(result), 0)
-  
-  # Cleanup
-  unlink(analysis_folder, recursive = TRUE)
-})
-
-test_that("get_pet_identifiers handles different file patterns", {
-  
-  # Test basic string extraction logic (the part we can test without kinfitr)
-  test_files <- c(
-    "sub-01_trc-18FFDG_desc-combinedregions_tacs.tsv",
-    "sub-02_ses-01_trc-18FFDG_rec-test_desc-combinedregions_tacs.tsv",
-    "sub-03_ses-01_trc-11CRACWAY_task-rest_run-1_desc-combinedregions_tacs.tsv"
-  )
-  
-  # Test the filename parsing logic that's part of get_pet_identifiers
-  file_pet_ids <- stringr::str_remove(basename(test_files), "_desc-.*$")
-  
-  expect_equal(length(file_pet_ids), 3)
-  expect_equal(file_pet_ids[1], "sub-01_trc-18FFDG")
-  expect_equal(file_pet_ids[2], "sub-02_ses-01_trc-18FFDG_rec-test") 
-  expect_equal(file_pet_ids[3], "sub-03_ses-01_trc-11CRACWAY_task-rest_run-1")
-})
-
-test_that("get_pet_identifiers handles empty input", {
-  
-  temp_dir <- tempdir()
-  analysis_folder <- file.path(temp_dir, "empty_test")
-  dir.create(analysis_folder, showWarnings = FALSE)
-  
-  # Test with no files
-  result <- get_pet_identifiers(character(0), analysis_folder)
-  expect_equal(length(result), 0)
-  
-  # Cleanup
-  unlink(analysis_folder, recursive = TRUE)
-})
-
-test_that("get_pet_identifiers handles file path variations", {
-  
-  # Test filename parsing with nested paths
-  test_file <- "nested/path/sub-01_ses-01_trc-18FFDG_desc-combinedregions_tacs.tsv"
-  
-  # Test the basename extraction and pattern removal
-  file_pet_id <- stringr::str_remove(basename(test_file), "_desc-.*$")
-  expect_equal(file_pet_id, "sub-01_ses-01_trc-18FFDG")
-})
-
-test_that("get_pet_identifiers removes file extensions correctly", {
-  
-  # Test file extension and suffix removal logic
-  test_files <- c(
-    "sub-01_ses-01_trc-18FFDG_desc-combinedregions_tacs.tsv",
-    "sub-02_ses-01_trc-18FFDG_desc-combinedregions_tacs.csv"
-  )
-  
-  # Test the pattern removal logic used in get_pet_identifiers
-  file_pet_ids <- stringr::str_remove(basename(test_files), "_desc-.*$")
-  
-  expect_equal(length(file_pet_ids), 2)
-  expect_true(all(!grepl("\\.(tsv|csv)$", file_pet_ids)))  # No file extensions
-  expect_equal(file_pet_ids[1], "sub-01_ses-01_trc-18FFDG")
-  expect_equal(file_pet_ids[2], "sub-02_ses-01_trc-18FFDG")
-})
 test_that("the model entity is visible to the BIDS parser", {
 
   # This is the point of writing model-2TCM rather than model_2TCM. The
@@ -201,4 +126,67 @@ test_that("the model entity is visible to the BIDS parser", {
   irr <- kinfitr:::bids_filename_attributes(
     "sub-01_model-2TCMirr_desc-model1_kinpar.tsv")
   expect_equal(irr$model, "2TCMirr")
+})
+
+
+test_that("pet_key is built from a measurement's own path", {
+
+  paths <- c("sub-01/ses-test/pet/sub-01_desc-combinedregions_tacs.tsv",
+             "sub-02/pet/sub-02_desc-combinedregions_tacs.tsv")
+
+  keys <- pet_key(paths)
+
+  # The session lives in the directory, not the filename, and still counts
+  expect_equal(keys[1], "sub-01_ses-test")
+  # A subject stored without a session does not acquire one
+  expect_equal(keys[2], "sub-02")
+})
+
+test_that("pet_key does not depend on the rest of the cohort", {
+
+  # This is the whole point. The identifier it replaces was built from only the
+  # attributes that varied across the cohort, so adding one retest scan renamed
+  # every existing measurement and orphaned their files.
+  two <- c("sub-01/ses-test/pet/sub-01_desc-combinedregions_tacs.tsv",
+           "sub-02/ses-test/pet/sub-02_desc-combinedregions_tacs.tsv")
+  three <- c(two, "sub-01/ses-retest/pet/sub-01_desc-combinedregions_tacs.tsv")
+
+  expect_equal(pet_key(two), pet_key(three)[1:2])
+
+  # Including when the cohort is a single measurement, which used to produce a
+  # key matching no file at all and so an empty PET dropdown
+  expect_equal(pet_key(two[1]), "sub-01_ses-test")
+})
+
+test_that("pet_key reads entities relative to the analysis folder", {
+
+  root <- withr::local_tempdir()
+  # A directory above the analysis folder that looks like a BIDS entity
+  nested <- file.path(root, "trc-decoy", "analysis1")
+  dir.create(file.path(nested, "sub-01", "pet"), recursive = TRUE)
+  f <- file.path(nested, "sub-01", "pet", "sub-01_desc-combinedregions_tacs.tsv")
+  file.create(f)
+
+  expect_equal(pet_key(f, nested), "sub-01")
+})
+
+test_that("pet_key handles empty input and unkeyable paths", {
+
+  expect_equal(pet_key(character(0)), character(0))
+  expect_true(is.na(pet_key("reports/model1_report.html")))
+})
+
+test_that("pet_label shortens for display without becoming an identity", {
+
+  keys <- c("sub-01_ses-test", "sub-02_ses-test")
+
+  # The shared session is dropped for readability...
+  expect_equal(pet_label(keys), c("sub-01", "sub-02"))
+
+  # ...but the keys themselves are untouched, and it is those that get written
+  expect_equal(keys, c("sub-01_ses-test", "sub-02_ses-test"))
+
+  # A single measurement keeps its full key rather than collapsing to nothing
+  expect_equal(pet_label("sub-01_ses-test"), "sub-01_ses-test")
+  expect_equal(pet_label(character(0)), character(0))
 })

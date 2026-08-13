@@ -2342,7 +2342,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         if (length(tacs_files) > 0) {
           # Use unified BIDS parsing to extract PET identifiers
-          pet_names <- get_pet_identifiers(tacs_files, output_dir)
+          # Keys, not labels: this value is written into saved configuration
+          pet_names <- pet_key(tacs_files, output_dir)
           
           # Create tibble with pet names and file paths
           tibble::tibble(

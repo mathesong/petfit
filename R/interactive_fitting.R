@@ -10,7 +10,7 @@
 #' @param analysis_folder Path to the analysis folder.
 #' @param model_number Which configured model to fit: "model1"/"model2"/"model3",
 #'   "Model 1", or an integer 1/2/3.
-#' @param pet PET measurement identifier (as listed by [get_pet_identifiers()]).
+#' @param pet PET measurement identifier (as listed by [pet_key()]).
 #' @param region Region to fit.
 #' @param bids_dir,blood_dir Optional BIDS and blood directories.
 #'
@@ -176,7 +176,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     stop("No TAC files found in the analysis folder. Run the Data Definition step first.",
          call. = FALSE)
   }
-  pet_ids <- get_pet_identifiers(tac_files, analysis_folder)
+  pet_ids <- pet_key(tac_files, analysis_folder)
   idx <- which(pet_ids == pet)
   if (length(idx) == 0) {
     # Fall back to a filename-prefix match (covers single-measurement folders).
