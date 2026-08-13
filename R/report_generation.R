@@ -1,3 +1,38 @@
+#' Send Report Warnings to the Console Instead of the Report
+#'
+#' @description Install a knitr hook that writes chunk warnings to `stderr()`
+#'   and puts nothing in the rendered document.
+#'
+#'   The templates previously set `warning = FALSE`, which does not route
+#'   warnings to the console as knitr's documentation suggests — it discards
+#'   them outright. That mattered: dplyr warns when a join finds an unexpected
+#'   many-to-many relationship, which is precisely the signature of a duplicated
+#'   record silently multiplying TAC rows, and petfit was throwing that warning
+#'   away.
+#'
+#'   Warnings printed into the reports themselves would make them unreadable, so
+#'   the templates set `warning = TRUE` to route warnings here, and this hook
+#'   diverts them. Reports stay clean; the warning reaches the terminal, or the
+#'   step log when `save_logs = TRUE`.
+#'
+#'   Called inside the rendering subprocess, so it never alters knitr's
+#'   behaviour for anything else in the session.
+#'
+#' @return Invisibly `NULL`, called for its side effect.
+#' @keywords internal
+#' @export
+divert_report_warnings <- function() {
+  knitr::knit_hooks$set(warning = function(x, options) {
+    # knitr hands the warning over already formatted as document comment text
+    text <- gsub("(^|\n)##[ ]?", "\\1", x)
+    text <- sub("[\n[:space:]]+$", "", text)
+    cat("[warning] chunk '", options$label %||% "?", "': ", text, "\n",
+        sep = "", file = stderr())
+    NULL
+  })
+  invisible(NULL)
+}
+
 #' Generate Step Report
 #'
 #' @description Generate a parameterised report for a specific analysis step

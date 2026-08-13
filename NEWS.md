@@ -38,6 +38,20 @@
   the return value were affected — chiefly the batch and Docker runners, which
   logged a failed step with no explanation attached.
 
+## Reports
+
+* **Warnings raised while rendering a report now reach the console (or the step
+  log under `save_logs = TRUE`) instead of being discarded.** The templates set
+  `warning = FALSE`, which — contrary to knitr's documentation, which says such
+  warnings are "printed in the console instead of the output document" — throws
+  them away entirely. This mattered because dplyr warns when a join finds an
+  unexpected many-to-many relationship, which is exactly what a duplicated
+  record silently multiplying TAC rows looks like.
+
+  Warnings are *not* written into the reports, which would make them unreadable.
+  A knitr hook (`divert_report_warnings()`, called from each template's setup
+  chunk) diverts them to `stderr()` and puts nothing in the document.
+
 ## Containers
 
 * Both containers now set a UTF-8 locale explicitly (`LC_ALL=C.UTF-8` and a
