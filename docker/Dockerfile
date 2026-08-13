@@ -1,6 +1,13 @@
 # Use rocker/shiny-verse as base image (includes Shiny + tidyverse)
 FROM rocker/shiny-verse:latest
 
+# Set a UTF-8 locale explicitly rather than inheriting whatever the base image
+# happens to provide. Region names, participant metadata and file paths can all
+# carry non-ASCII characters; under a non-UTF-8 locale R reports "strings not
+# representable in native encoding" and may mangle them on write.
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 # Arguments for user configuration
 ARG USER_ID=1000
 ARG GROUP_ID=1000
