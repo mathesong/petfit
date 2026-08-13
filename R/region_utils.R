@@ -1139,15 +1139,23 @@ summarise_tacs_descriptions <- function(dir_path) {
     return(NULL)
   }
 
-  parsed_files <- kinfitr::bids_parse_files(dir_path)
+  # These are derived TACs files, not PET images, so the derivative parser
+  # applies. The raw parser would fill absent entities in from neighbouring
+  # files and invent measurements that are not on disk.
+  parsed_files <- kinfitr::bids_parse_derivatives(dir_path)
 
-  # Unnest the filedata
   unnested_tacfiledata <- parsed_files %>%
-    dplyr::select(filedata) %>%
-    tidyr::unnest(filedata) %>%
+    dplyr::rename(measurement = "suffix") %>%
     dplyr::filter(measurement=="tacs") %>%
-    dplyr::select(-path_absolute, -path, -extension,
-                  -measurement) %>%
+    # Only the entities that describe the *region definition* are wanted here:
+    # seg, label, desc and anything like them. The selector entities are dropped
+    # deliberately -- the old nested parser kept them in its outer table, so
+    # unnesting filedata never saw them, and including them now would put the
+    # subject and session into every region description.
+    dplyr::select(-dplyr::any_of(c("path_absolute", "path", "extension",
+                                   "measurement", "source_key", "artifact_key",
+                                   "analysis_scope_key",
+                                   "sub", "ses", "task", "trc", "rec", "run"))) %>%
     dplyr::distinct()
 
   # Filter for files with seg or label attributes (silently exclude others)
