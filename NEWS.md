@@ -38,6 +38,15 @@
   the return value were affected — chiefly the batch and Docker runners, which
   logged a failed step with no explanation attached.
 
+* **`pet_key()` strips the analysis folder from paths literally rather than as
+  a regular expression.** An analysis folder whose path contains a regex
+  metacharacter — a `+`, `(` or `[` in a directory name — could previously
+  produce wrong keys or an error.
+
+* petfit now requires **dplyr >= 1.1.1**: the report templates declare join
+  cardinality with `relationship = "many-to-one"`, which older dplyr versions
+  reject as an unused argument.
+
 ## Reports
 
 * **Warnings raised while rendering a report now reach the console (or the step

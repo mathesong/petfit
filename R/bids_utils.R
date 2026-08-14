@@ -103,9 +103,13 @@ pet_key <- function(file_paths, analysis_folder = NULL) {
 
   relative <- file_paths
   if (!is.null(analysis_folder)) {
-    root <- normalizePath(analysis_folder, mustWork = FALSE)
-    relative <- sub(paste0("^", stringr::fixed(root), "/?"), "",
-                    normalizePath(file_paths, mustWork = FALSE))
+    # A literal prefix strip, not a pattern: the folder path is user-chosen
+    # text, and characters like "+" or "(" in it must not be read as regex.
+    root <- paste0(normalizePath(analysis_folder, mustWork = FALSE), "/")
+    normalized <- normalizePath(file_paths, mustWork = FALSE)
+    relative <- ifelse(startsWith(normalized, root),
+                       substring(normalized, nchar(root) + 1L),
+                       normalized)
   }
 
   selectors <- c("sub", "ses", "task", "trc", "rec", "run")

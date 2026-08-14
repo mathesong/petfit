@@ -19,7 +19,7 @@ Imports:
     glue,
     stringr,
     tibble,
-    dplyr,
+    dplyr (>= 1.1.1),
     purrr,
     jsonlite,
     tidyr,

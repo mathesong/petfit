@@ -101,3 +101,18 @@ test_that("pet_label shortens for display without becoming an identity", {
   expect_equal(pet_label("sub-01_ses-test"), "sub-01_ses-test")
   expect_equal(pet_label(character(0)), character(0))
 })
+
+test_that("pet_key strips the analysis folder literally, not as a pattern", {
+
+  # The folder path is user-chosen text: regex metacharacters in it must not
+  # change what gets stripped.
+  root <- file.path(tempdir(), "analysis (copy) + extra")
+  dir.create(file.path(root, "sub-01_ses-test"), recursive = TRUE,
+             showWarnings = FALSE)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  f <- file.path(root, "sub-01_ses-test",
+                 "sub-01_ses-test_desc-combinedregions_tacs.tsv")
+  file.create(f)
+
+  expect_equal(pet_key(f, root), "sub-01_ses-test")
+})
