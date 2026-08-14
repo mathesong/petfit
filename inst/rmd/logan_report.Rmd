@@ -808,7 +808,11 @@ savefits <- model_data %>%
       filter(!is.na(Logan_x)) %>%
       select(-frames_from_end)
   })) %>%
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
+  # Entities are optional: a study whose files name no session has no ses
+  # column. pet, region, inpshift and fitvals are required, so they stay
+  # strict and a genuine absence still errors.
+  select(any_of(c("sub", "ses", "task", "trc", "run", "rec")),
+         pet, region, inpshift, fitvals) %>% 
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 

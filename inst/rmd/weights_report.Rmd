@@ -357,6 +357,7 @@ minweight <- config$Weights$minweight
 
 # Apply minweight correction
 weights_final <- weights_output %>%
+  group_by(pet) %>% 
   mutate(
     weights = {
       
@@ -383,6 +384,7 @@ weights_final <- weights_output %>%
       calcweights
     }
   ) %>% 
+  ungroup() %>% 
   select(-calcweights)
 ```
 
@@ -397,15 +399,17 @@ if (as.numeric(config$Weights$method) == 0) {
 
 } else {
   
-  # Using pre-defined weighting methods
+  # Using pre-defined weighting methods.
   weights_output <- weights_tacdata %>% 
+    group_by(pet) %>% 
     mutate(weights = weights_create(t_start = frame_start/60, 
                                     t_end = frame_end/60, 
                                     TAC, 
                                     radioisotope = radioisotope_for_uncorrection, 
                                     method = as.numeric(config$Weights$method), 
                                     minweight = as.numeric(config$Weights$minweight), 
-                                    radionuclide_halflife = radionuclide_halflife))
+                                    radionuclide_halflife = radionuclide_halflife)) %>% 
+    ungroup()
   
 }
 ```
