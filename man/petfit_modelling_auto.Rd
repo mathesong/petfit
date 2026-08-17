@@ -32,6 +32,12 @@ petfit_modelling_auto(
 
 \item{pipeline_type}{Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)}
 
+\item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
+default) fits sequentially.}
+
+\item{save_logs}{Whether to write each report's rendering log to
+\verb{reports/logs/<step>_report.log} in addition to the console.}
+
 \item{ancillary_analysis_folder}{Character string name of a sibling analysis subfolder to inherit
 delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.}
 }

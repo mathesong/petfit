@@ -67,7 +67,7 @@ run_tstar_finder <- function(analysis_folder, config_type, model,
   measurements <- tibble::tibble(path = tac_files) %>%
     dplyr::mutate(
       stem = stringr::str_remove(basename(.data$path), "_desc-.*$"),
-      attrs = purrr::map(.data$path, ~kinfitr:::bids_filename_attributes(basename(.x)))
+      attrs = purrr::map(.data$path, ~kinfitr::bids_filename_attributes(basename(.x)))
     ) %>%
     tidyr::unnest("attrs") %>%
     dplyr::select(-dplyr::any_of(c("measurement", "desc")))

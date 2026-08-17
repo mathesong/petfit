@@ -30,9 +30,18 @@ setup_datadef_workspace <- function(subsetting, env = parent.frame()) {
   )
   readr::write_tsv(tacs, file.path(petfit_dir, "desc-combinedregions_tacs.tsv"))
 
-  config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
-  jsonlite::write_json(list(Subsetting = subsetting), config_path,
+  # Both files carry the running version, as ones written by this version do.
+  # Without it the step warns that they predate it, which is correct behaviour
+  # and would be noise here.
+  jsonlite::write_json(list(GeneratedBy = list(petfit_generated_by())),
+                       file.path(petfit_dir, "desc-combinedregions_tacs.json"),
                        pretty = TRUE, auto_unbox = TRUE)
+
+  config_path <- file.path(output_dir, "desc-petfitoptions_config.json")
+  jsonlite::write_json(
+    list(petfit_version = as.character(utils::packageVersion("petfit")),
+         Subsetting = subsetting),
+    config_path, pretty = TRUE, auto_unbox = TRUE)
 
   list(config_path = config_path, output_dir = output_dir,
        petfit_dir = petfit_dir)
@@ -132,4 +141,29 @@ test_that("every pipeline step returns why it failed", {
   reftac <- execute_reference_tac_step(missing_config, NA)
   expect_false(reftac$success)
   expect_match(reftac$message, "^Could not generate reference TAC report:")
+})
+
+test_that("datadef warns when its inputs predate the running version", {
+
+  ws <- setup_datadef_workspace(list(
+    sub = "", ses = "", task = "", trc = "", rec = "", run = "", Regions = ""
+  ))
+
+  # strip the provenance back off both inputs, as a pre-0.2.0 analysis has it
+  jsonlite::write_json(list(Subsetting = list(
+      sub = "", ses = "", task = "", trc = "", rec = "", run = "", Regions = "")),
+      ws$config_path, pretty = TRUE, auto_unbox = TRUE)
+  jsonlite::write_json(list(pet = list(Description = "identifier")),
+      file.path(ws$petfit_dir, "desc-combinedregions_tacs.json"),
+      pretty = TRUE, auto_unbox = TRUE)
+
+  seen <- character(0)
+  suppressWarnings(
+    execute_datadef_step(config_path = ws$config_path, output_dir = ws$output_dir,
+                         petfit_dir = ws$petfit_dir,
+                         notify = function(msg, type) seen <<- c(seen, msg)))
+
+  expect_true(any(grepl("analysis configuration", seen)))
+  expect_true(any(grepl("combined regions TACs file", seen)))
+  expect_true(all(grepl("region definition", seen[grepl("petfit", seen)])))
 })

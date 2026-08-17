@@ -50,7 +50,7 @@ determine_blood_source <- function(analysis_folder, bids_dir = NULL) {
 blooddata2inputfunction_tsv <- function(blooddata, filename) {
   
   # Remove .tsv extension if present to get file stem
-  file_stem <- str_remove(filename, "\\.tsv$")
+  file_stem <- stringr::str_remove(filename, "\\.tsv$")
   
   # Create output filenames
   tsv_file <- paste0(file_stem, ".tsv")
@@ -65,12 +65,12 @@ blooddata2inputfunction_tsv <- function(blooddata, filename) {
   blood_unit  <- blooddata$Data$Blood$Discrete$activity$Units
   plasma_unit <- blooddata$Data$Plasma$activity$Units
   
-  blood_unit  <- str_remove(blood_unit, "/\\w*")
-  plasma_unit <- str_remove(plasma_unit, "/\\w*")
+  blood_unit  <- stringr::str_remove(blood_unit, "/\\w*")
+  plasma_unit <- stringr::str_remove(plasma_unit, "/\\w*")
   
   # Prepare data with proper column names and units
   output_data <- input_data %>%
-    rename(
+    dplyr::rename(
       "time" = Time,
       "whole_blood_radioactivity" = Blood,
       "plasma_radioactivity" = Plasma,
@@ -78,7 +78,7 @@ blooddata2inputfunction_tsv <- function(blooddata, filename) {
       AIF = AIF
     ) %>%
     # Convert units: min to sec, kBq to Bq
-    mutate(
+    dplyr::mutate(
       time = time * 60,  # min to sec
       whole_blood_radioactivity = kinfitr::unit_convert(whole_blood_radioactivity, 
                                                        from_units = blood_unit, 

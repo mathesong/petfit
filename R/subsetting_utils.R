@@ -165,133 +165,80 @@ subset_tacs_by_frames <- function(tacs_data, subset_type = NULL,
   return(filtered_data)
 }
 
-#' Cleanup Individual TACs Files
+#' Clear Derived Outputs from an Analysis Folder
 #'
-#' @description Remove existing analysis files before regeneration. Handles
-#'   cleanup at multiple levels:
-#'   1. Subject folders - removes entire sub-* folders for filtered-out subjects
-#'   2. Session folders - removes ses-* folders for filtered-out sessions
-#'   3. Individual files - removes files whose pet identifier doesn't match filter
-#' @param output_dir Output directory containing individual files
-#' @param pattern File pattern to match (default: "*_desc-combinedregions_tacs.tsv")
-#' @param keep_subjects Character vector of subject IDs to keep (without "sub-" prefix).
-#'   If provided, entire folders for subjects NOT in this list will be removed.
-#' @param keep_sessions Character vector of session IDs to keep (without "ses-" prefix).
-#'   If provided, session folders NOT in this list will be removed from kept subjects.
-#' @param keep_pets Character vector of pet identifiers to keep. If provided,
-#'   files whose pet identifier doesn't match will be removed.
+#' @description Remove every derived output from an analysis folder before the
+#'   data definition step regenerates it. Rerunning data definition changes the
+#'   data every later step consumes, so everything downstream of it -- the
+#'   individual TACs files, weights, delay fits, model results and reports --
+#'   is invalidated and removed, to be recalculated from the new definition.
+#'
+#'   Two things are kept. The analysis configuration (`desc-*_config.json`)
+#'   defines the analysis rather than deriving from it. And
+#'   `*_inputfunction.tsv`/`.json` pairs are a supported blood *source* --
+#'   [determine_blood_source()] looks for them in the analysis folder, and a
+#'   user may have placed them there by hand -- while the ones petfit itself
+#'   writes derive from the BIDS blood data, which a data definition does not
+#'   change. Either way they are not stale, and deleting the hand-placed kind
+#'   would destroy source data.
+#'
+#'   This replaces a selective cleanup that compared filename stems against the
+#'   measurements being kept. That comparison deleted files whose stems it did
+#'   not understand, and left stale results behind when it did: outputs
+#'   computed from a previous data definition are stale whether or not their
+#'   measurement is still in the analysis.
+#'
+#' @param output_dir Output directory containing the analysis
 #' @return List with counts of removed files and directories
 #' @export
-cleanup_individual_tacs_files <- function(output_dir,
-                                         pattern = "*_desc-combinedregions_tacs.tsv",
-                                         keep_subjects = NULL,
-                                         keep_sessions = NULL,
-                                         keep_pets = NULL) {
-
-  files_removed <- 0
-  dirs_removed <- 0
+cleanup_individual_tacs_files <- function(output_dir) {
 
   if (!dir.exists(output_dir)) {
     return(list(files_removed = 0, dirs_removed = 0,
                 summary = "Output directory does not exist"))
   }
 
-  # 1. Remove entire folders for subjects NOT in the list
-  if (!is.null(keep_subjects)) {
-    all_dirs <- list.dirs(output_dir, recursive = FALSE, full.names = TRUE)
-    sub_dirs <- all_dirs[grepl("^sub-", basename(all_dirs))]
+  # Guard against clearing something that is not an analysis folder: an
+  # analysis folder is recognised by the configuration that defines it. A
+  # mispointed path -- the petfit derivatives root, "." -- would otherwise be
+  # emptied wholesale.
+  entries <- list.files(output_dir, all.files = FALSE)
+  has_config <- any(grepl("^desc-.*_config\\.json$", entries))
+  if (!has_config && length(entries) > 0) {
+    stop("Refusing to clear ", output_dir, ": it contains no ",
+         "desc-*_config.json, so it does not look like an analysis folder. ",
+         "Clearing it would delete files petfit did not generate.",
+         call. = FALSE)
+  }
 
-    keep_folders <- paste0("sub-", keep_subjects)
-    dirs_to_remove <- sub_dirs[!basename(sub_dirs) %in% keep_folders]
+  all_files <- list.files(output_dir, recursive = TRUE, full.names = TRUE,
+                          all.files = FALSE)
 
-    for (dir_path in dirs_to_remove) {
-      files_in_dir <- list.files(dir_path, recursive = TRUE)
-      files_removed <- files_removed + length(files_in_dir)
+  keep <- grepl("^desc-.*_config\\.json$", basename(all_files)) |
+    grepl("_inputfunction\\.(tsv|json)$", basename(all_files))
+  remove <- all_files[!keep]
 
+  files_removed <- length(remove)
+  for (filepath in remove) {
+    file.remove(filepath)
+    cat("Removed file:", basename(filepath), "\n")
+  }
+
+  # Prune directories the removals emptied, deepest first
+  dirs_removed <- 0
+  dirs <- list.dirs(output_dir, recursive = TRUE, full.names = TRUE)
+  dirs <- setdiff(dirs, output_dir)
+  dirs <- dirs[order(-lengths(strsplit(dirs, "/", fixed = TRUE)))]
+  for (dir_path in dirs) {
+    if (length(list.files(dir_path, all.files = FALSE)) == 0) {
       unlink(dir_path, recursive = TRUE)
       dirs_removed <- dirs_removed + 1
-      cat("Removed subject folder:", basename(dir_path), "\n")
     }
   }
 
-  # 2. Remove session folders NOT in the list (within kept subjects)
-  if (!is.null(keep_sessions)) {
-    sub_dirs <- list.dirs(output_dir, recursive = FALSE, full.names = TRUE)
-    sub_dirs <- sub_dirs[grepl("^sub-", basename(sub_dirs))]
-
-    for (sub_dir in sub_dirs) {
-      ses_dirs <- list.dirs(sub_dir, recursive = FALSE, full.names = TRUE)
-      ses_dirs <- ses_dirs[grepl("^ses-", basename(ses_dirs))]
-
-      keep_ses_folders <- paste0("ses-", keep_sessions)
-      ses_to_remove <- ses_dirs[!basename(ses_dirs) %in% keep_ses_folders]
-
-      for (ses_path in ses_to_remove) {
-        files_in_dir <- list.files(ses_path, recursive = TRUE)
-        files_removed <- files_removed + length(files_in_dir)
-
-        unlink(ses_path, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-        cat("Removed session folder:", file.path(basename(sub_dir), basename(ses_path)), "\n")
-      }
-    }
-  }
-
-  # 3. Remove files whose pet identifier doesn't match filtered data
-  if (!is.null(keep_pets)) {
-    all_files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
-    # Only consider files, not directories
-    all_files <- all_files[!dir.exists(all_files)]
-
-    for (filepath in all_files) {
-      filename <- basename(filepath)
-      # Extract pet identifier from filename (everything before _desc-)
-      pet_from_file <- stringr::str_extract(filename, "^.+(?=_desc-)")
-
-      if (!is.na(pet_from_file) && !pet_from_file %in% keep_pets) {
-        file.remove(filepath)
-        files_removed <- files_removed + 1
-        cat("Removed file for filtered pet:", filename, "\n")
-      }
-    }
-  }
-
-  # Clean up empty directories (recursively remove empty sub-*/ses-*/pet directories)
-  pet_dirs <- list.dirs(output_dir, recursive = TRUE, full.names = TRUE)
-  pet_dirs <- pet_dirs[grepl("/pet$", pet_dirs)]
-
-  for (pet_dir in pet_dirs) {
-    if (dir.exists(pet_dir) && length(list.files(pet_dir, all.files = FALSE)) == 0) {
-      unlink(pet_dir, recursive = TRUE)
-      dirs_removed <- dirs_removed + 1
-
-      parent_dir <- dirname(pet_dir)
-      if (grepl("ses-", basename(parent_dir)) &&
-          dir.exists(parent_dir) &&
-          length(list.files(parent_dir, all.files = FALSE)) == 0) {
-        unlink(parent_dir, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-
-        grandparent_dir <- dirname(parent_dir)
-        if (grepl("sub-", basename(grandparent_dir)) &&
-            dir.exists(grandparent_dir) &&
-            length(list.files(grandparent_dir, all.files = FALSE)) == 0) {
-          unlink(grandparent_dir, recursive = TRUE)
-          dirs_removed <- dirs_removed + 1
-        }
-      }
-      else if (grepl("sub-", basename(parent_dir)) &&
-               dir.exists(parent_dir) &&
-               length(list.files(parent_dir, all.files = FALSE)) == 0) {
-        unlink(parent_dir, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-      }
-    }
-  }
-
-  # Return summary
   summary_msg <- if (files_removed > 0 || dirs_removed > 0) {
-    paste("Removed", files_removed, "files and", dirs_removed, "directories")
+    paste("Cleared", files_removed, "derived files and", dirs_removed,
+          "folders from the previous data definition")
   } else {
     "No existing analysis files found"
   }

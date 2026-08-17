@@ -18,5 +18,10 @@ determine_varying_attributes(
 Character vector of attribute names that vary in the dataset
 }
 \description{
-Identifies which BIDS attributes vary across the dataset
+Identifies which BIDS attributes vary across the dataset.
+
+\strong{Never use this to construct identifiers.} What varies depends on the
+cohort, so an identifier built from it moves when the dataset grows --
+the defect behind cohort-dependent measurement names. Retained for
+display decisions only.
 }

@@ -36,6 +36,9 @@ or "modelling_ref" (required)}
 
 \item{cores}{Integer number of cores for parallel processing (default: 1)}
 
+\item{save_logs}{Whether to write each report's rendering log to
+\verb{reports/logs/<step>_report.log} in addition to the console.}
+
 \item{ancillary_analysis_folder}{Character string name of a sibling analysis folder to inherit
 delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.}
 }

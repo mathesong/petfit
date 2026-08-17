@@ -12,6 +12,10 @@
 #' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
 #'   delay or k2prime estimates from (optional, for modelling apps). Must be a subfolder name
 #'   (e.g., "Ancillary_Analysis"), not a full path.
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #'
 #' @details
 #' This function provides a unified interface to launch petfit interactive applications built on kinfitr:

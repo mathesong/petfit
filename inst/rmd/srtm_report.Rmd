@@ -20,13 +20,27 @@ knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
 # many-to-many join warning is the signal that a duplicated record has
 # multiplied TAC rows, and it used to be discarded outright.
 petfit::divert_report_warnings()
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
 library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 cores <- params$cores %||% 1
 if (cores > 1) {
@@ -163,7 +177,7 @@ weights_files <- list.files(analysis_folder,
 weightsdata <- tibble(
   filename = weights_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -179,7 +193,7 @@ tacs_files <- list.files(analysis_folder,
 tac_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -206,7 +220,7 @@ if (length(ref_files) == 0) {
 ref_data <- tibble(
   filename = ref_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(ref_tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -273,7 +287,7 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 ```
 
 
-```{r model-fitting, warning=TRUE}
+```{r model-fitting, report_warnings=TRUE}
 # Safe SRTM function to handle errors
 safe_srtm <- possibly(srtm, otherwise = NA)
 
@@ -522,7 +536,7 @@ write_tsv(savepar,
 folder_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   mutate(dirname = dirname(filename)) %>%
   select(-filename, -basename, -measurement, -desc)

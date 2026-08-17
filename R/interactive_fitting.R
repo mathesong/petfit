@@ -262,7 +262,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
 }
 
 .blood_for_measurement <- function(blood_data, tac_file) {
-  attrs <- kinfitr:::bids_filename_attributes(basename(tac_file))
+  attrs <- kinfitr::bids_filename_attributes(basename(tac_file))
   attrs <- attrs[, setdiff(colnames(attrs), c("measurement", "desc")), drop = FALSE]
   keys <- intersect(colnames(blood_data), colnames(attrs))
   if (length(keys) == 0) {

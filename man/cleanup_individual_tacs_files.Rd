@@ -2,39 +2,35 @@
 % Please edit documentation in R/subsetting_utils.R
 \name{cleanup_individual_tacs_files}
 \alias{cleanup_individual_tacs_files}
-\title{Cleanup Individual TACs Files}
+\title{Clear Derived Outputs from an Analysis Folder}
 \usage{
-cleanup_individual_tacs_files(
-  output_dir,
-  pattern = "*_desc-combinedregions_tacs.tsv",
-  keep_subjects = NULL,
-  keep_sessions = NULL,
-  keep_pets = NULL
-)
+cleanup_individual_tacs_files(output_dir)
 }
 \arguments{
-\item{output_dir}{Output directory containing individual files}
-
-\item{pattern}{File pattern to match (default: "*_desc-combinedregions_tacs.tsv")}
-
-\item{keep_subjects}{Character vector of subject IDs to keep (without "sub-" prefix).
-If provided, entire folders for subjects NOT in this list will be removed.}
-
-\item{keep_sessions}{Character vector of session IDs to keep (without "ses-" prefix).
-If provided, session folders NOT in this list will be removed from kept subjects.}
-
-\item{keep_pets}{Character vector of pet identifiers to keep. If provided,
-files whose pet identifier doesn't match will be removed.}
+\item{output_dir}{Output directory containing the analysis}
 }
 \value{
 List with counts of removed files and directories
 }
 \description{
-Remove existing analysis files before regeneration. Handles
-cleanup at multiple levels:
-\enumerate{
-\item Subject folders - removes entire sub-* folders for filtered-out subjects
-\item Session folders - removes ses-* folders for filtered-out sessions
-\item Individual files - removes files whose pet identifier doesn't match filter
-}
+Remove every derived output from an analysis folder before the
+data definition step regenerates it. Rerunning data definition changes the
+data every later step consumes, so everything downstream of it -- the
+individual TACs files, weights, delay fits, model results and reports --
+is invalidated and removed, to be recalculated from the new definition.
+
+Two things are kept. The analysis configuration (\verb{desc-*_config.json})
+defines the analysis rather than deriving from it. And
+\verb{*_inputfunction.tsv}/\code{.json} pairs are a supported blood \emph{source} --
+\code{\link[=determine_blood_source]{determine_blood_source()}} looks for them in the analysis folder, and a
+user may have placed them there by hand -- while the ones petfit itself
+writes derive from the BIDS blood data, which a data definition does not
+change. Either way they are not stale, and deleting the hand-placed kind
+would destroy source data.
+
+This replaces a selective cleanup that compared filename stems against the
+measurements being kept. That comparison deleted files whose stems it did
+not understand, and left stale results behind when it did: outputs
+computed from a previous data definition are stale whether or not their
+measurement is still in the analysis.
 }

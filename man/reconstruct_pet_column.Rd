@@ -2,18 +2,24 @@
 % Please edit documentation in R/region_utils.R
 \name{reconstruct_pet_column}
 \alias{reconstruct_pet_column}
-\title{Reconstruct Pet Column from Varying Attributes Only}
+\title{Reconstruct Pet Column from BIDS Attributes}
 \usage{
 reconstruct_pet_column(data, varying_attrs)
 }
 \arguments{
 \item{data}{Tibble with BIDS attributes}
 
-\item{varying_attrs}{Character vector of attribute names that vary}
+\item{varying_attrs}{Character vector of attribute names to build from}
 }
 \value{
 Tibble with reconstructed pet column
 }
 \description{
-Builds pet identifier using only attributes that vary in the dataset
+Builds each row's pet identifier from the given attributes,
+skipping the ones that are \code{NA} for that row. Pass every entity attribute
+the data carries, in BIDS filename order (\code{sub}, \code{ses}, \code{task}, \code{trc},
+\code{rec}, \code{run}), so the identifier is built from the measurement's own
+entities and matches \code{\link[=pet_key]{pet_key()}}. Passing only cohort-varying attributes
+makes identity depend on the cohort, which renames measurements when the
+dataset grows.
 }

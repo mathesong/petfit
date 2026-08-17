@@ -1,6 +1,6 @@
 Package: petfit
 Title: PETFit BIDS App Configuration Interface
-Version: 0.1.5
+Version: 0.2.0
 Authors@R: 
     c(person("Granville", "Matheson", , "granville.matheson@ki.se", role = c("aut", "cre")),
     person("Alessio", "Giacomel", , "alessio.giacomel@kcl.ac.uk", role = c("ctb")),
@@ -15,7 +15,6 @@ Roxygen: list(markdown = TRUE)
 Imports:
     shiny,
     shinythemes,
-    bslib,
     glue,
     stringr,
     tibble,
@@ -29,22 +28,22 @@ Imports:
     crosstalk,
     DT,
     ggplot2,
+    scales,
     htmltools,
     knitr,
     rmarkdown,
-    optparse,
     plotly,
     readr,
-    kinfitr,
+    kinfitr (>= 0.9.3),
     future,
     furrr,
     callr,
-    ggbeeswarm,
-    tidyverse
+    ggbeeswarm
 Suggests:
     testthat (>= 3.0.0),
     here,
-    withr
+    withr,
+    optparse
 Config/testthat/edition: 3
 Remotes: 
     mathesong/kinfitr

@@ -7,6 +7,12 @@
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
+#' @param ancillary_analysis_folder Optional path to a second analysis folder
+#'   whose results are offered alongside this one's, for comparison.
 #' @export
 modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
   
@@ -311,7 +317,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                            style = "font-size:14px;"
                          ),
                          br(),
-                         actionButton("run_subset", "▶ Create Analysis Data", class = "btn-success btn-lg")
+                         actionButton("run_subset", "\u25B6 Create Analysis Data", class = "btn-success btn-lg")
                 ),
                 # Tab panel for weights ----
                     tabPanel("Weights Definition",
@@ -429,11 +435,11 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              div(
                                p(strong("Available variables:"), style = "font-size:13px; margin-bottom:5px;"),
                                div(
-                                 p("• ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
                                  style = "background:#f8f9fa; padding:10px; border-left:3px solid #007bff; margin:10px 0;"
                                )
                              ),
@@ -444,7 +450,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                style = "font-size:14px;"
                              ),
                              br(),
-                             actionButton("run_weights", "▶ Calculate Weights", class = "btn-success btn-lg")
+                             actionButton("run_weights", "\u25B6 Calculate Weights", class = "btn-success btn-lg")
                     ),
                     # Tab panel for delay ----
                     tabPanel("Fit Delay",
@@ -528,14 +534,14 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                  ),
                              
                              hr(),
-                             actionButton("run_delay", "▶ Estimate Delay", class = "btn-success btn-lg")
+                             actionButton("run_delay", "\u25B6 Estimate Delay", class = "btn-success btn-lg")
                     ),
                     # Tab panel for tstar ----
                     tabPanel("Find t*",
                              br(),
                              p("The t* finder generates kinfitr diagnostic plots that help you choose a t* value for linear models. It uses a high-, medium- and low-binding region, and saves one plot per measurement to ", tags$code("reports/tstar_finder/"), " (no HTML report).",
                                style = "font-size:14px; margin-bottom:10px;"),
-                             p("This step is ", tags$b("optional"), " — it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
+                             p("This step is ", tags$b("optional"), " \u2014 it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
                                style = "font-size:14px; margin-bottom:10px;"),
                              p("These plots are intended as a visual guide for selecting an appropriate t* value. It is recommended to choose a single t* timepoint that works broadly across measurements, and to use that same timepoint for all individuals for a given region.",
                                style = "font-size:14px; margin-bottom:20px;"),
@@ -548,7 +554,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                            "MA1" = "MA1",
                                                            "Patlak" = "Patlak"),
                                                selected = "Logan", width = "100%"),
-                                   actionButton("tstar_scan_regions", "🔍 Scan Regions",
+                                   actionButton("tstar_scan_regions", "\U0001F50D Scan Regions",
                                                 class = "btn-info btn-sm", width = "100%"),
                                    p("Populates the region menus below.",
                                      style = "font-size: 11px; color: #666; margin-top: 5px; margin-bottom: 15px;"),
@@ -575,7 +581,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                      p("Semi-colons separate values. Prefix the field with - to include all except those values.",
                                        style = "font-size:12px;")),
                                    hr(),
-                                   actionButton("run_tstar", "▶ Generate t* Plots",
+                                   actionButton("run_tstar", "\u25B6 Generate t* Plots",
                                                 class = "btn-success btn-lg", width = "100%")
                                  )
                                ),
@@ -711,7 +717,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              uiOutput("subset_validation_error"),
                              conditionalPanel(
                                condition = "input.button != 'none'",
-                               actionButton("run_model1", "▶ Fit Model 1", class = "btn-success btn-lg")
+                               actionButton("run_model1", "\u25B6 Fit Model 1", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Model 2 ----
@@ -851,7 +857,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              uiOutput("subset_validation_error2"),
                              conditionalPanel(
                                condition = "input.button2 != 'none'",
-                               actionButton("run_model2", "▶ Fit Model 2", class = "btn-success btn-lg")
+                               actionButton("run_model2", "\u25B6 Fit Model 2", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Model 3 ----
@@ -994,7 +1000,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                              uiOutput("subset_validation_error3"),
                              conditionalPanel(
                                condition = "input.button3 != 'none'",
-                               actionButton("run_model3", "▶ Fit Model 3", class = "btn-success btn-lg")
+                               actionButton("run_model3", "\u25B6 Fit Model 3", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Configuration ----
@@ -1012,11 +1018,11 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                ),
                                column(6,
                                       br(),
-                                      actionButton("run_all", "▶ Run All", class = "btn-success btn-lg"),
+                                      actionButton("run_all", "\u25B6 Run All", class = "btn-success btn-lg"),
                                       br(), br(),
-                                      actionButton("save_config", "💾 Save Config", class = "btn-primary btn-lg"),
+                                      actionButton("save_config", "\U0001F4BE Save Config", class = "btn-primary btn-lg"),
                                       br(), br(),
-                                      actionButton("close_app", "✖ Close App", class = "btn-danger btn-lg")
+                                      actionButton("close_app", "\u2716 Close App", class = "btn-danger btn-lg")
                                )
                              ),
                              
@@ -1040,7 +1046,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                h4(tags$b("Data Selection"), style = "margin-top:0;"),
                                fluidRow(
                                  column(3,
-                                   actionButton("scan_folder", "🔍 Scan Analysis Folder",
+                                   actionButton("scan_folder", "\U0001F50D Scan Analysis Folder",
                                                 class = "btn-info", width = "100%"),
                                    p("Populates the menus.",
                                      style = "font-size: 11px; color: #666; margin-top: 5px;")),
@@ -1061,9 +1067,9 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                              selected = "model1", width = "100%"))
                                ),
                                fluidRow(
-                                 column(6, actionButton("load_data", "▶ Load Data",
+                                 column(6, actionButton("load_data", "\u25B6 Load Data",
                                                         class = "btn-success", width = "100%")),
-                                 column(6, actionButton("fit_model", "▶ Fit Model",
+                                 column(6, actionButton("fit_model", "\u25B6 Fit Model",
                                                         class = "btn-success", width = "100%"))
                                )
                              ),
@@ -1455,12 +1461,12 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         if (blood_status$found) {
           div(
-            p(strong("✓ Blood data found"), 
+            p(strong("\u2713 Blood data found"), 
               style = "color: #1b7837; font-size: 16px; margin-bottom: 5px;")
           )
         } else {
           div(
-            p(strong("✗ No blood data found in blood_dir"), 
+            p(strong("\u2717 No blood data found in blood_dir"), 
               style = "color: #d73027; font-size: 16px; margin-bottom: 5px;"),
             p("No _inputfunction.tsv files detected in the specified blood directory", 
               style = "color: #d73027; font-size: 14px;")
@@ -1475,23 +1481,23 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         if (blood_status_analysis$found) {
           # Prioritize analysis folder data
           div(
-            p(strong("✓ Blood data found in petfit analysis folder"), 
+            p(strong("\u2713 Blood data found in petfit analysis folder"), 
               style = "color: #1b7837; font-size: 16px; margin-bottom: 10px;")
           )
         } else if (blood_status_bids$found) {
           # Fall back to raw BIDS data
           div(
-            p(strong("✓ Blood data found in raw BIDS data directory"), 
+            p(strong("\u2713 Blood data found in raw BIDS data directory"), 
               style = "color: #1b7837; font-size: 16px; margin-bottom: 10px;"),
             div(
               style = "background-color: #e8f4f8; border-left: 4px solid #3182bd; padding: 10px; margin-top: 10px;",
-              p(strong("💡 Recommendation:"), "Consider using bloodstream for blood processing.", 
+              p(strong("\U0001F4A1 Recommendation:"), "Consider using bloodstream for blood processing.", 
                 style = "color: #3182bd; font-size: 13px; margin: 0;")
             )
           )
         } else {
           div(
-            p(strong("✗ No blood data found"), 
+            p(strong("\u2717 No blood data found"), 
               style = "color: #d73027; font-size: 16px; margin-bottom: 10px;"),
             p("No _inputfunction.tsv files detected in analysis folder and no _blood.tsv files detected in BIDS directory", 
               style = "color: #d73027; font-size: 14px; margin-bottom: 10px;"),
@@ -1502,7 +1508,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       } else {
         # Neither blood_dir nor bids_dir provided
         div(
-          p(strong("⚠️ No blood data available"), 
+          p(strong("\u26A0\uFE0F No blood data available"), 
             style = "color: #d73027; font-size: 16px; margin-bottom: 10px;"),
           p("Delay estimation requires blood data. Please provide a blood_dir parameter or bids_dir parameter when starting the app.", 
             style = "color: #d73027; font-size: 14px;")
@@ -1571,7 +1577,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
 
             if (length(unique_segmentations) > 0) {
               # Create choices for segmentation selection
-              choices <- setNames(unique_segmentations, unique_segmentations)
+              choices <- stats::setNames(unique_segmentations, unique_segmentations)
 
               # Prioritize seg- segmentations over label- for default selection
               default_selection <- if (any(stringr::str_detect(unique_segmentations, "seg-"))) {
@@ -1925,6 +1931,9 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         modelling_configuration_type = "plasma input",
         analysis_folder = analysis_foldername,
         config_created = format(Sys.time(), "%Y-%m-%d %H:%M"),
+        # Which version wrote this, so a later run can tell whether the
+        # analysis predates a change in how measurements are identified
+        petfit_version = as.character(utils::packageVersion("petfit")),
         blood_dir = blood_dir,
         Subsetting = Subsetting,
         Weights = Weights,
@@ -2369,7 +2378,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         if (nrow(pet_data) > 0) {
           # Update PET measurement dropdown
-          pet_choices <- c("None" = "none", setNames(pet_data$pet, pet_data$pet))
+          pet_choices <- c("None" = "none", stats::setNames(pet_data$pet, pet_data$pet))
           updateSelectInput(session, "interactive_pet",
                            choices = pet_choices,
                            selected = "none")
@@ -2383,7 +2392,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             unique_regions <- unique_regions[!is.na(unique_regions)]
             
             if (length(unique_regions) > 0) {
-              region_choices <- c("None" = "none", setNames(unique_regions, unique_regions))
+              region_choices <- c("None" = "none", stats::setNames(unique_regions, unique_regions))
               updateSelectInput(session, "interactive_region",
                                choices = region_choices,
                                selected = "none")
@@ -2530,7 +2539,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         return(tags$p("Select PET, Region and Model, then click Fit Model.",
                       style = "color:#666;"))
       }
-      tags$p(tags$strong(paste0(res$type, " fit")), " — ", res$pet, " : ", res$region)
+      tags$p(tags$strong(paste0(res$type, " fit")), " \u2014 ", res$pet, " : ", res$region)
     })
 
     output$fit_plot <- renderPlot({
@@ -2595,7 +2604,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       if (length(list.files(output_dir, pattern = "_desc-delayfit_kinpar.tsv",
                             recursive = TRUE)) == 0) {
         showNotification(
-          "No delay fit found — assuming delay = 0 for the t* plots. Run the Fit Delay step if you want delay-corrected plots.",
+          "No delay fit found \u2014 assuming delay = 0 for the t* plots. Run the Fit Delay step if you want delay-corrected plots.",
           type = "warning", duration = 8)
       }
 
@@ -2660,8 +2669,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         if (nrow(region_data) == 0) {
           # Create empty plot with message
-          plot.new()
-          text(0.5, 0.5, "No data available for selected region", 
+          graphics::plot.new()
+          graphics::text(0.5, 0.5, "No data available for selected region", 
                cex = 1.2, col = "red")
           return()
         }
@@ -2684,8 +2693,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
       }, error = function(e) {
         # Create error plot
-        plot.new()
-        text(0.5, 0.5, paste("Error generating plot:", e$message), 
+        graphics::plot.new()
+        graphics::text(0.5, 0.5, paste("Error generating plot:", e$message), 
              cex = 1, col = "red", adj = 0.5)
         cat("Error in tac_plot:", e$message, "\n")
       })

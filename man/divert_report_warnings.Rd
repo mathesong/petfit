@@ -2,7 +2,7 @@
 % Please edit documentation in R/report_generation.R
 \name{divert_report_warnings}
 \alias{divert_report_warnings}
-\title{Send Report Warnings to the Console Instead of the Report}
+\title{Route Report Warnings to the Console, and to the Report Where They Belong}
 \usage{
 divert_report_warnings()
 }
@@ -10,13 +10,21 @@ divert_report_warnings()
 Invisibly \code{NULL}, called for its side effect.
 }
 \description{
-Install a knitr hook that writes chunk warnings to \code{stderr()}
-and puts nothing in the rendered document.
+Install a knitr hook that writes every chunk warning to
+\code{stderr()}, and additionally renders it into the document for chunks that
+ask for it with \code{report_warnings = TRUE}.
 
-Warnings inside a report would make it unreadable, so the templates set
-\code{warning = TRUE} to route them here and this hook sends them to \code{stderr()}
-instead. The rendering subprocess passes that to the terminal, or to
-\verb{reports/logs/<step>_report.log} under \code{save_logs = TRUE}.
+Most warnings would make a report unreadable without telling the reader
+anything — a deprecated ggplot argument is a maintenance note, not a
+result. Those go to \code{stderr()} alone: the rendering subprocess passes that
+to the terminal, or to \verb{reports/logs/<step>_report.log} under
+\code{save_logs = TRUE}.
+
+Warnings from the fitting chunks are different. "Fitted parameters are
+hitting upper or lower limit bounds" qualifies the numbers printed
+directly beneath it, and a reader looking at those numbers in the report
+needs to see it there. Those chunks set \code{report_warnings = TRUE}, and the
+warning is rendered in place as well as logged.
 
 knitr's \code{warning = FALSE} is not an alternative: despite its documentation,
 it discards warnings rather than printing them to the console. The one that

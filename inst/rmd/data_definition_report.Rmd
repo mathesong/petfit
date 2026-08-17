@@ -20,12 +20,26 @@ knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
 # multiplied TAC rows, and it used to be discarded outright.
 petfit::divert_report_warnings()
 
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(knitr)
 library(jsonlite)
 library(plotly)
 library(crosstalk)
 library(htmltools)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 theme_set(theme_light())
 
@@ -111,7 +125,7 @@ tacdata <- tibble(
   filename = tacs_files
 ) %>% 
   mutate(basename = basename(filename)) %>% 
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>% 
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>% 
   unnest(attributes) %>% 
   group_by(filename) %>% 
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>% 
@@ -130,7 +144,7 @@ if (file.exists(combined_tacs_json)) {
     if ("radioactivity" %in% names(json_metadata) && "Units" %in% names(json_metadata$radioactivity)) {
       original_tac_units_full <- json_metadata$radioactivity$Units
       # Extract just radioactivity units (before "/mL")
-      original_tac_units <- kinfitr:::get_units_radioactivity(original_tac_units_full)$rad
+      original_tac_units <- kinfitr::get_units_radioactivity(original_tac_units_full)$rad
       cat("TAC units from combined regions JSON:", original_tac_units, "\n")
       
       # Apply unit conversion to standardize to kBq

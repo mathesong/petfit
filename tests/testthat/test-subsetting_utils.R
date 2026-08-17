@@ -425,3 +425,76 @@ test_that("create_individual_tacs_files creates proper directory structure", {
   # Cleanup
   unlink(temp_dir, recursive = TRUE)
 })
+test_that("data definition clears every derived output, keeping the config", {
+
+  # Rerunning data definition changes the data every later step consumes, so
+  # TACs, weights, delay fits, model results and reports are all invalidated
+  # -- whatever identifiers they were written under. Only the configuration
+  # survives. The previous cleanup compared filename stems against kept
+  # measurements, which deleted files it did not understand and spared stale
+  # ones it did.
+  dir <- tempfile("petfit-cleanup-")
+  pet_dir <- file.path(dir, "sub-01", "ses-test", "pet")
+  dir.create(pet_dir, recursive = TRUE)
+  dir.create(file.path(dir, "reports"))
+
+  writeLines("{}", file.path(dir, "desc-petfitoptions_config.json"))
+  file.create(file.path(pet_dir, "sub-01_desc-combinedregions_tacs.tsv"))
+  file.create(file.path(pet_dir, "sub-01_desc-weights_weights.tsv"))
+  file.create(file.path(pet_dir, "sub-01_model-2TCM_desc-model1_kinpar.tsv"))
+  file.create(file.path(dir, "model-2TCM_desc-model1_kinpar.tsv"))
+  file.create(file.path(dir, "reports", "model1_report.html"))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+
+  result <- cleanup_individual_tacs_files(dir)
+
+  expect_equal(list.files(dir, recursive = TRUE),
+               "desc-petfitoptions_config.json")
+  expect_equal(result$files_removed, 5)
+})
+
+test_that("cleanup keeps input functions: they are a blood source, not stale", {
+
+  # determine_blood_source() looks for *_inputfunction.tsv in the analysis
+  # folder, and users may place such files there by hand. petfit's own are
+  # derived from the BIDS blood, which a data definition does not change.
+  dir <- tempfile("petfit-cleanup-if-")
+  pet_dir <- file.path(dir, "sub-01", "pet")
+  dir.create(pet_dir, recursive = TRUE)
+
+  writeLines("{}", file.path(dir, "desc-petfitoptions_config.json"))
+  file.create(file.path(pet_dir, "sub-01_inputfunction.tsv"))
+  file.create(file.path(pet_dir, "sub-01_inputfunction.json"))
+  file.create(file.path(pet_dir, "sub-01_desc-combinedregions_tacs.tsv"))
+  file.create(file.path(pet_dir, "sub-01_desc-weights_weights.tsv"))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+
+  result <- cleanup_individual_tacs_files(dir)
+
+  expect_setequal(list.files(dir, recursive = TRUE),
+                  c("desc-petfitoptions_config.json",
+                    "sub-01/pet/sub-01_inputfunction.tsv",
+                    "sub-01/pet/sub-01_inputfunction.json"))
+  expect_equal(result$files_removed, 2)
+})
+
+test_that("cleanup refuses a folder that is not an analysis folder", {
+
+  # An analysis folder is recognised by the configuration defining it. A
+  # mispointed path -- the petfit derivatives root, "." -- must not be
+  # emptied wholesale.
+  dir <- tempfile("petfit-notanalysis-")
+  dir.create(dir, recursive = TRUE)
+  file.create(file.path(dir, "petfit_regions_files.tsv"))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+
+  expect_error(cleanup_individual_tacs_files(dir),
+               "does not look like an analysis folder")
+  expect_true(file.exists(file.path(dir, "petfit_regions_files.tsv")))
+
+  # An empty folder is fine: there is nothing to protect
+  empty <- tempfile("petfit-empty-")
+  dir.create(empty)
+  on.exit(unlink(empty, recursive = TRUE), add = TRUE)
+  expect_equal(cleanup_individual_tacs_files(empty)$files_removed, 0)
+})

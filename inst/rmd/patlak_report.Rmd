@@ -20,7 +20,13 @@ knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
 # many-to-many join warning is the signal that a duplicated record has
 # multiplied TAC rows, and it used to be discarded outright.
 petfit::divert_report_warnings()
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
@@ -28,6 +34,14 @@ library(glue)
 library(DT)
 
 library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 cores <- params$cores %||% 1
 if (cores > 1) {
@@ -197,7 +211,7 @@ tacs_files <- list.files(analysis_folder,
 tac_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -214,7 +228,7 @@ if (use_model_weights) {
   weightsdata <- tibble(
     filename = weights_files) %>%
     mutate(basename = basename(filename)) %>%
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>%
     group_by(filename) %>%
     mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -339,7 +353,7 @@ if( nrow(delay_data)==0 ) {
 } else{
   
   delay_data <- delay_data %>% 
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
@@ -404,7 +418,7 @@ if( nrow(vB_data)==0 ) {
 } else{
   
   vB_data <- vB_data %>% 
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
@@ -453,8 +467,8 @@ tac_data_nested <- tac_data %>%
 model_data <- inner_join(tac_data_nested, blood_data,
                          # One blood record per measurement. A duplicate would
                          # otherwise multiply every region's TAC rows silently.
-                         relationship = "many-to-one") %>% 
-  ungroup() %>% 
+                         relationship = "many-to-one") %>%
+  ungroup() %>%
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
   mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
@@ -496,7 +510,7 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 }
 ```
 
-```{r model-fitting}
+```{r model-fitting, report_warnings=TRUE}
 # Safe Patlak function to handle errors
 safe_Patlakplot <- possibly(Patlakplot, otherwise = NA)
 
@@ -539,7 +553,7 @@ model_data <- model_data %>%
 
 ```{r}
 model_res <- model_data %>% 
-  ungroup() %>% 
+  ungroup() %>%
   mutate(par = map(fit_Patlak, "par")) %>% 
   select(-fit_Patlak, -tacs, -input)
 ```
@@ -741,7 +755,7 @@ write_tsv(savepar,
 folder_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>% 
   mutate(dirname = dirname(filename)) %>% 
   select(-filename, -basename, -measurement, -desc)
@@ -810,7 +824,7 @@ savefits <- model_data %>%
   # column. pet, region, inpshift and fitvals are required, so they stay
   # strict and a genuine absence still errors.
   select(any_of(c("sub", "ses", "task", "trc", "run", "rec")),
-         pet, region, inpshift, fitvals) %>% 
+         pet, region, inpshift, fitvals) %>%
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 

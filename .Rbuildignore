@@ -11,3 +11,9 @@ tests/testthat/fixtures/integration/README\.md$
 ^plan_docs\.md$
 ^\.positai$
 ^\.claude$
+^CLAUDE\.md$
+^apptainer$
+^docker$
+^wrapper$
+^www$
+^LICENSE\.md$

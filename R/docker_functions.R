@@ -153,6 +153,8 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 #' @param cores Integer number of cores for parallel processing (default: 1)
 #' @param ancillary_analysis_folder Character string name of a sibling analysis folder to inherit
 #'   delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with execution result and messages
 #'
 #' @details
@@ -216,6 +218,8 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
 #' @param bids_dir Character string path to BIDS directory (optional if derivatives_dir provided)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
 #' @return List with execution result and messages
 #' @export
 petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
@@ -415,6 +419,10 @@ determine_pipeline_type <- function(config, pipeline_type = NULL) {
 #' @param pipeline_type Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)
 #' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
 #'   delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with execution result and messages
 #' @export
 petfit_modelling_auto <- function(bids_dir = NULL,

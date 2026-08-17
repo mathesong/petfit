@@ -17,6 +17,9 @@ region_definition_app(
 \item{derivatives_dir}{Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)}
 
 \item{petfit_output_foldername}{Character string name for petfit output folder within derivatives (default: "petfit")}
+
+\item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
+default) fits sequentially.}
 }
 \description{
 Launch a separate Shiny app for defining brain regions

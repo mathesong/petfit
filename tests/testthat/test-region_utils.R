@@ -134,3 +134,66 @@ test_that("extract_bids_attributes_from_filename fills absent entities with NA",
   expect_true(is.na(sparse$run))
   expect_false(any(c(sparse$ses, sparse$trc, sparse$rec) %in% ""))
 })
+
+test_that("a measurement's pet identifier does not depend on the cohort", {
+
+  # The adversarial case: two ses-test subjects, then the study gains its
+  # first ses-retest scan. Identity built from cohort-varying attributes
+  # renamed the original measurements and orphaned their files.
+  entity_attrs <- function(data) {
+    intersect(c("sub", "ses", "task", "trc", "rec", "run"), colnames(data))
+  }
+
+  before <- tibble::tibble(sub = c("01", "02"), ses = c("test", "test"))
+  after <- tibble::tibble(sub = c("01", "02", "01"),
+                          ses = c("test", "test", "retest"))
+
+  pets_before <- reconstruct_pet_column(before, entity_attrs(before))$pet
+  pets_after <- reconstruct_pet_column(after, entity_attrs(after))$pet
+
+  expect_equal(pets_before, c("sub-01_ses-test", "sub-02_ses-test"))
+  expect_equal(pets_after[1:2], pets_before)
+})
+
+test_that("pet identifiers skip absent entities and match pet_key", {
+
+  # A sessionless measurement in a mixed study carries NA in the ses column;
+  # its identifier must not contain ses-NA. And the stem written to disk must
+  # read back through pet_key() unchanged.
+  data <- tibble::tibble(sub = c("01", "02"), ses = c("test", NA))
+  attrs <- intersect(c("sub", "ses", "task", "trc", "rec", "run"),
+                     colnames(data))
+  pets <- reconstruct_pet_column(data, attrs)$pet
+
+  expect_equal(pets, c("sub-01_ses-test", "sub-02"))
+  expect_equal(pet_key(paste0(pets, "_desc-combinedregions_tacs.tsv")), pets)
+})
+
+test_that("directories supply sub and ses to file attributes", {
+
+  # petfit's derivatives put ses in the path but not the filename. Reducing
+  # the path to its basename merged distinct sessions into one measurement.
+  test_ses <- extract_bids_attributes_from_filename(
+    "sub-01/ses-test/pet/sub-01_desc-preproc_tacs.tsv")
+  retest <- extract_bids_attributes_from_filename(
+    "sub-01/ses-retest/pet/sub-01_desc-preproc_tacs.tsv")
+
+  expect_equal(test_ses$ses, "test")
+  expect_equal(retest$ses, "retest")
+  expect_equal(test_ses$sub, "01")
+
+  # Only whole sub-/ses- segments count: unrelated path components with
+  # hyphens must not inject entities
+  plain <- extract_bids_attributes_from_filename(
+    "some-folder/sub-01_ses-a_desc-x_tacs.tsv")
+  expect_equal(plain$ses, "a")
+  expect_false("some" %in% colnames(plain))
+})
+
+test_that("a directory contradicting the filename is an error", {
+
+  expect_error(
+    extract_bids_attributes_from_filename(
+      "sub-01/ses-test/pet/sub-01_ses-retest_desc-x_tacs.tsv"),
+    "disagree on ses")
+})
