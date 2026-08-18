@@ -21,6 +21,7 @@ Imports:
     dplyr (>= 1.1.1),
     purrr,
     jsonlite,
+    fs,
     tidyr,
     utils,
     magrittr,

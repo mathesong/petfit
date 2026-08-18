@@ -29,6 +29,35 @@
   identifiers, nothing about it looks wrong, and a step that builds the new ones
   from the same file's path simply fails to match them.
 
+## Cleanup safety
+
+* **The data definition cleanup no longer follows filesystem links.**
+  `list.files(recursive = TRUE)` descends *through* a linked directory and
+  reports the files on the far side, so an analysis folder containing a link to
+  an external source directory had that directory's contents deleted, and the
+  link removed behind them. Enumeration now stops at a link: it is removed as a
+  link, and whatever it points at is left alone. A linked
+  `*_inputfunction.tsv` is kept exactly as a real one is.
+
+  Classification is done through **fs** rather than base R, which cannot answer
+  the question portably: `Sys.readlink()` is documented as reporting nothing on
+  Windows even though NTFS has both symbolic links and junctions, and a
+  junction presents to directory-walking code as an ordinary directory while
+  redirecting traversal elsewhere. The rule is now positive -- an entry is
+  descended into only once established as a real directory whose canonical path
+  lies inside the analysis folder. Anything unresolvable, unclassifiable, or
+  resolving outside it stops the cleanup with the folder untouched, and a link
+  that will not delete is an error rather than a silent undercount. The policy
+  is *never follow a link*, so a link to a sibling directory within the
+  analysis is not followed either.
+
+* **A directory holding only hidden files is no longer treated as empty.**
+  `list.files()` hides dotfiles by default, so such a directory read as empty
+  and was removed with a recursive delete that took the hidden files with it.
+  Dotfiles are now enumerated and removed as the ordinary derived-folder
+  entries they are, and only genuinely empty directories are pruned.
+
+
 ## Report warnings
 
 * **Warnings from the fitting chunks now appear in the report.** They were

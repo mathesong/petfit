@@ -165,6 +165,111 @@ subset_tacs_by_frames <- function(tacs_data, subset_type = NULL,
   return(filtered_data)
 }
 
+# --- Filesystem safety for the cleanup ------------------------------------
+#
+# Cleanup deletes, so every question it asks about a path has to be answered
+# positively before it acts. Base R cannot do that portably: Sys.readlink() is
+# documented as reporting nothing on Windows even though NTFS has symbolic
+# links and junctions, and a junction presents to directory-walking code as an
+# ordinary directory while redirecting traversal elsewhere. normalizePath()
+# usually resolves them on modern R but documents a fallback that does not, so
+# it cannot be the only boundary either. fs wraps libuv and answers these
+# questions the same way on every platform.
+#
+# The rule throughout: never descend into an entry unless it has been
+# positively established as a real directory whose canonical path lies inside
+# the analysis root. Anything unresolvable, unclassifiable, or outside is an
+# error -- a directory nobody can classify is not "probably ordinary".
+
+# The canonical destination of a path, or an error naming what could not be
+# resolved. Never called on a link: path_real() follows one, and a broken link
+# cannot be resolved at all.
+petfit_real_path <- function(path, description = "path") {
+  tryCatch(
+    as.character(fs::path_real(path)),
+    error = function(e) {
+      stop("Refusing to clear the analysis folder: could not resolve ",
+           description, ":\n  ", path, "\nReason: ", conditionMessage(e),
+           call. = FALSE)
+    })
+}
+
+# Is this entry a filesystem link -- POSIX symbolic link, Windows symbolic
+# link, or NTFS junction? Anything other than a definite yes or no stops the
+# cleanup rather than defaulting to "ordinary file".
+petfit_link_state <- function(path) {
+
+  result <- tryCatch(fs::is_link(path), error = function(e) NA)
+
+  if (length(result) != 1L || is.na(result)) {
+    stop("Refusing to clear the analysis folder: could not determine whether ",
+         "this path is a link:\n  ", path, call. = FALSE)
+  }
+
+  isTRUE(result)
+}
+
+# Everything under `dir`, classified, without following a single link.
+#
+# The whole tree is enumerated before anything is deleted, so a path that
+# cannot be classified stops the cleanup while the folder is still intact.
+# Links are recorded as one entry each, whatever they point at and wherever
+# they point: the policy is "never follow a link", not "never leave the
+# folder", so a link to a sibling directory inside the analysis is still a
+# link and is still not descended into. Hidden entries are included --
+# a directory holding only dotfiles is not empty, and treating it as empty is
+# how a recursive delete reaches them.
+petfit_list_tree <- function(dir) {
+
+  root_real <- petfit_real_path(dir, "the analysis folder")
+
+  files <- character(0)
+  dirs  <- character(0)
+  links <- character(0)
+
+  descend <- function(current) {
+
+    children <- as.character(
+      fs::dir_ls(current, all = TRUE, recurse = FALSE, fail = TRUE))
+
+    for (child in children) {
+
+      if (petfit_link_state(child)) {
+        links <<- c(links, child)
+        next
+      }
+
+      child_real <- petfit_real_path(child)
+      inside <- identical(child_real, root_real) ||
+        isTRUE(fs::path_has_parent(child_real, root_real))
+
+      if (!inside) {
+        # fs did not call this a link, yet it leads out of the folder. It may
+        # be a reparse point, a mount, or something on a filesystem fs cannot
+        # describe. Guessing how to delete it is exactly the mistake this
+        # function exists to avoid.
+        stop("Refusing to clear the analysis folder: a path resolves outside ",
+             "it but is not identifiable as a removable link:\n  Path: ", child,
+             "\n  Destination: ", child_real, call. = FALSE)
+      }
+
+      if (isTRUE(fs::is_dir(child, follow = FALSE))) {
+        dirs <<- c(dirs, child)
+        descend(child)
+      } else if (isTRUE(fs::is_file(child, follow = FALSE))) {
+        files <<- c(files, child)
+      } else {
+        stop("Refusing to clear the analysis folder: unsupported or ",
+             "unclassifiable filesystem entry:\n  ", child, call. = FALSE)
+      }
+    }
+  }
+
+  descend(dir)
+
+  list(files = files, dirs = dirs, links = links)
+}
+
 #' Clear Derived Outputs from an Analysis Folder
 #'
 #' @description Remove every derived output from an analysis folder before the
@@ -202,7 +307,13 @@ cleanup_individual_tacs_files <- function(output_dir) {
   # analysis folder is recognised by the configuration that defines it. A
   # mispointed path -- the petfit derivatives root, "." -- would otherwise be
   # emptied wholesale.
-  entries <- list.files(output_dir, all.files = FALSE)
+  #
+  # Hidden entries count. The walker below enumerates and removes them, so a
+  # guard that cannot see them reads a directory holding only a .env or a
+  # .gitkeep as empty, waves it through as "nothing here to protect", and the
+  # walker then deletes exactly the files the guard was meant to stand in
+  # front of. A genuinely empty directory is still fine.
+  entries <- list.files(output_dir, all.files = TRUE, no.. = TRUE)
   has_config <- any(grepl("^desc-.*_config\\.json$", entries))
   if (!has_config && length(entries) > 0) {
     stop("Refusing to clear ", output_dir, ": it contains no ",
@@ -211,40 +322,85 @@ cleanup_individual_tacs_files <- function(output_dir) {
          call. = FALSE)
   }
 
-  all_files <- list.files(output_dir, recursive = TRUE, full.names = TRUE,
-                          all.files = FALSE)
+  # Classify the whole tree first. Anything unclassifiable stops the cleanup
+  # here, with the folder untouched.
+  tree <- petfit_list_tree(output_dir)
 
-  keep <- grepl("^desc-.*_config\\.json$", basename(all_files)) |
-    grepl("_inputfunction\\.(tsv|json)$", basename(all_files))
-  remove <- all_files[!keep]
+  keepable <- function(paths) {
+    grepl("^desc-.*_config\\.json$", basename(paths)) |
+      grepl("_inputfunction\\.(tsv|json)$", basename(paths))
+  }
 
-  files_removed <- length(remove)
-  for (filepath in remove) {
-    file.remove(filepath)
+  # Links go first. If one cannot be removed, the cleanup stops while the
+  # derived outputs are still there rather than after clearing them.
+  links_removed <- 0L
+  for (linkpath in tree$links[!keepable(tree$links)]) {
+
+    fs::link_delete(linkpath)
+
+    if (isTRUE(fs::link_exists(linkpath))) {
+      stop("Cleanup reported that a link was deleted, but it is still there:",
+           "\n  ", linkpath, call. = FALSE)
+    }
+
+    links_removed <- links_removed + 1L
+    cat("Removed symlink:", basename(linkpath),
+        "- whatever it pointed at was left alone\n")
+  }
+
+  files_removed <- 0L
+  for (filepath in tree$files[!keepable(tree$files)]) {
+
+    # Re-check: an entry could have been replaced by a link since it was
+    # classified, and a deletion that follows one leaves the folder.
+    if (petfit_link_state(filepath) ||
+        !isTRUE(fs::is_file(filepath, follow = FALSE))) {
+      stop("Refusing to continue: this entry changed between being examined ",
+           "and being removed:\n  ", filepath, call. = FALSE)
+    }
+
+    fs::file_delete(filepath)
+    files_removed <- files_removed + 1L
     cat("Removed file:", basename(filepath), "\n")
   }
 
-  # Prune directories the removals emptied, deepest first
-  dirs_removed <- 0
-  dirs <- list.dirs(output_dir, recursive = TRUE, full.names = TRUE)
-  dirs <- setdiff(dirs, output_dir)
-  dirs <- dirs[order(-lengths(strsplit(dirs, "/", fixed = TRUE)))]
-  for (dir_path in dirs) {
-    if (length(list.files(dir_path, all.files = FALSE)) == 0) {
-      unlink(dir_path, recursive = TRUE)
-      dirs_removed <- dirs_removed + 1
+  # Prune the directories those removals emptied, deepest first, re-checking
+  # each one the same way. fs::dir_delete() removes contents as well, so it is
+  # only ever reached for a directory just confirmed empty.
+  dirs_removed <- 0L
+  root_real <- petfit_real_path(output_dir, "the analysis folder")
+  for (dir_path in tree$dirs[order(-lengths(strsplit(tree$dirs, "/", fixed = TRUE)))]) {
+
+    if (!dir.exists(dir_path)) next
+
+    if (petfit_link_state(dir_path) ||
+        !isTRUE(fs::is_dir(dir_path, follow = FALSE)) ||
+        !isTRUE(fs::path_has_parent(petfit_real_path(dir_path), root_real))) {
+      stop("Refusing to continue: this folder changed between being examined ",
+           "and being removed:\n  ", dir_path, call. = FALSE)
     }
+
+    if (length(fs::dir_ls(dir_path, all = TRUE, recurse = FALSE)) > 0) next
+
+    fs::dir_delete(dir_path)
+    dirs_removed <- dirs_removed + 1L
   }
 
-  summary_msg <- if (files_removed > 0 || dirs_removed > 0) {
-    paste("Cleared", files_removed, "derived files and", dirs_removed,
-          "folders from the previous data definition")
+  total_removed <- files_removed + links_removed
+
+  summary_msg <- if (total_removed > 0 || dirs_removed > 0) {
+    paste0("Cleared ", total_removed, " derived files and ", dirs_removed,
+           " folders from the previous data definition",
+           if (links_removed > 0) {
+             paste0(" (", links_removed, " of them symbolic links, whose ",
+                    "targets were left alone)")
+           } else "")
   } else {
     "No existing analysis files found"
   }
 
   return(list(
-    files_removed = files_removed,
+    files_removed = total_removed,
     dirs_removed = dirs_removed,
     summary = summary_msg
   ))
