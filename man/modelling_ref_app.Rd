@@ -25,6 +25,15 @@ modelling_ref_app(
 \item{analysis_foldername}{Character string name for analysis folder (default: "Primary_Analysis")}
 
 \item{config_file}{Character string path to existing config file (optional)}
+
+\item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
+default) fits sequentially.}
+
+\item{save_logs}{Whether to write each report's rendering log to
+\verb{reports/logs/<step>_report.log} in addition to the console.}
+
+\item{ancillary_analysis_folder}{Optional path to a second analysis folder
+whose results are offered alongside this one's, for comparison.}
 }
 \description{
 Launch the petfit modelling configuration interface for setting up reference tissue kinetic models

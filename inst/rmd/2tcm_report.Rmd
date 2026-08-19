@@ -15,14 +15,32 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
 library(glue)
 library(DT)
 library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 theme_set(theme_light())
 
@@ -198,11 +216,11 @@ weights_files <- list.files(analysis_folder,
 weightsdata <- tibble(
   filename = weights_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
-  ungroup() %>% 
+  ungroup() %>%
   unnest(tacs) %>% 
   select(-filename, -basename, -measurement, -desc, -TAC)
   
@@ -214,11 +232,11 @@ tacs_files <- list.files(analysis_folder,
 tac_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
-  ungroup() %>% 
+  ungroup() %>%
   unnest(tacs) %>% 
   select(-basename, -measurement, -desc) %>% 
   inner_join(weightsdata)
@@ -336,7 +354,7 @@ if( nrow(delay_data)==0 ) {
 } else{
   
   delay_data <- delay_data %>% 
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
@@ -401,7 +419,7 @@ if( nrow(vB_data)==0 ) {
 } else{
   
   vB_data <- vB_data %>% 
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
@@ -447,8 +465,11 @@ tac_data_nested <- tac_data %>%
                                            "run", "pet", "filename", "region")))) %>% 
   nest(.key="tacs")
 
-model_data <- inner_join(tac_data_nested, blood_data) %>% 
-  ungroup() %>% 
+model_data <- inner_join(tac_data_nested, blood_data,
+                         # One blood record per measurement. A duplicate would
+                         # otherwise multiply every region's TAC rows silently.
+                         relationship = "many-to-one") %>%
+  ungroup() %>%
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
   mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
@@ -456,12 +477,12 @@ model_data <- inner_join(tac_data_nested, blood_data) %>%
   mutate(output_stem = str_remove(output_stem, "_tacs.*"))
 
 model_data <- model_data %>% 
-  left_join(delay_data)
+  left_join(delay_data, relationship = "many-to-one")
 ```
 
 ```{r combine-vB, echo=vB_inheritance, eval=vB_inheritance}
 model_data <- model_data %>% 
-  left_join(vB_data)
+  left_join(vB_data, relationship = "many-to-one")
 ```
 
 
@@ -513,7 +534,7 @@ if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset
 ```
 
 
-```{r model-fitting}
+```{r model-fitting, report_warnings=TRUE}
 # Safe 2TCM function to handle errors
 safe_twotcm <- possibly(twotcm, otherwise = NA)
 
@@ -603,7 +624,7 @@ model_data <- model_data %>%
 
 ```{r}
 model_res <- model_data %>% 
-  ungroup() %>% 
+  ungroup() %>%
   mutate(par = map(fit_2tcm, "par")) %>% 
   select(-fit_2tcm, -tacs, -input)
 ```
@@ -795,7 +816,7 @@ savepar <- inner_join(par_table,
 
 write_tsv(savepar, 
           file=paste0(analysis_folder, "/", 
-                      "model_", "2TCM","_",
+                      "model-", "2TCM","_",
                       "desc-", desc,"_",
                       "kinpar.tsv"))
 ```
@@ -806,7 +827,7 @@ write_tsv(savepar,
 folder_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>% 
   mutate(dirname = dirname(filename)) %>% 
   select(-filename, -basename, -measurement, -desc)
@@ -817,7 +838,7 @@ savepar_pet <- savepar %>%
   nest(.key="kinpars") %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM","_",
+                           "model-", "2TCM","_",
                             "desc-", desc,"_",
                             "kinpar.tsv"))
 
@@ -826,7 +847,7 @@ walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
 
 ```{r}
 savepar_pet <- savepar_pet %>% 
-  group_by(pet) %>% 
+  group_by(pet) %>%
   mutate(jsondat = map(kinpars, ~list(
       Description = "Two tissue compartmental model fit using nonlinear least squares estimation.",
       ModelName = "2TCM",
@@ -872,7 +893,11 @@ savefits <- model_data %>%
         ) %>% 
       arrange(frame_mid)
   })) %>% 
-  select(sub, ses, task, trc, run, rec, pet, region, inpshift, fitvals) %>% 
+  # Entities are optional: a study whose files name no session has no ses
+  # column. pet, region, inpshift and fitvals are required, so they stay
+  # strict and a genuine absence still errors.
+  select(any_of(c("sub", "ses", "task", "trc", "run", "rec")),
+         pet, region, inpshift, fitvals) %>%
   unnest(cols=c("fitvals")) %>% 
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
                                            "run", "pet")))) %>% 
@@ -881,7 +906,7 @@ savefits <- model_data %>%
 savefits_pet <- savefits %>% 
   inner_join(folder_data) %>% 
   mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_", 
-                           "model_", "2TCM","_",
+                           "model-", "2TCM","_",
                             "desc-", desc,"fitted",
                             "_",
                             "tacs.tsv"))
@@ -891,7 +916,7 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 
 ```{r}
 savefits_pet <- savefits_pet %>% 
-  group_by(pet) %>% 
+  group_by(pet) %>%
   mutate(jsondat = map(fitvals, ~list(
       Description = "Two tissue compartment model fitted values.",
       ModelName = "2TCM",

@@ -15,11 +15,23 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
 library(dplyr)
 library(ggplot2)
 library(knitr)
 library(jsonlite)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 theme_set(theme_light())
 
 # Use parameters

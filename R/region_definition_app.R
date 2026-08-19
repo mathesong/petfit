@@ -5,6 +5,8 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
 #' @details Config files (petfit_regions.tsv) are saved to:
 #'   - bids_dir/code/petfit if bids_dir provided
 #'   - derivatives_dir/petfit_output_foldername if no bids_dir
@@ -466,7 +468,7 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     observe({
       if (nrow(tacs_list) > 0) {
         updateSelectInput(session, "selected_tacs",
-                         choices = setNames(tacs_list$tacs_filedescription,
+                         choices = stats::setNames(tacs_list$tacs_filedescription,
                                           tacs_list$tacs_filedescription))
       }
     })
@@ -681,10 +683,10 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     output$region_name_error <- renderUI({
       if (duplicate_error() && !multiple_regions_error()) {
         div(style = "color: red; font-size: 12px; margin-top: 5px;",
-            "⚠ This region name already exists!")
+            "\u26A0 This region name already exists!")
       } else if (multiple_regions_error()) {
         div(style = "color: red; font-size: 12px; margin-top: 5px;",
-            "⚠ Please choose a new name for combined regions")
+            "\u26A0 Please choose a new name for combined regions")
       } else {
         NULL
       }

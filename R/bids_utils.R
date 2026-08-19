@@ -1,5 +1,13 @@
 #' Extract a pet variable from BIDS attributes
 #'
+#' @description Deprecated. Use [pet_key()] for identity
+#'   and [pet_label()] for display.
+#'
+#'   This builds an identifier from only the attributes that vary across the
+#'   data it is handed, so identity depends on the cohort: adding a scan renames
+#'   the existing measurements, and a single measurement is named in a way that
+#'   matches none of its own files.
+#'
 #' @param bidsdata The result of bids_parse_files()
 #' @param all_attributes Make a column including attributes which are all the same.
 #'
@@ -12,6 +20,17 @@
 #' studydata$pet <- attributes_to_title(studydata)
 #' }
 attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
+
+  warning(
+    "attributes_to_title() is deprecated in favour of pet_key() for identity ",
+    "and pet_label() for display, and will be removed in 2027.\n",
+    "It builds an identifier from only the attributes that vary across the ",
+    "data it is given, so the same measurement is named differently depending ",
+    "on what else is being analysed. Adding one scan to a study renames the ",
+    "others and orphans their files, and a study of a single measurement ",
+    "produces a name matching no file at all.",
+    call. = FALSE)
+
   
   
   if( !all_attributes ) {
@@ -51,40 +70,95 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
   
 }
 
-#' Get PET identifiers from file paths using unified BIDS parsing
+#' Cohort-Invariant Key for a PET Measurement
 #'
-#' @param file_paths Vector of file paths
-#' @param analysis_folder Path to analysis folder
+#' @description Build each measurement's identifier from the entities that
+#'   measurement's own path carries, and nothing else.
 #'
-#' @returns Vector of PET identifiers matching the file paths
+#'   The key does not depend on which other measurements are analysed alongside
+#'   it, so it never moves: a measurement keeps the same key whether it is
+#'   analysed alone or in a cohort of fifty, and the files written under it stay
+#'   findable when the study grows.
+#'
+#'   It is exactly the stem its files are written under, so reading it back is
+#'   not a lookup and cannot fail. Use [pet_label()] for display.
+#'
+#' @param file_paths Vector of file paths.
+#' @param analysis_folder Path to the analysis folder the paths sit in. Entities
+#'   are read relative to it, so directories above it cannot contribute.
+#'
+#' @returns Character vector of keys, one per path.
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #' tacs_files <- list.files("analysis/", pattern = "*_tacs.tsv", recursive = TRUE)
-#' pet_ids <- get_pet_identifiers(tacs_files, "analysis/")
+#' pet_key(tacs_files, "analysis/")
 #' }
-get_pet_identifiers <- function(file_paths, analysis_folder) {
+pet_key <- function(file_paths, analysis_folder = NULL) {
+
   if (length(file_paths) == 0) {
     return(character(0))
   }
-  
-  # Use kinfitr to parse the file structure and get standardized pet IDs
-  bidsdata <- kinfitr::bids_parse_files(analysis_folder)
-  pet_ids <- attributes_to_title(bidsdata)
-  
-  # Extract pet identifiers from filenames by removing suffix patterns
-  file_pet_ids <- stringr::str_remove(basename(file_paths), "_desc-.*$")
-  
-  # Return matching pet IDs in same order as input files
-  result <- character(length(file_paths))
-  for (i in seq_along(file_paths)) {
-    file_pet_id <- file_pet_ids[i]
-    match_idx <- which(pet_ids == file_pet_id)
-    if (length(match_idx) > 0) {
-      result[i] <- pet_ids[match_idx[1]]
-    }
+
+  relative <- file_paths
+  if (!is.null(analysis_folder)) {
+    # A literal prefix strip, not a pattern: the folder path is user-chosen
+    # text, and characters like "+" or "(" in it must not be read as regex.
+    root <- paste0(normalizePath(analysis_folder, mustWork = FALSE), "/")
+    normalized <- normalizePath(file_paths, mustWork = FALSE)
+    relative <- ifelse(startsWith(normalized, root),
+                       substring(normalized, nchar(root) + 1L),
+                       normalized)
   }
-  
-  return(result)
+
+  selectors <- c("sub", "ses", "task", "trc", "rec", "run")
+
+  vapply(relative, function(path) {
+
+    attributes <- kinfitr::bids_filename_attributes(path)
+    present <- selectors[selectors %in% colnames(attributes)]
+    if (length(present) > 0) {
+      present <- present[!is.na(unlist(attributes[1, present]))]
+    }
+
+    if (length(present) == 0) {
+      return(NA_character_)
+    }
+
+    paste(paste0(present, "-", unlist(attributes[1, present])), collapse = "_")
+
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Display Label for a PET Measurement
+#'
+#' @description Shorten a set of keys for display by dropping the entities they
+#'   all share.
+#'
+#'   This is deliberately cohort-dependent, which is safe only because it is
+#'   never persisted: labels are shown to a user, while [pet_key()] is what goes
+#'   into filenames, joins and saved configurations. Making *identity*
+#'   cohort-dependent is what orphaned files whenever a dataset grew.
+#'
+#' @param keys Character vector of keys, as returned by [pet_key()].
+#'
+#' @returns Character vector of labels. Never use these as values.
+#' @export
+#'
+#' @examples
+#' pet_label(c("sub-01_ses-test", "sub-02_ses-test"))
+pet_label <- function(keys) {
+
+  if (length(keys) < 2) {
+    return(keys)
+  }
+
+  parts <- strsplit(keys, "_", fixed = TRUE)
+  shared <- Reduce(intersect, parts)
+
+  vapply(parts, function(p) {
+    kept <- setdiff(p, shared)
+    if (length(kept) == 0) paste(p, collapse = "_") else paste(kept, collapse = "_")
+  }, character(1))
 }

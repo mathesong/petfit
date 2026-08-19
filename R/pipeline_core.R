@@ -18,6 +18,10 @@
 #' @param bids_dir Optional BIDS directory path
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with success status, message, and files_created count
 #' @export
 execute_datadef_step <- function(config_path, output_dir, petfit_dir,
@@ -32,6 +36,12 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     # Load configuration
     config <- jsonlite::fromJSON(config_path)
     config <- coerce_bounds_numeric(config)
+
+    # Warn, never stop, when either input predates the running version. Both
+    # are checked: a configuration can be re-created with the current version
+    # while the combined TACs beneath it are still the ones an older version
+    # wrote, and it is the TACs that carry the measurement identifiers.
+    petfit_check_version(config, "analysis configuration", notify)
 
     if (is.null(config$Subsetting)) {
       result$message <- "Subsetting configuration not found in config file"
@@ -48,6 +58,8 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
       return(result)
     }
 
+    petfit_check_combined_tacs_version(combined_tacs_file, notify)
+
     # Read combined TACs data
     combined_data <- readr::read_tsv(combined_tacs_file, show_col_types = FALSE)
 
@@ -60,13 +72,13 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     # Extract subsetting parameters from config
     # Need to parse semicolon-separated values (empty strings -> NULL)
     subset_params <- list(
-      sub = parse_semicolon_values(config$Subsetting$sub),
-      ses = parse_semicolon_values(config$Subsetting$ses),
-      task = parse_semicolon_values(config$Subsetting$task),
-      trc = parse_semicolon_values(config$Subsetting$trc),
-      rec = parse_semicolon_values(config$Subsetting$rec),
-      run = parse_semicolon_values(config$Subsetting$run),
-      regions = parse_semicolon_values(config$Subsetting$Regions)
+      sub = parse_semicolon_values(config$Subsetting$sub, field = "sub"),
+      ses = parse_semicolon_values(config$Subsetting$ses, field = "ses"),
+      task = parse_semicolon_values(config$Subsetting$task, field = "task"),
+      trc = parse_semicolon_values(config$Subsetting$trc, field = "trc"),
+      rec = parse_semicolon_values(config$Subsetting$rec, field = "rec"),
+      run = parse_semicolon_values(config$Subsetting$run, field = "run"),
+      regions = parse_semicolon_values(config$Subsetting$Regions, field = "Regions")
     )
 
     # Apply subsetting
@@ -95,18 +107,10 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
       }
     }
 
-    # Get unique identifiers from filtered data for cleanup
-    keep_subjects <- unique(filtered_data$sub)
-    keep_sessions <- unique(filtered_data$ses[!is.na(filtered_data$ses)])
-    keep_pets <- unique(filtered_data$pet)
-
-    # Cleanup previous analysis files, removing folders/files not matching filter
-    cleanup_result <- cleanup_individual_tacs_files(
-      output_dir,
-      keep_subjects = keep_subjects,
-      keep_sessions = if (length(keep_sessions) > 0) keep_sessions else NULL,
-      keep_pets = keep_pets
-    )
+    # A new data definition changes the data every later step consumes, so
+    # every derived output in the analysis folder is cleared and must be
+    # recalculated -- weights included. Only the configuration is kept.
+    cleanup_result <- cleanup_individual_tacs_files(output_dir)
 
     # Only notify if something was actually cleaned up
     if (cleanup_result$files_removed > 0 || cleanup_result$dirs_removed > 0) {
@@ -152,7 +156,9 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
     result$report_path <- report_file
 
   }, error = function(e) {
-    result$message <- paste("Error during data subsetting:", e$message)
+    # `<<-`, not `<-`: `<-` here would set a copy local to this handler, and
+    # the returned result would carry an empty message.
+    result$message <<- paste("Error during data subsetting:", e$message)
     notify(result$message, "error")
     cat("Error:", e$message, "\n")
   })
@@ -169,6 +175,10 @@ execute_datadef_step <- function(config_path, output_dir, petfit_dir,
 #' @param bids_dir Optional BIDS directory path
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with success status and message
 #' @export
 execute_weights_step <- function(config_path, output_dir,
@@ -219,7 +229,8 @@ execute_weights_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Could not generate weights report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Could not generate weights report:", e$message)
     notify(result$message, "error")
     cat("Error generating weights report:", e$message, "\n")
   })
@@ -237,6 +248,10 @@ execute_weights_step <- function(config_path, output_dir,
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
 #' @param ancillary_path Optional path to ancillary analysis folder for delay inheritance
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with success status and message
 #' @export
 execute_delay_step <- function(config_path, output_dir,
@@ -345,7 +360,8 @@ execute_delay_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Error generating delay report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Error generating delay report:", e$message)
     notify(result$message, "error")
     cat("Warning: Could not generate delay report:", e$message, "\n")
   })
@@ -361,6 +377,10 @@ execute_delay_step <- function(config_path, output_dir,
 #' @param output_dir Path to analysis output directory
 #' @param bids_dir Optional BIDS directory path
 #' @param notify Notification callback function(msg, type)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with success status and message
 #' @export
 execute_reference_tac_step <- function(config_path, output_dir,
@@ -411,7 +431,8 @@ execute_reference_tac_step <- function(config_path, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Could not generate reference TAC report:", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Could not generate reference TAC report:", e$message)
     notify(result$message, "error")
     cat("Error generating reference TAC report:", e$message, "\n")
   })
@@ -430,6 +451,10 @@ execute_reference_tac_step <- function(config_path, output_dir,
 #' @param blood_dir Optional blood data directory path
 #' @param notify Notification callback function(msg, type)
 #' @param ancillary_path Optional path to ancillary analysis folder for k2prime inheritance
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
 #' @return List with success status and message
 #' @export
 execute_model_step <- function(config_path, model_num, output_dir,
@@ -496,7 +521,8 @@ execute_model_step <- function(config_path, model_num, output_dir,
     }
 
   }, error = function(e) {
-    result$message <- paste("Error fitting Model", model_num, ":", e$message)
+    # `<<-`, not `<-`: see execute_datadef_step().
+    result$message <<- paste("Error fitting Model", model_num, ":", e$message)
     notify(result$message, "error")
     cat("Warning: Could not generate Model", model_num, "report:", e$message, "\n")
   })

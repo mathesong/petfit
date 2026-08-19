@@ -1,3 +1,59 @@
+# knitr's own warning hook, kept from the first call so that repeated calls
+# within one session capture the default rather than our replacement.
+.petfit_knit_hooks <- new.env(parent = emptyenv())
+
+#' Route Report Warnings to the Console, and to the Report Where They Belong
+#'
+#' @description Install a knitr hook that writes every chunk warning to
+#'   `stderr()`, and additionally renders it into the document for chunks that
+#'   ask for it with `report_warnings = TRUE`.
+#'
+#'   Most warnings would make a report unreadable without telling the reader
+#'   anything — a deprecated ggplot argument is a maintenance note, not a
+#'   result. Those go to `stderr()` alone: the rendering subprocess passes that
+#'   to the terminal, or to `reports/logs/<step>_report.log` under
+#'   `save_logs = TRUE`.
+#'
+#'   Warnings from the fitting chunks are different. "Fitted parameters are
+#'   hitting upper or lower limit bounds" qualifies the numbers printed
+#'   directly beneath it, and a reader looking at those numbers in the report
+#'   needs to see it there. Those chunks set `report_warnings = TRUE`, and the
+#'   warning is rendered in place as well as logged.
+#'
+#'   knitr's `warning = FALSE` is not an alternative: despite its documentation,
+#'   it discards warnings rather than printing them to the console. The one that
+#'   matters is dplyr's unexpected many-to-many join, which is what a duplicated
+#'   record multiplying TAC rows looks like.
+#'
+#'   Called inside the rendering subprocess, so knitr's behaviour elsewhere in
+#'   the session is untouched.
+#'
+#' @return Invisibly `NULL`, called for its side effect.
+#' @keywords internal
+#' @export
+divert_report_warnings <- function() {
+
+  if (is.null(.petfit_knit_hooks$warning)) {
+    .petfit_knit_hooks$warning <- knitr::knit_hooks$get("warning")
+  }
+  default_hook <- .petfit_knit_hooks$warning
+
+  knitr::knit_hooks$set(warning = function(x, options) {
+    # knitr hands the warning over already formatted as document comment text
+    text <- gsub("(^|\n)##[ ]?", "\\1", x)
+    text <- sub("[\n[:space:]]+$", "", text)
+    cat("[warning] chunk '", options$label %||% "?", "': ", text, "\n",
+        sep = "", file = stderr())
+
+    if (isTRUE(options$report_warnings) && is.function(default_hook)) {
+      default_hook(x, options)
+    } else {
+      NULL
+    }
+  })
+  invisible(NULL)
+}
+
 #' Generate Step Report
 #'
 #' @description Generate a parameterised report for a specific analysis step

@@ -19,7 +19,7 @@ fit_single_measurement_plasma(
 \item{model_number}{Which configured model to fit: "model1"/"model2"/"model3",
 "Model 1", or an integer 1/2/3.}
 
-\item{pet}{PET measurement identifier (as listed by \code{\link[=get_pet_identifiers]{get_pet_identifiers()}}).}
+\item{pet}{PET measurement identifier (as listed by \code{\link[=pet_key]{pet_key()}}).}
 
 \item{region}{Region to fit.}
 

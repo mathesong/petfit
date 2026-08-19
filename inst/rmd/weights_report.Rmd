@@ -14,15 +14,33 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
 
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
 library(plotly)
 library(crosstalk)
 library(htmltools)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 theme_set(theme_light())
 
@@ -107,7 +125,7 @@ if( config$Weights$region_type == "mean_combined" ) {
   regions <- tibble(
     filename = tacs_files) %>%
     mutate(basename = basename(filename)) %>%
-    mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
     unnest(attributes) %>%
     group_by(filename) %>%
     mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -142,13 +160,13 @@ tacs_files <- list.files(analysis_folder,
 weights_tacdata <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
   unnest(tacs) %>%
   filter(region == config$Weights$region) %>% 
-  ungroup() %>% 
+  ungroup() %>%
   select(-filename, -basename, -measurement, -desc, -region,
          -volume_mm3, -InjectedRadioactivity, -bodyweight)
   # select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC)
@@ -162,17 +180,15 @@ tacs_files <- list.files(analysis_folder,
                       pattern = "*_desc-combinedregions_tacs.tsv",
                       recursive = TRUE)
 
-# Use unified BIDS parsing to get consistent pet identifiers
-bids_attributes <- bids_parse_files(analysis_folder)
-bids_attributes$pet <- attributes_to_title(bids_attributes)
-
 weights_tacdata <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
-  # Join with unified BIDS attributes to get consistent pet column
-  left_join(select(bids_attributes, -filedata)) %>%
+  # The key comes from each measurement's own path, so it does not move when the
+  # cohort changes. This used to parse the whole study and join the result back
+  # on, which made the identifier depend on which other scans were present.
+  mutate(pet = petfit::pet_key(filename)) %>%
   group_by(filename) %>% 
   select(-filename, -basename, -measurement, -desc) %>% 
   ungroup()
@@ -205,7 +221,7 @@ tacs_files <- list.files(analysis_folder,
 weights_tacdata <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -327,7 +343,7 @@ weights_data <- weights_tacdata %>%
   rename(tac = TAC) %>% 
   mutate(tac_uncor = decay_uncorrect(frame_start, frame_end, tac,
                                      radioisotope = radioisotope_for_uncorrection,
-                                     radionuclide_halflife = radionuclide_halflife)) %>% 
+                                     radionuclide_halflife = radionuclide_halflife)) %>%
   mutate(corrections = corrections <- tac_uncor/tac)
 ```
 
@@ -355,6 +371,7 @@ minweight <- config$Weights$minweight
 
 # Apply minweight correction
 weights_final <- weights_output %>%
+  group_by(pet) %>%
   mutate(
     weights = {
       
@@ -381,6 +398,7 @@ weights_final <- weights_output %>%
       calcweights
     }
   ) %>% 
+  ungroup() %>%
   select(-calcweights)
 ```
 
@@ -395,15 +413,17 @@ if (as.numeric(config$Weights$method) == 0) {
 
 } else {
   
-  # Using pre-defined weighting methods
+  # Using pre-defined weighting methods.
   weights_output <- weights_tacdata %>% 
+    group_by(pet) %>%
     mutate(weights = weights_create(t_start = frame_start/60, 
                                     t_end = frame_end/60, 
                                     TAC, 
                                     radioisotope = radioisotope_for_uncorrection, 
                                     method = as.numeric(config$Weights$method), 
                                     minweight = as.numeric(config$Weights$minweight), 
-                                    radionuclide_halflife = radionuclide_halflife))
+                                    radionuclide_halflife = radionuclide_halflife)) %>%
+    ungroup()
   
 }
 ```
@@ -413,7 +433,7 @@ if (as.numeric(config$Weights$method) == 0) {
 
 ```{r normalise}
 weights_output <- weights_output %>% 
-  group_by(pet) %>% 
+  group_by(pet) %>%
   mutate(weights = weights/mean(weights)) %>% 
   ungroup()
 ```

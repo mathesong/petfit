@@ -45,7 +45,7 @@ test_that("fit_single_measurement_plasma reproduces the batch fit", {
 
   tac_files <- list.files(analysis_folder, "_desc-combinedregions_tacs.tsv",
                           recursive = TRUE, full.names = TRUE)
-  pet <- get_pet_identifiers(tac_files, analysis_folder)[1]
+  pet <- pet_key(tac_files, analysis_folder)[1]
   region <- kinpar$region[1]
 
   fit <- suppressWarnings(fit_single_measurement_plasma(
@@ -88,7 +88,7 @@ test_that("fit_single_measurement_ref reproduces the batch fit", {
 
   tac_files <- list.files(analysis_folder, "_desc-targetregions_tacs.tsv",
                           recursive = TRUE, full.names = TRUE)
-  pet <- get_pet_identifiers(tac_files, analysis_folder)[1]
+  pet <- pet_key(tac_files, analysis_folder)[1]
   region <- kinpar$region[1]
 
   fit <- suppressWarnings(fit_single_measurement_ref(

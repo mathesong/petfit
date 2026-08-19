@@ -52,8 +52,12 @@ From: rocker/shiny-verse:latest
     docker/run_petfit.R /app/run_petfit.R
 
 %environment
-    # Set environment variables
-    export LC_ALL=C
+    # Set environment variables.
+    # LC_ALL must name a UTF-8 locale: plain "C" overrides the base image's
+    # UTF-8 setting, and R then reports "strings not representable in native
+    # encoding" for any non-ASCII region name, participant field or path.
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
     export PATH=/app:$PATH
     
 %runscript

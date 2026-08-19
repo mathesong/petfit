@@ -4,14 +4,30 @@
 \alias{parse_semicolon_values}
 \title{Parse Semicolon-Separated Values}
 \usage{
-parse_semicolon_values(input_string)
+parse_semicolon_values(input_string, field = NULL)
 }
 \arguments{
 \item{input_string}{Character string with semicolon-separated values}
+
+\item{field}{Optional name of the field being parsed, used to make error and
+warning messages specific (e.g. \code{"Regions"}).}
 }
 \value{
-Character vector of parsed values, or NULL if empty
+Character vector of parsed values, or \code{NULL} if empty. The result
+carries a \code{negate} attribute — \code{TRUE} when the field was prefixed with \code{-},
+otherwise \code{FALSE}. Read it with \code{attr(x, "negate")}.
 }
 \description{
-Parse semicolon-separated string into vector
+Parse a semicolon-separated subsetting string into a vector of
+values.
+
+Values are separated by \verb{;} and \strong{may not contain commas}. A comma is
+always a mistyped separator, and silently treating \code{"A, B"} as one value is
+what caused analyses to run on fewer regions than were asked for.
+
+A string whose first non-whitespace character is \code{-} selects everything
+\emph{except} the values listed, so \code{"-test;retest"} means "neither test nor
+retest". The \code{-} applies to the whole field, so including and excluding
+cannot be mixed within a single field. Each subsetting field reads its own
+prefix independently.
 }

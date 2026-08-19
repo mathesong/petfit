@@ -14,8 +14,18 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
@@ -23,6 +33,14 @@ library(glue)
 library(DT)
 
 library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 cores <- params$cores %||% 1
 if (cores > 1) {
@@ -203,11 +221,11 @@ tac_files <- list.files(analysis_folder,
 tac_data <- tibble(
   filename = tac_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
-  ungroup() %>% 
+  ungroup() %>%
   unnest(tacs) %>% 
   select(-basename, -measurement, -desc)
 ```
@@ -221,11 +239,11 @@ weights_files <- list.files(analysis_folder,
 weightsdata <- tibble(
   filename = weights_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
-  ungroup() %>% 
+  ungroup() %>%
   unnest(tacs) %>% 
   select(-filename, -basename, -measurement, -desc, -TAC)
   
@@ -237,11 +255,11 @@ tacs_files <- list.files(analysis_folder,
 tac_data <- tibble(
   filename = tacs_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
-  ungroup() %>% 
+  ungroup() %>%
   unnest(tacs) %>% 
   select(-basename, -measurement, -desc) %>% 
   inner_join(weightsdata)
@@ -348,8 +366,11 @@ tac_data_nested <- tac_data %>%
                                            "run", "pet", "filename", "region")))) %>% 
   nest(.key="tacs")
 
-model_data <- inner_join(tac_data_nested, blood_data) %>% 
-  ungroup() %>% 
+model_data <- inner_join(tac_data_nested, blood_data,
+                         # One blood record per measurement. A duplicate would
+                         # otherwise multiply every region's TAC rows silently.
+                         relationship = "many-to-one") %>%
+  ungroup() %>%
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
   mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
@@ -390,7 +411,7 @@ model_data <- inner_join(tac_data_nested, blood_data) %>%
 str_glue("## 1TCM Delay from Single Representative TAC")
 ```
 
-```{r, eval=do_1tcm_singletac, echo=do_1tcm_singletac}
+```{r delay-fit-1tcm-singletac, eval=do_1tcm_singletac, echo=do_1tcm_singletac, report_warnings=TRUE}
 # 1TCM delay estimation using single TAC
 time_window <- config$FitDelay$time_window %||% 5
 vB_value <- config$FitDelay$vB_value %||% 0.05
@@ -420,7 +441,7 @@ model_data <- model_data %>%
 str_glue("## 2TCM Delay from Single Representative TAC")
 ```
 
-```{r, eval=do_2tcm_singletac, echo=do_2tcm_singletac}
+```{r delay-fit-2tcm-singletac, eval=do_2tcm_singletac, echo=do_2tcm_singletac, report_warnings=TRUE}
 # 2TCM delay estimation using single TAC
 time_window <- config$FitDelay$time_window %||% 5
 vB_value <- config$FitDelay$vB_value %||% 0.05
@@ -450,7 +471,7 @@ model_data <- model_data %>%
 str_glue("## 1TCM Median Delay from Multiple Regions")
 ```
 
-```{r, eval=do_1tcm_median, echo=do_1tcm_median}
+```{r delay-fit-1tcm-median, eval=do_1tcm_median, echo=do_1tcm_median, report_warnings=TRUE}
 # 1TCM delay estimation using multiple regions (median approach)
 time_window <- config$FitDelay$time_window %||% 5
 vB_value <- config$FitDelay$vB_value %||% 0.05
@@ -482,7 +503,7 @@ model_data <- model_data %>%
 str_glue("## 2TCM Median Delay from Multiple Regions")
 ```
 
-```{r, eval=do_2tcm_median, echo=do_2tcm_median}
+```{r delay-fit-2tcm-median, eval=do_2tcm_median, echo=do_2tcm_median, report_warnings=TRUE}
 # 2TCM delay estimation using multiple regions (median approach)
 time_window <- config$FitDelay$time_window %||% 5
 vB_value <- config$FitDelay$vB_value %||% 0.05
@@ -512,7 +533,7 @@ model_data <- model_data %>%
 
 ```{r, eval=is_single_region, echo=is_single_region}
 delay_out <- model_data %>% 
-  ungroup() %>% 
+  ungroup() %>%
   mutate(inpshift = map_dbl(delayFit, ~{
     if(!is.list(.x)) NA_real_ else .x$par$inpshift
   })) %>% 
@@ -522,7 +543,7 @@ delay_out <- model_data %>%
 
 ```{r, eval=is_multiple_regions, echo=is_multiple_regions}
 delay_estimates <- model_data %>% 
-  ungroup() %>% 
+  ungroup() %>%
   mutate(inpshift = map_dbl(delayFit, ~{
     if(!is.list(.x)) NA_real_ else .x$par$inpshift
   })) %>% 
@@ -546,7 +567,7 @@ str_glue("Delay values estimated for {sum(!is.na(delay_out$inpshift))} / {nrow(d
 
 ```{r}
 delay_out %>% 
-  ungroup() %>% 
+  ungroup() %>%
   arrange(inpshift) %>% 
   select(pet, blood_timeshift = inpshift) %>% 
   mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
@@ -566,7 +587,7 @@ walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
         labs(title=.y)))
 ```
 
-```{r, eval=do_1tcm_median, echo=do_1tcm_median}
+```{r delay-refit-1tcm-median, eval=do_1tcm_median, echo=do_1tcm_median, report_warnings=TRUE}
 # fit again with new delay
 fit_again_with_newdelay <- model_data %>%
   select(-delayFit) %>%
@@ -629,7 +650,7 @@ pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input,
 ```
 
 
-```{r, eval=do_2tcm_median, echo=do_2tcm_median}
+```{r delay-refit-2tcm-median, eval=do_2tcm_median, echo=do_2tcm_median, report_warnings=TRUE}
 # fit again with new delay
 fit_again_with_newdelay <- model_data %>%
   select(-delayFit) %>%
@@ -722,7 +743,7 @@ histograms <- delay_estimates %>%
   mutate(count = n()) %>% 
   filter(count > 1) %>% 
   nest() %>% 
-  ungroup() %>% 
+  ungroup() %>%
   mutate(plot = map2(data, pet, ~ggplot(.x, aes(x=inpshift)) +
       geom_histogram(fill="blue", colour="grey") +
       geom_vline(xintercept=0, linetype="dashed") +

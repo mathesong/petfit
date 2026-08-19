@@ -1,79 +1,117 @@
 #' Parse Semicolon-Separated Values
 #'
-#' @description Parse semicolon-separated string into vector
+#' @description Parse a semicolon-separated subsetting string into a vector of
+#'   values.
+#'
+#'   Values are separated by `;` and **may not contain commas**. A comma is
+#'   always a mistyped separator, and silently treating `"A, B"` as one value is
+#'   what caused analyses to run on fewer regions than were asked for.
+#'
+#'   A string whose first non-whitespace character is `-` selects everything
+#'   *except* the values listed, so `"-test;retest"` means "neither test nor
+#'   retest". The `-` applies to the whole field, so including and excluding
+#'   cannot be mixed within a single field. Each subsetting field reads its own
+#'   prefix independently.
+#'
 #' @param input_string Character string with semicolon-separated values
-#' @return Character vector of parsed values, or NULL if empty
+#' @param field Optional name of the field being parsed, used to make error and
+#'   warning messages specific (e.g. `"Regions"`).
+#' @return Character vector of parsed values, or `NULL` if empty. The result
+#'   carries a `negate` attribute — `TRUE` when the field was prefixed with `-`,
+#'   otherwise `FALSE`. Read it with `attr(x, "negate")`.
 #' @export
-parse_semicolon_values <- function(input_string) {
-  if (is.null(input_string) || input_string == "") {
+parse_semicolon_values <- function(input_string, field = NULL) {
+  if (is.null(input_string) || length(input_string) == 0) {
     return(NULL)
   }
-  
+
+  input_string <- stringr::str_trim(as.character(input_string)[1])
+
+  if (is.na(input_string) || input_string == "") {
+    return(NULL)
+  }
+
+  # A leading "-" negates the whole field, not just the first value
+  negate <- stringr::str_starts(input_string, stringr::fixed("-"))
+  if (negate) {
+    input_string <- stringr::str_sub(input_string, 2)
+  }
+
   # Split by semicolon and trim whitespace
   values <- stringr::str_split(input_string, ";")[[1]]
   values <- stringr::str_trim(values)
-  
+
   # Remove empty values
   values <- values[values != ""]
-  
+
   if (length(values) == 0) {
+    if (negate) {
+      warning(subset_field_prefix(field),
+              "\"-\" on its own excludes nothing; no filter applied.",
+              call. = FALSE)
+    }
     return(NULL)
   }
-  
+
+  check_no_commas(values, field)
+
+  attr(values, "negate") <- negate
+
   return(values)
 }
 
 #' Subset Combined TACs Data
 #'
-#' @description Filter combined TACs data based on subsetting criteria
+#' @description Filter combined TACs data based on subsetting criteria.
+#'
+#'   Every value is validated first — see [validate_subset_params()]. A value
+#'   you asked to include that matches nothing is an error rather than a silent
+#'   no-op.
+#'
+#'   A field parsed from a string prefixed with `-` (see
+#'   [parse_semicolon_values()]) excludes its values instead of including them.
+#'   Note the asymmetry around missing entities: including `ses = "test"` drops
+#'   rows whose session is `NA`, whereas excluding `ses = "-test"` **keeps**
+#'   them, since a measurement with no session at all is indeed not `ses-test`.
+#'
 #' @param combined_tacs_data Tibble with combined TACs data
 #' @param subset_params List of subsetting parameters
 #' @return Filtered tibble
 #' @export
 subset_combined_tacs <- function(combined_tacs_data, subset_params) {
-  
+
   if (is.null(combined_tacs_data) || nrow(combined_tacs_data) == 0) {
     return(tibble::tibble())
   }
-  
+
+  validate_subset_params(combined_tacs_data, subset_params)
+
   filtered_data <- combined_tacs_data
-  
+
   # Apply filters for each parameter
-  if (!is.null(subset_params$sub)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(sub %in% subset_params$sub)
+  for (field in names(subset_field_columns)) {
+    values <- subset_params[[field]]
+    if (is.null(values) || length(values) == 0) {
+      next
+    }
+
+    column <- subset_field_columns[[field]]
+    if (!column %in% colnames(filtered_data)) {
+      # Only reachable for an exclusion; an inclusion has already errored.
+      next
+    }
+
+    # as.character() on both sides mirrors what %in% does anyway, and base
+    # subsetting keeps NA rows under negation rather than dropping them the way
+    # dplyr::filter() would.
+    keep <- as.character(filtered_data[[column]]) %in% as.character(values)
+    if (isTRUE(attr(values, "negate"))) {
+      keep <- !keep
+    }
+
+    filtered_data <- filtered_data[keep, , drop = FALSE]
   }
-  
-  if (!is.null(subset_params$ses)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(ses %in% subset_params$ses)
-  }
-  
-  if (!is.null(subset_params$task)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(task %in% subset_params$task)
-  }
-  
-  if (!is.null(subset_params$trc)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(trc %in% subset_params$trc)
-  }
-  
-  if (!is.null(subset_params$rec)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(rec %in% subset_params$rec)
-  }
-  
-  if (!is.null(subset_params$run)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(run %in% subset_params$run)
-  }
-  
-  if (!is.null(subset_params$regions)) {
-    filtered_data <- filtered_data %>%
-      dplyr::filter(region %in% subset_params$regions)
-  }
-  
+
   return(filtered_data)
 }
 
@@ -127,139 +165,242 @@ subset_tacs_by_frames <- function(tacs_data, subset_type = NULL,
   return(filtered_data)
 }
 
-#' Cleanup Individual TACs Files
+# --- Filesystem safety for the cleanup ------------------------------------
+#
+# Cleanup deletes, so every question it asks about a path has to be answered
+# positively before it acts. Base R cannot do that portably: Sys.readlink() is
+# documented as reporting nothing on Windows even though NTFS has symbolic
+# links and junctions, and a junction presents to directory-walking code as an
+# ordinary directory while redirecting traversal elsewhere. normalizePath()
+# usually resolves them on modern R but documents a fallback that does not, so
+# it cannot be the only boundary either. fs wraps libuv and answers these
+# questions the same way on every platform.
+#
+# The rule throughout: never descend into an entry unless it has been
+# positively established as a real directory whose canonical path lies inside
+# the analysis root. Anything unresolvable, unclassifiable, or outside is an
+# error -- a directory nobody can classify is not "probably ordinary".
+
+# The canonical destination of a path, or an error naming what could not be
+# resolved. Never called on a link: path_real() follows one, and a broken link
+# cannot be resolved at all.
+petfit_real_path <- function(path, description = "path") {
+  tryCatch(
+    as.character(fs::path_real(path)),
+    error = function(e) {
+      stop("Refusing to clear the analysis folder: could not resolve ",
+           description, ":\n  ", path, "\nReason: ", conditionMessage(e),
+           call. = FALSE)
+    })
+}
+
+# Is this entry a filesystem link -- POSIX symbolic link, Windows symbolic
+# link, or NTFS junction? Anything other than a definite yes or no stops the
+# cleanup rather than defaulting to "ordinary file".
+petfit_link_state <- function(path) {
+
+  result <- tryCatch(fs::is_link(path), error = function(e) NA)
+
+  if (length(result) != 1L || is.na(result)) {
+    stop("Refusing to clear the analysis folder: could not determine whether ",
+         "this path is a link:\n  ", path, call. = FALSE)
+  }
+
+  isTRUE(result)
+}
+
+# Everything under `dir`, classified, without following a single link.
+#
+# The whole tree is enumerated before anything is deleted, so a path that
+# cannot be classified stops the cleanup while the folder is still intact.
+# Links are recorded as one entry each, whatever they point at and wherever
+# they point: the policy is "never follow a link", not "never leave the
+# folder", so a link to a sibling directory inside the analysis is still a
+# link and is still not descended into. Hidden entries are included --
+# a directory holding only dotfiles is not empty, and treating it as empty is
+# how a recursive delete reaches them.
+petfit_list_tree <- function(dir) {
+
+  root_real <- petfit_real_path(dir, "the analysis folder")
+
+  files <- character(0)
+  dirs  <- character(0)
+  links <- character(0)
+
+  descend <- function(current) {
+
+    children <- as.character(
+      fs::dir_ls(current, all = TRUE, recurse = FALSE, fail = TRUE))
+
+    for (child in children) {
+
+      if (petfit_link_state(child)) {
+        links <<- c(links, child)
+        next
+      }
+
+      child_real <- petfit_real_path(child)
+      inside <- identical(child_real, root_real) ||
+        isTRUE(fs::path_has_parent(child_real, root_real))
+
+      if (!inside) {
+        # fs did not call this a link, yet it leads out of the folder. It may
+        # be a reparse point, a mount, or something on a filesystem fs cannot
+        # describe. Guessing how to delete it is exactly the mistake this
+        # function exists to avoid.
+        stop("Refusing to clear the analysis folder: a path resolves outside ",
+             "it but is not identifiable as a removable link:\n  Path: ", child,
+             "\n  Destination: ", child_real, call. = FALSE)
+      }
+
+      if (isTRUE(fs::is_dir(child, follow = FALSE))) {
+        dirs <<- c(dirs, child)
+        descend(child)
+      } else if (isTRUE(fs::is_file(child, follow = FALSE))) {
+        files <<- c(files, child)
+      } else {
+        stop("Refusing to clear the analysis folder: unsupported or ",
+             "unclassifiable filesystem entry:\n  ", child, call. = FALSE)
+      }
+    }
+  }
+
+  descend(dir)
+
+  list(files = files, dirs = dirs, links = links)
+}
+
+#' Clear Derived Outputs from an Analysis Folder
 #'
-#' @description Remove existing analysis files before regeneration. Handles
-#'   cleanup at multiple levels:
-#'   1. Subject folders - removes entire sub-* folders for filtered-out subjects
-#'   2. Session folders - removes ses-* folders for filtered-out sessions
-#'   3. Individual files - removes files whose pet identifier doesn't match filter
-#' @param output_dir Output directory containing individual files
-#' @param pattern File pattern to match (default: "*_desc-combinedregions_tacs.tsv")
-#' @param keep_subjects Character vector of subject IDs to keep (without "sub-" prefix).
-#'   If provided, entire folders for subjects NOT in this list will be removed.
-#' @param keep_sessions Character vector of session IDs to keep (without "ses-" prefix).
-#'   If provided, session folders NOT in this list will be removed from kept subjects.
-#' @param keep_pets Character vector of pet identifiers to keep. If provided,
-#'   files whose pet identifier doesn't match will be removed.
+#' @description Remove every derived output from an analysis folder before the
+#'   data definition step regenerates it. Rerunning data definition changes the
+#'   data every later step consumes, so everything downstream of it -- the
+#'   individual TACs files, weights, delay fits, model results and reports --
+#'   is invalidated and removed, to be recalculated from the new definition.
+#'
+#'   Two things are kept. The analysis configuration (`desc-*_config.json`)
+#'   defines the analysis rather than deriving from it. And
+#'   `*_inputfunction.tsv`/`.json` pairs are a supported blood *source* --
+#'   [determine_blood_source()] looks for them in the analysis folder, and a
+#'   user may have placed them there by hand -- while the ones petfit itself
+#'   writes derive from the BIDS blood data, which a data definition does not
+#'   change. Either way they are not stale, and deleting the hand-placed kind
+#'   would destroy source data.
+#'
+#'   This replaces a selective cleanup that compared filename stems against the
+#'   measurements being kept. That comparison deleted files whose stems it did
+#'   not understand, and left stale results behind when it did: outputs
+#'   computed from a previous data definition are stale whether or not their
+#'   measurement is still in the analysis.
+#'
+#' @param output_dir Output directory containing the analysis
 #' @return List with counts of removed files and directories
 #' @export
-cleanup_individual_tacs_files <- function(output_dir,
-                                         pattern = "*_desc-combinedregions_tacs.tsv",
-                                         keep_subjects = NULL,
-                                         keep_sessions = NULL,
-                                         keep_pets = NULL) {
-
-  files_removed <- 0
-  dirs_removed <- 0
+cleanup_individual_tacs_files <- function(output_dir) {
 
   if (!dir.exists(output_dir)) {
     return(list(files_removed = 0, dirs_removed = 0,
                 summary = "Output directory does not exist"))
   }
 
-  # 1. Remove entire folders for subjects NOT in the list
-  if (!is.null(keep_subjects)) {
-    all_dirs <- list.dirs(output_dir, recursive = FALSE, full.names = TRUE)
-    sub_dirs <- all_dirs[grepl("^sub-", basename(all_dirs))]
-
-    keep_folders <- paste0("sub-", keep_subjects)
-    dirs_to_remove <- sub_dirs[!basename(sub_dirs) %in% keep_folders]
-
-    for (dir_path in dirs_to_remove) {
-      files_in_dir <- list.files(dir_path, recursive = TRUE)
-      files_removed <- files_removed + length(files_in_dir)
-
-      unlink(dir_path, recursive = TRUE)
-      dirs_removed <- dirs_removed + 1
-      cat("Removed subject folder:", basename(dir_path), "\n")
-    }
+  # Guard against clearing something that is not an analysis folder: an
+  # analysis folder is recognised by the configuration that defines it. A
+  # mispointed path -- the petfit derivatives root, "." -- would otherwise be
+  # emptied wholesale.
+  #
+  # Hidden entries count. The walker below enumerates and removes them, so a
+  # guard that cannot see them reads a directory holding only a .env or a
+  # .gitkeep as empty, waves it through as "nothing here to protect", and the
+  # walker then deletes exactly the files the guard was meant to stand in
+  # front of. A genuinely empty directory is still fine.
+  entries <- list.files(output_dir, all.files = TRUE, no.. = TRUE)
+  has_config <- any(grepl("^desc-.*_config\\.json$", entries))
+  if (!has_config && length(entries) > 0) {
+    stop("Refusing to clear ", output_dir, ": it contains no ",
+         "desc-*_config.json, so it does not look like an analysis folder. ",
+         "Clearing it would delete files petfit did not generate.",
+         call. = FALSE)
   }
 
-  # 2. Remove session folders NOT in the list (within kept subjects)
-  if (!is.null(keep_sessions)) {
-    sub_dirs <- list.dirs(output_dir, recursive = FALSE, full.names = TRUE)
-    sub_dirs <- sub_dirs[grepl("^sub-", basename(sub_dirs))]
+  # Classify the whole tree first. Anything unclassifiable stops the cleanup
+  # here, with the folder untouched.
+  tree <- petfit_list_tree(output_dir)
 
-    for (sub_dir in sub_dirs) {
-      ses_dirs <- list.dirs(sub_dir, recursive = FALSE, full.names = TRUE)
-      ses_dirs <- ses_dirs[grepl("^ses-", basename(ses_dirs))]
-
-      keep_ses_folders <- paste0("ses-", keep_sessions)
-      ses_to_remove <- ses_dirs[!basename(ses_dirs) %in% keep_ses_folders]
-
-      for (ses_path in ses_to_remove) {
-        files_in_dir <- list.files(ses_path, recursive = TRUE)
-        files_removed <- files_removed + length(files_in_dir)
-
-        unlink(ses_path, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-        cat("Removed session folder:", file.path(basename(sub_dir), basename(ses_path)), "\n")
-      }
-    }
+  keepable <- function(paths) {
+    grepl("^desc-.*_config\\.json$", basename(paths)) |
+      grepl("_inputfunction\\.(tsv|json)$", basename(paths))
   }
 
-  # 3. Remove files whose pet identifier doesn't match filtered data
-  if (!is.null(keep_pets)) {
-    all_files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
-    # Only consider files, not directories
-    all_files <- all_files[!dir.exists(all_files)]
+  # Links go first. If one cannot be removed, the cleanup stops while the
+  # derived outputs are still there rather than after clearing them.
+  links_removed <- 0L
+  for (linkpath in tree$links[!keepable(tree$links)]) {
 
-    for (filepath in all_files) {
-      filename <- basename(filepath)
-      # Extract pet identifier from filename (everything before _desc-)
-      pet_from_file <- stringr::str_extract(filename, "^.+(?=_desc-)")
+    fs::link_delete(linkpath)
 
-      if (!is.na(pet_from_file) && !pet_from_file %in% keep_pets) {
-        file.remove(filepath)
-        files_removed <- files_removed + 1
-        cat("Removed file for filtered pet:", filename, "\n")
-      }
+    if (isTRUE(fs::link_exists(linkpath))) {
+      stop("Cleanup reported that a link was deleted, but it is still there:",
+           "\n  ", linkpath, call. = FALSE)
     }
+
+    links_removed <- links_removed + 1L
+    cat("Removed symlink:", basename(linkpath),
+        "- whatever it pointed at was left alone\n")
   }
 
-  # Clean up empty directories (recursively remove empty sub-*/ses-*/pet directories)
-  pet_dirs <- list.dirs(output_dir, recursive = TRUE, full.names = TRUE)
-  pet_dirs <- pet_dirs[grepl("/pet$", pet_dirs)]
+  files_removed <- 0L
+  for (filepath in tree$files[!keepable(tree$files)]) {
 
-  for (pet_dir in pet_dirs) {
-    if (dir.exists(pet_dir) && length(list.files(pet_dir, all.files = FALSE)) == 0) {
-      unlink(pet_dir, recursive = TRUE)
-      dirs_removed <- dirs_removed + 1
-
-      parent_dir <- dirname(pet_dir)
-      if (grepl("ses-", basename(parent_dir)) &&
-          dir.exists(parent_dir) &&
-          length(list.files(parent_dir, all.files = FALSE)) == 0) {
-        unlink(parent_dir, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-
-        grandparent_dir <- dirname(parent_dir)
-        if (grepl("sub-", basename(grandparent_dir)) &&
-            dir.exists(grandparent_dir) &&
-            length(list.files(grandparent_dir, all.files = FALSE)) == 0) {
-          unlink(grandparent_dir, recursive = TRUE)
-          dirs_removed <- dirs_removed + 1
-        }
-      }
-      else if (grepl("sub-", basename(parent_dir)) &&
-               dir.exists(parent_dir) &&
-               length(list.files(parent_dir, all.files = FALSE)) == 0) {
-        unlink(parent_dir, recursive = TRUE)
-        dirs_removed <- dirs_removed + 1
-      }
+    # Re-check: an entry could have been replaced by a link since it was
+    # classified, and a deletion that follows one leaves the folder.
+    if (petfit_link_state(filepath) ||
+        !isTRUE(fs::is_file(filepath, follow = FALSE))) {
+      stop("Refusing to continue: this entry changed between being examined ",
+           "and being removed:\n  ", filepath, call. = FALSE)
     }
+
+    fs::file_delete(filepath)
+    files_removed <- files_removed + 1L
+    cat("Removed file:", basename(filepath), "\n")
   }
 
-  # Return summary
-  summary_msg <- if (files_removed > 0 || dirs_removed > 0) {
-    paste("Removed", files_removed, "files and", dirs_removed, "directories")
+  # Prune the directories those removals emptied, deepest first, re-checking
+  # each one the same way. fs::dir_delete() removes contents as well, so it is
+  # only ever reached for a directory just confirmed empty.
+  dirs_removed <- 0L
+  root_real <- petfit_real_path(output_dir, "the analysis folder")
+  for (dir_path in tree$dirs[order(-lengths(strsplit(tree$dirs, "/", fixed = TRUE)))]) {
+
+    if (!dir.exists(dir_path)) next
+
+    if (petfit_link_state(dir_path) ||
+        !isTRUE(fs::is_dir(dir_path, follow = FALSE)) ||
+        !isTRUE(fs::path_has_parent(petfit_real_path(dir_path), root_real))) {
+      stop("Refusing to continue: this folder changed between being examined ",
+           "and being removed:\n  ", dir_path, call. = FALSE)
+    }
+
+    if (length(fs::dir_ls(dir_path, all = TRUE, recurse = FALSE)) > 0) next
+
+    fs::dir_delete(dir_path)
+    dirs_removed <- dirs_removed + 1L
+  }
+
+  total_removed <- files_removed + links_removed
+
+  summary_msg <- if (total_removed > 0 || dirs_removed > 0) {
+    paste0("Cleared ", total_removed, " derived files and ", dirs_removed,
+           " folders from the previous data definition",
+           if (links_removed > 0) {
+             paste0(" (", links_removed, " of them symbolic links, whose ",
+                    "targets were left alone)")
+           } else "")
   } else {
     "No existing analysis files found"
   }
 
   return(list(
-    files_removed = files_removed,
+    files_removed = total_removed,
     dirs_removed = dirs_removed,
     summary = summary_msg
   ))

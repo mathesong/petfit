@@ -24,6 +24,12 @@ execute_weights_step(
 
 \item{blood_dir}{Optional blood data directory path}
 
+\item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
+default) fits sequentially.}
+
+\item{save_logs}{Whether to write each report's rendering log to
+\verb{reports/logs/<step>_report.log} in addition to the console.}
+
 \item{notify}{Notification callback function(msg, type)}
 }
 \value{

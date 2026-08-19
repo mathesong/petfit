@@ -23,6 +23,9 @@ create_petfit_combined_tacs(
 \item{bids_dir}{Path to BIDS directory (optional, for participant data and PET metadata)}
 
 \item{participant_data}{Participant data loaded from BIDS directory (optional)}
+
+\item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
+default) fits sequentially.}
 }
 \value{
 Tibble with all combined TACs data in long format with BIDS attributes

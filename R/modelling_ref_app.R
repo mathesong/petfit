@@ -7,6 +7,12 @@
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param config_file Character string path to existing config file (optional)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
+#' @param save_logs Whether to write each report's rendering log to
+#'   `reports/logs/<step>_report.log` in addition to the console.
+#' @param ancillary_analysis_folder Optional path to a second analysis folder
+#'   whose results are offered alongside this one's, for comparison.
 #' @export
 modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
   
@@ -249,7 +255,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                 "All measurements fulfilling all the conditions will ",
                                 "be included. Leave options blank if no subsetting is desired, ",
                                 "i.e. leaving sub blank implies that all subjects should ",
-                                "be included."),
+                                "be included. ",
+                                "Begin a field with a minus sign to exclude rather than include: ",
+                                "-01;02 selects every measurement except 01 and 02. ",
+                                "A value matching nothing is an error when including, and a ",
+                                "warning when excluding."),
                            style = "font-size:14px;"
                          ),
                          br(),
@@ -307,7 +317,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                            style = "font-size:14px;"
                          ),
                          br(),
-                         actionButton("run_subset", "▶ Create Analysis Data", class = "btn-success btn-lg")
+                         actionButton("run_subset", "\u25B6 Create Analysis Data", class = "btn-success btn-lg")
                 ),
                 # Tab panel for weights ----
                     tabPanel("Weights Definition",
@@ -425,11 +435,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              div(
                                p(strong("Available variables:"), style = "font-size:13px; margin-bottom:5px;"),
                                div(
-                                 p("• ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
-                                 p("• ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
+                                 p("\u2022 ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
                                  style = "background:#f8f9fa; padding:10px; border-left:3px solid #007bff; margin:10px 0;"
                                )
                              ),
@@ -440,7 +450,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                style = "font-size:14px;"
                              ),
                              br(),
-                             actionButton("run_weights", "▶ Calculate Weights", class = "btn-success btn-lg")
+                             actionButton("run_weights", "\u25B6 Calculate Weights", class = "btn-success btn-lg")
                     ),
                     # Tab panel for Reference TAC ----
                     tabPanel("Reference TAC",
@@ -558,11 +568,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                  div(
                                    p(strong("Available variables:"), style = "font-size:13px; margin-bottom:5px;"),
                                    div(
-                                     p("• ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
-                                     p("• ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
-                                     p("• ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
-                                     p("• ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
-                                     p("• ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
+                                     p("\u2022 ", strong("frame_dur:"), " Frame duration in seconds", style = "font-size:11px; margin:2px 0;"),
+                                     p("\u2022 ", strong("frame_mid:"), " Frame midpoint time in seconds", style = "font-size:11px; margin:2px 0;"),
+                                     p("\u2022 ", strong("tac:"), " Time activity curve (decay-corrected)", style = "font-size:11px; margin:2px 0;"),
+                                     p("\u2022 ", strong("tac_uncor:"), " Time activity curve (decay-uncorrected)", style = "font-size:11px; margin:2px 0;"),
+                                     p("\u2022 ", strong("corrections:"), " Decay correction factors", style = "font-size:11px; margin:2px 0;"),
                                      style = "background:#f8f9fa; padding:10px; border-left:3px solid #007bff; margin:10px 0;"
                                    )
                                  )
@@ -570,14 +580,14 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              ),
 
                              hr(),
-                             actionButton("run_reference_tac", "▶ Prepare Reference TACs", class = "btn-success btn-lg")
+                             actionButton("run_reference_tac", "\u25B6 Prepare Reference TACs", class = "btn-success btn-lg")
                     ),
                     # Tab panel for tstar ----
                     tabPanel("Find t*",
                              br(),
                              p("The t* finder generates kinfitr diagnostic plots that help you choose a t* value for linear reference-tissue models. It uses a high-, medium- and low-binding region, and saves one plot per measurement to ", tags$code("reports/tstar_finder/"), " (no HTML report).",
                                style = "font-size:14px; margin-bottom:10px;"),
-                             p("This step is ", tags$b("optional"), " — it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
+                             p("This step is ", tags$b("optional"), " \u2014 it is not required for model fitting, but it helps you choose an appropriate t* value. If fewer than three distinct regions are available, you can select the same region in more than one of the High/Medium/Low menus.",
                                style = "font-size:14px; margin-bottom:10px;"),
                              p("These plots are intended as a visual guide for selecting an appropriate t* value. It is recommended to choose a single t* timepoint that works broadly across measurements, and to use that same timepoint for all individuals for a given region.",
                                style = "font-size:14px; margin-bottom:20px;"),
@@ -594,7 +604,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                      condition = "input.tstar_model == 'refLogan' || input.tstar_model == 'MRTM2'",
                                      numericInput("tstar_k2prime", "k2prime:",
                                                   value = 0.1, min = 0, step = 0.01, width = "100%")),
-                                   actionButton("tstar_scan_regions", "🔍 Scan Regions",
+                                   actionButton("tstar_scan_regions", "\U0001F50D Scan Regions",
                                                 class = "btn-info btn-sm", width = "100%"),
                                    p("Populates the region menus below.",
                                      style = "font-size: 11px; color: #666; margin-top: 5px; margin-bottom: 15px;"),
@@ -617,9 +627,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                    conditionalPanel(
                                      condition = "input.tstar_selection == 'subset'",
                                      textInput("tstar_sub", "sub", value = ""),
-                                     textInput("tstar_ses", "ses", value = "")),
+                                     textInput("tstar_ses", "ses", value = ""),
+                                     p("Semi-colons separate values. Prefix the field with - to include all except those values.",
+                                       style = "font-size:12px;")),
                                    hr(),
-                                   actionButton("run_tstar", "▶ Generate t* Plots",
+                                   actionButton("run_tstar", "\u25B6 Generate t* Plots",
                                                 class = "btn-success btn-lg", width = "100%")
                                  )
                                ),
@@ -784,7 +796,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              uiOutput("subset_validation_error"),
                              conditionalPanel(
                                condition = "input.button != 'none'",
-                               actionButton("run_model1", "▶ Fit Model 1", class = "btn-success btn-lg")
+                               actionButton("run_model1", "\u25B6 Fit Model 1", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Model 2 ----
@@ -948,7 +960,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              uiOutput("subset_validation_error2"),
                              conditionalPanel(
                                condition = "input.button2 != 'none'",
-                               actionButton("run_model2", "▶ Fit Model 2", class = "btn-success btn-lg")
+                               actionButton("run_model2", "\u25B6 Fit Model 2", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Model 3 ----
@@ -1115,7 +1127,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                              uiOutput("subset_validation_error3"),
                              conditionalPanel(
                                condition = "input.button3 != 'none'",
-                               actionButton("run_model3", "▶ Fit Model 3", class = "btn-success btn-lg")
+                               actionButton("run_model3", "\u25B6 Fit Model 3", class = "btn-success btn-lg")
                              )
                     ),
                     # Tab panel for Configuration ----
@@ -1133,11 +1145,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                ),
                                column(6,
                                       br(),
-                                      actionButton("run_all", "▶ Run All", class = "btn-success btn-lg"),
+                                      actionButton("run_all", "\u25B6 Run All", class = "btn-success btn-lg"),
                                       br(), br(),
-                                      actionButton("save_config", "💾 Save Config", class = "btn-primary btn-lg"),
+                                      actionButton("save_config", "\U0001F4BE Save Config", class = "btn-primary btn-lg"),
                                       br(), br(),
-                                      actionButton("close_app", "✖ Close App", class = "btn-danger btn-lg")
+                                      actionButton("close_app", "\u2716 Close App", class = "btn-danger btn-lg")
                                )
                              ),
                              
@@ -1161,7 +1173,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                h4(tags$b("Data Selection"), style = "margin-top:0;"),
                                fluidRow(
                                  column(3,
-                                   actionButton("scan_folder", "🔍 Scan Analysis Folder",
+                                   actionButton("scan_folder", "\U0001F50D Scan Analysis Folder",
                                                 class = "btn-info", width = "100%"),
                                    p("Populates the menus.",
                                      style = "font-size: 11px; color: #666; margin-top: 5px;")),
@@ -1182,9 +1194,9 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                              selected = "model1", width = "100%"))
                                ),
                                fluidRow(
-                                 column(6, actionButton("load_data", "▶ Load Data",
+                                 column(6, actionButton("load_data", "\u25B6 Load Data",
                                                         class = "btn-success", width = "100%")),
-                                 column(6, actionButton("fit_model", "▶ Fit Model",
+                                 column(6, actionButton("fit_model", "\u25B6 Fit Model",
                                                         class = "btn-success", width = "100%"))
                                )
                              ),
@@ -1623,7 +1635,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
 
             if (length(unique_segmentations) > 0) {
               # Create choices for segmentation selection
-              choices <- setNames(unique_segmentations, unique_segmentations)
+              choices <- stats::setNames(unique_segmentations, unique_segmentations)
 
               # Prioritize seg- segmentations over label- for default selection
               default_selection <- if (any(stringr::str_detect(unique_segmentations, "seg-"))) {
@@ -1692,11 +1704,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             unique_regions <- sort(unique(combined_regions$region))
             unique_regions <- unique_regions[!is.na(unique_regions)]
 
-            cat("Found", length(unique_regions), "unique regions:", paste(head(unique_regions, 10), collapse = ", "), "...\n")
+            cat("Found", length(unique_regions), "unique regions:", paste(utils::head(unique_regions, 10), collapse = ", "), "...\n")
 
             if (length(unique_regions) > 0) {
               # Create choices for region selection
-              choices <- setNames(unique_regions, unique_regions)
+              choices <- stats::setNames(unique_regions, unique_regions)
 
               config_selection <- isolate(saved_ref_region())
               current_selection <- isolate(input$ref_region)
@@ -2072,6 +2084,9 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         modelling_configuration_type = "reference tissue",
         analysis_folder = analysis_foldername,
         config_created = format(Sys.time(), "%Y-%m-%d %H:%M"),
+        # Which version wrote this, so a later run can tell whether the
+        # analysis predates a change in how measurements are identified
+        petfit_version = as.character(utils::packageVersion("petfit")),
         blood_dir = blood_dir,
         Subsetting = Subsetting,
         Weights = Weights,
@@ -2518,7 +2533,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
         if (length(tacs_files) > 0) {
           # Use unified BIDS parsing to extract PET identifiers
-          pet_names <- get_pet_identifiers(tacs_files, output_dir)
+          # Keys, not labels: this value is written into saved configuration
+          pet_names <- pet_key(tacs_files, output_dir)
           
           # Create tibble with pet names and file paths
           tibble::tibble(
@@ -2544,7 +2560,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
         if (nrow(pet_data) > 0) {
           # Update PET measurement dropdown
-          pet_choices <- c("None" = "none", setNames(pet_data$pet, pet_data$pet))
+          pet_choices <- c("None" = "none", stats::setNames(pet_data$pet, pet_data$pet))
           updateSelectInput(session, "interactive_pet",
                            choices = pet_choices,
                            selected = "none")
@@ -2558,7 +2574,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             unique_regions <- unique_regions[!is.na(unique_regions)]
             
             if (length(unique_regions) > 0) {
-              region_choices <- c("None" = "none", setNames(unique_regions, unique_regions))
+              region_choices <- c("None" = "none", stats::setNames(unique_regions, unique_regions))
               updateSelectInput(session, "interactive_region",
                                choices = region_choices,
                                selected = "none")
@@ -2704,7 +2720,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         return(tags$p("Select PET, Region and Model, then click Fit Model.",
                       style = "color:#666;"))
       }
-      tags$p(tags$strong(paste0(res$type, " fit")), " — ", res$pet, " : ", res$region)
+      tags$p(tags$strong(paste0(res$type, " fit")), " \u2014 ", res$pet, " : ", res$region)
     })
 
     output$fit_plot <- renderPlot({
@@ -2825,8 +2841,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
         if (nrow(region_data) == 0) {
           # Create empty plot with message
-          plot.new()
-          text(0.5, 0.5, "No data available for selected region", 
+          graphics::plot.new()
+          graphics::text(0.5, 0.5, "No data available for selected region", 
                cex = 1.2, col = "red")
           return()
         }
@@ -2849,8 +2865,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
       }, error = function(e) {
         # Create error plot
-        plot.new()
-        text(0.5, 0.5, paste("Error generating plot:", e$message), 
+        graphics::plot.new()
+        graphics::text(0.5, 0.5, paste("Error generating plot:", e$message), 
              cex = 1, col = "red", adj = 0.5)
         cat("Error in tac_plot:", e$message, "\n")
       })

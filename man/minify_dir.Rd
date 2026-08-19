@@ -11,7 +11,8 @@ minify_dir(dir, output_zip = NULL, size_threshold = 1)
 directory, derivatives directory, or any other directory).}
 
 \item{output_zip}{Character string. Path for the output zip file. If NULL
-(default), creates "{basename(dir)}_mini.zip" in the current working directory.}
+(default), the directory's own name is used with a \verb{_mini.zip} suffix, in
+the current working directory.}
 
 \item{size_threshold}{Numeric. File size threshold in MB above which files
 will be replaced with empty files. Default is 1 MB.}

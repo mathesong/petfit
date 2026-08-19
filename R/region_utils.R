@@ -434,6 +434,27 @@ extract_bids_attributes_from_filename <- function(filename) {
     }
   }
 
+  # Directories may supply sub and ses -- the only entities BIDS names
+  # directories after. petfit's own derivatives put ses in the path but not
+  # the filename, so reducing the path to its basename merged distinct
+  # sessions into one measurement. Only whole sub-/ses- segments count, so
+  # unrelated path components cannot inject entities, and a directory that
+  # contradicts the filename is an error rather than a silent pick.
+  segments <- strsplit(dirname(filename), "/", fixed = TRUE)[[1]]
+  dir_entities <- stringr::str_match(segments, "^(sub|ses)-([a-zA-Z0-9]+)$")
+  dir_entities <- dir_entities[!is.na(dir_entities[, 1]), , drop = FALSE]
+  for (i in seq_len(nrow(dir_entities))) {
+    key <- dir_entities[i, 2]
+    value <- dir_entities[i, 3]
+    if (is.null(attributes[[key]])) {
+      attributes[[key]] <- value
+    } else if (!identical(attributes[[key]], value)) {
+      stop("The filename and the directory holding it disagree on ", key,
+           " for ", filename, ": \"", attributes[[key]], "\" vs \"", value,
+           "\". The file's identity is ambiguous.", call. = FALSE)
+    }
+  }
+
   # Always include required attributes (set to NA if missing)
   result <- tibble::tibble(
     sub = attributes[["sub"]] %||% NA_character_,
@@ -670,7 +691,12 @@ get_region_volumes_from_morph <- function(morph_path) {
 
 #' Determine Varying BIDS Attributes
 #'
-#' @description Identifies which BIDS attributes vary across the dataset
+#' @description Identifies which BIDS attributes vary across the dataset.
+#'
+#'   **Never use this to construct identifiers.** What varies depends on the
+#'   cohort, so an identifier built from it moves when the dataset grows --
+#'   the defect behind cohort-dependent measurement names. Retained for
+#'   display decisions only.
 #'
 #' @param all_data Tibble containing BIDS attributes
 #' @param candidate_attrs Vector of candidate attribute names to check
@@ -688,12 +714,18 @@ determine_varying_attributes <- function(all_data, candidate_attrs = c("sub", "s
   candidate_attrs[varying]
 }
 
-#' Reconstruct Pet Column from Varying Attributes Only
+#' Reconstruct Pet Column from BIDS Attributes
 #'
-#' @description Builds pet identifier using only attributes that vary in the dataset
+#' @description Builds each row's pet identifier from the given attributes,
+#'   skipping the ones that are `NA` for that row. Pass every entity attribute
+#'   the data carries, in BIDS filename order (`sub`, `ses`, `task`, `trc`,
+#'   `rec`, `run`), so the identifier is built from the measurement's own
+#'   entities and matches [pet_key()]. Passing only cohort-varying attributes
+#'   makes identity depend on the cohort, which renames measurements when the
+#'   dataset grows.
 #'
 #' @param data Tibble with BIDS attributes
-#' @param varying_attrs Character vector of attribute names that vary
+#' @param varying_attrs Character vector of attribute names to build from
 #' @return Tibble with reconstructed pet column
 #' @export
 reconstruct_pet_column <- function(data, varying_attrs) {
@@ -818,6 +850,8 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
 #' @param output_dir Where to save consolidated combined TACs file
 #' @param bids_dir Path to BIDS directory (optional, for participant data and PET metadata)
 #' @param participant_data Participant data loaded from BIDS directory (optional)
+#' @param cores Number of cores to use when fitting in parallel. `1` (the
+#'   default) fits sequentially.
 #' @return Tibble with all combined TACs data in long format with BIDS attributes
 #' @export
 create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL, cores = 1L) {
@@ -1030,17 +1064,17 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     return(tibble::tibble())
   }
 
-  # Determine which BIDS attributes vary across the dataset
-  cat("Determining varying BIDS attributes for pet column reconstruction...\n")
-  varying_attrs <- determine_varying_attributes(all_combined_data)
-  if (length(varying_attrs) > 0) {
-    cat("Varying attributes:", paste(varying_attrs, collapse = ", "), "\n")
-  } else {
-    cat("No varying attributes found, using default pet identifier\n")
-  }
-
-  # Reconstruct pet column using only varying attributes
-  all_combined_data <- reconstruct_pet_column(all_combined_data, varying_attrs)
+  # Build each measurement's identifier from its own entities -- all of them,
+  # in the BIDS filename order pet_key() uses. Building it from only the
+  # attributes that vary across the current dataset made identity depend on
+  # the cohort: adding the first retest scan to a single-session study renamed
+  # every existing measurement and orphaned the files written under the old
+  # names.
+  entity_attrs <- intersect(c("sub", "ses", "task", "trc", "rec", "run"),
+                            colnames(all_combined_data))
+  cat("Constructing pet identifiers from each measurement's own entities:",
+      paste(entity_attrs, collapse = ", "), "\n")
+  all_combined_data <- reconstruct_pet_column(all_combined_data, entity_attrs)
 
   # Convert TAC data from original units to kBq for standardization
   cat("Converting TAC data from", original_tac_units, "to kBq\n")
@@ -1139,19 +1173,25 @@ summarise_tacs_descriptions <- function(dir_path) {
     return(NULL)
   }
 
-  parsed_files <- kinfitr::bids_parse_files(dir_path)
+  # These are derived TACs files, not PET images, so the derivative parser
+  # applies.
+  parsed_files <- kinfitr::bids_parse_derivatives(dir_path)
 
-  # Unnest the filedata
   unnested_tacfiledata <- parsed_files %>%
-    dplyr::select(filedata) %>%
-    tidyr::unnest(filedata) %>%
+    dplyr::rename(measurement = "suffix") %>%
     dplyr::filter(measurement=="tacs") %>%
-    dplyr::select(-path_absolute, -path, -extension,
-                  -measurement) %>%
+    # Only the entities describing the *region definition* belong here: seg,
+    # label, desc and the like. The selectors are dropped deliberately, since
+    # including them would put the subject and session into every region
+    # description.
+    dplyr::select(-dplyr::any_of(c("path_absolute", "path", "extension",
+                                   "measurement", "source_key", "artifact_key",
+                                   "analysis_scope_key",
+                                   "sub", "ses", "task", "trc", "rec", "run"))) %>%
     dplyr::distinct()
 
   # Filter for files with seg or label attributes (silently exclude others)
-  # kinfitr::bids_parse_files() should provide seg and label columns if present
+  # kinfitr::bids_parse_derivatives() provides seg and label columns if present
   if ("seg" %in% colnames(unnested_tacfiledata) || "label" %in% colnames(unnested_tacfiledata)) {
     if (!"seg" %in% colnames(unnested_tacfiledata)) {
       unnested_tacfiledata$seg <- NA_character_
@@ -1299,7 +1339,7 @@ interpret_bids_key_value_pairs <- function(key_value_strings) {
     })
     
     # Create a named list for this column
-    setNames(list(values), col)
+    stats::setNames(list(values), col)
   })
   
   return(result_data)
@@ -1566,7 +1606,7 @@ detect_original_tac_units <- function(derivatives_folder, tacs_relative_path) {
       if ("radioactivity" %in% names(json_data) && "Units" %in% names(json_data$radioactivity)) {
         # Extract just the radioactivity part before the "/" using kinfitr function
         full_units <- json_data$radioactivity$Units
-        rad_units <- kinfitr:::get_units_radioactivity(full_units)$rad
+        rad_units <- kinfitr::get_units_radioactivity(full_units)$rad
         return(rad_units)
       }
     }, error = function(e) {
@@ -1633,7 +1673,13 @@ create_combined_tacs_json_description <- function(participants_metadata, injecte
   # Add time and radioactivity metadata structures for report templates
   combined_descriptions[["time"]] <- list("Units" = "s")
   combined_descriptions[["radioactivity"]] <- list("Units" = paste0(original_tac_units, "/mL"))
-  
+
+  # Which version of petfit built these TACs. The measurement identifiers in the
+  # `pet` column are constructed here, and how they are constructed has changed
+  # between versions, so every later step needs to know whether the file it is
+  # reading predates its own expectations.
+  combined_descriptions[["GeneratedBy"]] <- list(petfit_generated_by())
+
   # Write JSON file
   output_file <- file.path(output_dir, "desc-combinedregions_tacs.json")
   

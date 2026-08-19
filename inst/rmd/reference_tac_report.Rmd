@@ -14,9 +14,19 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
 
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
 library(kinfitr)
 library(knitr)
 library(jsonlite)
@@ -25,6 +35,14 @@ library(crosstalk)
 library(htmltools)
 library(scales)
 library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
 
 cores <- params$cores %||% 1
 if (cores > 1) {
@@ -403,7 +421,7 @@ weights_files <- list.files(analysis_folder,
 ref_weights_final <- tibble(
   filename = weights_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -460,7 +478,7 @@ weights_files <- list.files(analysis_folder,
 weights_data <- tibble(
   filename = weights_files) %>%
   mutate(basename = basename(filename)) %>%
-  mutate(attributes = map(filename, kinfitr:::bids_filename_attributes)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
   unnest(attributes) %>%
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
@@ -518,7 +536,7 @@ str_glue("## Feng+1TC Reference Model Fitting
 Fitting reference TAC using Feng arterial input function combined with one-tissue compartment model.")
 ```
 
-```{r feng1tc-fitting, eval=use_feng1tc, echo=use_feng1tc}
+```{r feng1tc-fitting, eval=use_feng1tc, echo=use_feng1tc, report_warnings=TRUE}
 ref_tac_fitdata <- ref_tac_data %>%
   inner_join(ref_weights_final) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
@@ -629,7 +647,7 @@ str_glue("## Spline Model Fitting
 Fitting reference TAC using smooth spline with **{spline_df}** degrees of freedom.")
 ```
 
-```{r spline-fitting, eval=use_spline, echo=use_spline}
+```{r spline-fitting, eval=use_spline, echo=use_spline, report_warnings=TRUE}
 spline_df <- as.numeric(config$ReferenceTAC$spline_df %||% -1)
 
 ref_tac_fitdata <- ref_tac_data %>%

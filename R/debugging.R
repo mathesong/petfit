@@ -7,7 +7,8 @@
 #' @param dir Character string. Path to the directory to minify (can be a BIDS
 #'   directory, derivatives directory, or any other directory).
 #' @param output_zip Character string. Path for the output zip file. If NULL
-#'   (default), creates "{basename(dir)}_mini.zip" in the current working directory.
+#'   (default), the directory's own name is used with a `_mini.zip` suffix, in
+#'   the current working directory.
 #' @param size_threshold Numeric. File size threshold in MB above which files
 #'   will be replaced with empty files. Default is 1 MB.
 #'

@@ -15,7 +15,13 @@ attributes_to_title(bidsdata, all_attributes = FALSE)
 A vector of pet measurement identifiers specific to each PET.
 }
 \description{
-Extract a pet variable from BIDS attributes
+Deprecated. Use \code{\link[=pet_key]{pet_key()}} for identity
+and \code{\link[=pet_label]{pet_label()}} for display.
+
+This builds an identifier from only the attributes that vary across the
+data it is handed, so identity depends on the cohort: adding a scan renames
+the existing measurements, and a single measurement is named in a way that
+matches none of its own files.
 }
 \examples{
 \dontrun{
