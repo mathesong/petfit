@@ -167,6 +167,54 @@ validate_subset_params <- function(data, subset_params) {
   invisible(TRUE)
 }
 
+#' Validate the Number of Regions per PET Measurement
+#'
+#' @description Nested models fit all regions of a PET measurement jointly with
+#'   shared parameters, so a measurement with a single region cannot be fitted:
+#'   there is nothing to share across. This check summarises how many regions
+#'   each measurement carries, warns about measurements that fall below the
+#'   minimum (so the caller can drop them), and errors if no measurement
+#'   reaches the minimum.
+#'
+#' @param data A data frame with `pet` and `region` columns, one row per
+#'   (measurement, region) or per (measurement, region, frame).
+#' @param min_regions Minimum number of distinct regions a measurement needs.
+#'   Default is 2.
+#' @return A tibble with columns `pet`, `n_regions` and `sufficient`. Errors if
+#'   no measurement has at least `min_regions` regions; warns (naming the
+#'   measurements) if some do not.
+#' @export
+validate_min_regions_per_pet <- function(data, min_regions = 2) {
+  if (!all(c("pet", "region") %in% colnames(data))) {
+    stop("data must contain 'pet' and 'region' columns.", call. = FALSE)
+  }
+
+  region_counts <- data %>%
+    dplyr::distinct(pet, region) %>%
+    dplyr::count(pet, name = "n_regions") %>%
+    dplyr::mutate(sufficient = n_regions >= min_regions)
+
+  if (!any(region_counts$sufficient)) {
+    stop("Nested models require at least ", min_regions, " regions per PET ",
+         "measurement, but no measurement has that many after subsetting. ",
+         "Check the Regions field of the Subsetting configuration.",
+         call. = FALSE)
+  }
+
+  insufficient <- dplyr::filter(region_counts, !sufficient)
+  if (nrow(insufficient) > 0) {
+    warning("Excluding ",
+            nrow(insufficient),
+            " PET measurement(s) with fewer than ", min_regions,
+            " regions from the nested fit: ",
+            paste0(insufficient$pet, " (", insufficient$n_regions,
+                   " region(s))", collapse = ", "),
+            call. = FALSE)
+  }
+
+  region_counts
+}
+
 #' Coerce Parameter Bounds to Numeric
 #'
 #' @description Recursively convert 'start', 'lower', and 'upper' values to numeric

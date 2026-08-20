@@ -388,8 +388,8 @@ determine_pipeline_type <- function(config, pipeline_type = NULL) {
   if (!is.null(config$ReferenceTAC)) return("reference")
 
   # 4. Final fallback: inspect model types
-  invasive_models <- c("1TCM", "2TCM", "Logan", "MA1")
-  reference_models <- c("SRTM", "refLogan", "MRTM1", "MRTM2")
+  invasive_models <- c("1TCM", "2TCM", "nested2TCM", "2TCM_irr", "Logan", "MA1", "Patlak")
+  reference_models <- c("SRTM", "nestedSRTM", "SRTM2", "refLogan", "MRTM1", "MRTM2")
   for (model_num in c("1", "2", "3")) {
     model_key <- paste0("Model", model_num)
     if (!is.null(config$Models[[model_key]]$type)) {

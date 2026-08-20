@@ -13,8 +13,8 @@ An R Shiny web application (R package) that creates customised petfit BIDS App c
 
 **Three independent apps:**
 - **Region Definition App** (`region_definition_app.R`): Brain region definitions and combined TACs
-- **Modelling App - Plasma Input** (`modelling_plasma_app.R`): Invasive models (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak) requiring blood data
-- **Modelling App - Reference Tissue** (`modelling_ref_app.R`): Non-invasive models (SRTM, SRTM2, refLogan, MRTM1, MRTM2) using reference regions
+- **Modelling App - Plasma Input** (`modelling_plasma_app.R`): Invasive models (1TCM, 2TCM, nested2TCM, 2TCM_irr, Logan, MA1, Patlak) requiring blood data
+- **Modelling App - Reference Tissue** (`modelling_ref_app.R`): Non-invasive models (SRTM, nestedSRTM, SRTM2, refLogan, MRTM1, MRTM2) using reference regions
 
 ## Commands
 
@@ -83,7 +83,7 @@ PETFIT_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter = 'integration')
 ### Report Templates
 Located in `inst/rmd/`. Template selection is dynamic based on model choice:
 - **Step reports**: `data_definition_report`, `weights_report`, `delay_report`, `reference_tac_report`, `tstar_finder_report`, `config_validation`
-- **Model reports**: `1tcm`, `2tcm`, `2tcmirr`, `logan`, `ma1`, `patlak`, `srtm`, `srtm2`, `reflogan`, `mrtm1`, `mrtm2`
+- **Model reports**: `1tcm`, `2tcm`, `nested2tcm`, `2tcmirr`, `logan`, `ma1`, `patlak`, `srtm`, `nestedsrtm`, `srtm2`, `reflogan`, `mrtm1`, `mrtm2`
 - Output naming: `model1_report.html`, `model2_report.html`, `model3_report.html`
 
 **IMPORTANT**: Report templates perform actual computational work (analysis logic) for transparency and reproducibility - they are not just display templates.
@@ -143,6 +143,14 @@ The `description` column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-
 - When `FitDelay.model` is `"Set to zero..."`, delay step is skipped but model reports independently load blood data from raw BIDS `_blood.tsv` files (via `determine_blood_source()`) and default `inpshift` to 0
 - Reference region must be included in `Subsetting.Regions` (e.g., if `ReferenceTAC.region` is `"Cerebellum"`, subsetting must include it)
 - Templates read `config$ReferenceTAC$region` (not `reference_region`)
+
+### Nested Models (shared parameters within each measurement)
+- `nested2TCM` (plasma) fits all regions of a measurement jointly via `kinfitr::nested_2tcm()`. Config uses the **macro parameterisation** (`K1`, `Vnd`, `BPp`, `k4` limit objects), plus `shared` (`"Vnd"`, `"k4"`, or `"Vnd_k4"`), a fixed scalar `vB_value` (vB cannot be fitted), and `roiweights` (`"volume"` or `"equal"`)
+- `nestedSRTM` (reference) fits via `kinfitr::nested_srtm()` with `R1`/`BPnd`/`k2prime` limit objects and `roiweights`; k2prime is always the shared parameter. Its kinpar output carries a `k2prime` column, so SRTM2/refLogan/MRTM2 `inherit_modelN_*` sources work on it
+- `FitDelay.model` accepts `nested_1tcm`/`nested_2tcm`: one shared delay per measurement (no median step); output files use `model-nested1TCM`/`model-nested2TCM`
+- Nested models require **at least 2 regions per measurement**: templates call `validate_min_regions_per_pet()` (R/validation.R), warn about and drop insufficient measurements, and error if none qualify
+- Nested Shiny inputs are prefixed `nested_` (e.g. `nested_K1.start2`), including a separate `nested_multstart_iter` per model slot
+- Nested fit objects hold an `optim` result in `$fit` (not `nls`): templates compute RSS from `$tacs` and skip AIC/BIC; the Interactive Sandbox rejects nested types
 
 ### Potential Bug: `fit_delay_report.Rmd`
 `get_model_template()` in `report_generation.R` maps `"Fit Delay"` to `fit_delay_report.Rmd`, but only `delay_report.Rmd` exists in `inst/rmd/`. This may cause a runtime error if the "Fit Delay" model type is used.

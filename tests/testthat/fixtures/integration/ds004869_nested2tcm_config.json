@@ -1,0 +1,68 @@
+{
+  "modelling_configuration_type": "plasma input",
+  "Subsetting": {
+    "sub": "01;02",
+    "ses": "",
+    "trc": "",
+    "rec": "",
+    "task": "",
+    "run": "",
+    "Regions": ""
+  },
+  "Weights": {
+    "region_type": "mean_combined",
+    "region": "",
+    "external_tacs": "",
+    "radioisotope": "C11",
+    "halflife": "",
+    "method": "2",
+    "formula": "sqrt(frame_dur * tac_uncor)",
+    "minweight": 0.25
+  },
+  "FitDelay": {
+    "model": "nested_1tcm",
+    "time_window": 5,
+    "regions": "",
+    "multiple_regions": "",
+    "vB_value": 0.05,
+    "fit_vB": false,
+    "use_weights": false,
+    "inpshift_lower": -0.5,
+    "inpshift_upper": 0.5
+  },
+  "Models": {
+    "Model1": {
+      "type": "nested2TCM",
+      "shared": "Vnd_k4",
+      "K1": {
+        "start": 0.1,
+        "lower": 0.0001,
+        "upper": 1
+      },
+      "Vnd": {
+        "start": 1,
+        "lower": 0.0001,
+        "upper": 10
+      },
+      "BPp": {
+        "start": 1,
+        "lower": 0.0001,
+        "upper": 50
+      },
+      "k4": {
+        "start": 0.1,
+        "lower": 0.0001,
+        "upper": 0.5
+      },
+      "vB_value": 0.05,
+      "roiweights": "volume",
+      "multstart_iter": 1
+    },
+    "Model2": {
+      "type": "No Model"
+    },
+    "Model3": {
+      "type": "No Model"
+    }
+  }
+}

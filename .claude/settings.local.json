@@ -33,5 +33,6 @@
       "Bash(pkill -f \"R.*3838\")",
       "Bash(Rscript -e \"devtools::document\\(\\)\")"
     ]
-  }
+  },
+  "outputStyle": "Google"
 }

@@ -22,6 +22,10 @@ fit_single_measurement_plasma <- function(analysis_folder, model_number, pet, re
   config <- .load_petfit_config(analysis_folder)
   model_config <- .get_model_config(config, model_number)
   type <- model_config$type
+  if (type == "nested2TCM") {
+    stop("Model ", model_number, " is type 'nested2TCM'. Nested models fit all regions of ",
+         "a measurement jointly and are not supported in the single-TAC sandbox.")
+  }
   plasma_types <- c("1TCM", "2TCM", "2TCM_irr", "Logan", "MA1", "Patlak")
   if (!type %in% plasma_types) {
     stop("Model ", model_number, " is type '", type, "', which is not a plasma-input model.")
@@ -89,6 +93,10 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   config <- .load_petfit_config(analysis_folder)
   model_config <- .get_model_config(config, model_number)
   type <- model_config$type
+  if (type == "nestedSRTM") {
+    stop("Model ", model_number, " is type 'nestedSRTM'. Nested models fit all regions of ",
+         "a measurement jointly and are not supported in the single-TAC sandbox.")
+  }
   ref_types <- c("SRTM", "SRTM2", "refLogan", "MRTM1", "MRTM2")
   if (!type %in% ref_types) {
     stop("Model ", model_number, " is type '", type, "', which is not a reference-tissue model.")

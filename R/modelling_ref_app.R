@@ -653,6 +653,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                          choices = c("No Model 1" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
+                                                     "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -686,6 +687,39 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # Nested SRTM panel (shared k2prime within each measurement)
+                            conditionalPanel(
+                              condition = "input.button == 'nestedSRTM'",
+                              p("The nested SRTM fits all regions of each PET measurement jointly (in the SRTM2 parameterisation), estimating a single shared k2' across regions, with R1 and BPnd fitted per region. It requires at least two regions per measurement."),
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_R1.start", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.lower", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.upper", "R1.upper", value = 5, min = 0, step = .001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_BPnd.start", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.lower", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper", "BPnd.upper", value = 5, min = 0, step = .5)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_k2prime.start", "k2prime.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.lower", "k2prime.lower", value = 0.001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.upper", "k2prime.upper", value = 1, min = 0, step = .001)),
+                              ),
+                              selectInput("nested_roiweights", "Region weighting:",
+                                          choices = c("Volume-weighted" = "volume",
+                                                      "Equal" = "equal"),
+                                          selected = "volume"),
+                              p("Region weighting determines how much each region contributes to the shared k2' estimate.",
+                                style = "font-size: 12px; color: #666;"),
+
+                              # Multiple Starting Points
+                              h4("Multiple Starting Points"),
+                              p("Fit model multiple times with different starting parameters to avoid local minima."),
+                              numericInput("nested_multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -812,6 +846,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                          choices = c("No Model 2" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
+                                                     "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -845,6 +880,39 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # Nested SRTM panel (shared k2prime within each measurement)
+                            conditionalPanel(
+                              condition = "input.button2 == 'nestedSRTM'",
+                              p("The nested SRTM fits all regions of each PET measurement jointly (in the SRTM2 parameterisation), estimating a single shared k2' across regions, with R1 and BPnd fitted per region. It requires at least two regions per measurement."),
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_R1.start2", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.lower2", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.upper2", "R1.upper", value = 5, min = 0, step = .001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_BPnd.start2", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.lower2", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper2", "BPnd.upper", value = 5, min = 0, step = .5)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_k2prime.start2", "k2prime.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.lower2", "k2prime.lower", value = 0.001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.upper2", "k2prime.upper", value = 1, min = 0, step = .001)),
+                              ),
+                              selectInput("nested_roiweights2", "Region weighting:",
+                                          choices = c("Volume-weighted" = "volume",
+                                                      "Equal" = "equal"),
+                                          selected = "volume"),
+                              p("Region weighting determines how much each region contributes to the shared k2' estimate.",
+                                style = "font-size: 12px; color: #666;"),
+
+                              # Multiple Starting Points
+                              h4("Multiple Starting Points"),
+                              p("Fit model multiple times with different starting parameters to avoid local minima."),
+                              numericInput("nested_multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -976,6 +1044,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                          choices = c("No Model 3" = "none",
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
+                                                     "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -1009,6 +1078,39 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # Nested SRTM panel (shared k2prime within each measurement)
+                            conditionalPanel(
+                              condition = "input.button3 == 'nestedSRTM'",
+                              p("The nested SRTM fits all regions of each PET measurement jointly (in the SRTM2 parameterisation), estimating a single shared k2' across regions, with R1 and BPnd fitted per region. It requires at least two regions per measurement."),
+                              h4("Model Parameters"),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_R1.start3", "R1.start", value = 1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.lower3", "R1.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_R1.upper3", "R1.upper", value = 5, min = 0, step = .001)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_BPnd.start3", "BPnd.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.lower3", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper3", "BPnd.upper", value = 5, min = 0, step = .5)),
+                              ),
+                              fluidRow(
+                                column(3, offset = 0, numericInput("nested_k2prime.start3", "k2prime.start", value = 0.1, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.lower3", "k2prime.lower", value = 0.001, min = 0, step = .001)),
+                                column(3, offset = 0, numericInput("nested_k2prime.upper3", "k2prime.upper", value = 1, min = 0, step = .001)),
+                              ),
+                              selectInput("nested_roiweights3", "Region weighting:",
+                                          choices = c("Volume-weighted" = "volume",
+                                                      "Equal" = "equal"),
+                                          selected = "volume"),
+                              p("Region weighting determines how much each region contributes to the shared k2' estimate.",
+                                style = "font-size: 12px; color: #666;"),
+
+                              # Multiple Starting Points
+                              h4("Multiple Starting Points"),
+                              p("Fit model multiple times with different starting parameters to avoid local minima."),
+                              numericInput("nested_multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                             ),
 
                              # refLogan selection panel
@@ -1445,6 +1547,29 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
               updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
               updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
+            }
+          } else if (!is.null(model_type) && model_type == "nestedSRTM") {
+            # Parameter restoration for nested SRTM (R1, BPnd, shared k2prime)
+            if (!is.null(model_config$R1)) {
+              updateNumericInput(session, paste0("nested_R1.start", suffix), value = model_config$R1$start %||% 1)
+              updateNumericInput(session, paste0("nested_R1.lower", suffix), value = model_config$R1$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_R1.upper", suffix), value = model_config$R1$upper %||% 5)
+            }
+            if (!is.null(model_config$BPnd)) {
+              updateNumericInput(session, paste0("nested_BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
+              updateNumericInput(session, paste0("nested_BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
+            }
+            if (!is.null(model_config$k2prime)) {
+              updateNumericInput(session, paste0("nested_k2prime.start", suffix), value = model_config$k2prime$start %||% 0.1)
+              updateNumericInput(session, paste0("nested_k2prime.lower", suffix), value = model_config$k2prime$lower %||% 0.001)
+              updateNumericInput(session, paste0("nested_k2prime.upper", suffix), value = model_config$k2prime$upper %||% 1)
+            }
+            updateSelectInput(session, paste0("nested_roiweights", suffix),
+                              selected = model_config$roiweights %||% "volume")
+            if (!is.null(model_config$multstart_iter)) {
+              updateNumericInput(session, paste0("nested_multstart_iter", suffix),
+                                 value = model_config$multstart_iter %||% 1)
             }
           } else if (!is.null(model_type) && model_type == "SRTM2") {
             if (!is.null(model_config$R1)) {
@@ -1984,6 +2109,25 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               end = end_point
             )
           }
+        } else if (model_type == "nestedSRTM") {
+          model_params$R1 = list(
+            start = input[[paste0("nested_R1.start", suffix)]] %||% 1,
+            lower = input[[paste0("nested_R1.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_R1.upper", suffix)]] %||% 5
+          )
+          model_params$BPnd = list(
+            start = input[[paste0("nested_BPnd.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("nested_BPnd.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_BPnd.upper", suffix)]] %||% 5
+          )
+          # k2prime is estimated (shared across regions), so it takes limits
+          # rather than a set value
+          model_params$k2prime = list(
+            start = input[[paste0("nested_k2prime.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("nested_k2prime.lower", suffix)]] %||% 0.001,
+            upper = input[[paste0("nested_k2prime.upper", suffix)]] %||% 1
+          )
+          model_params$roiweights = input[[paste0("nested_roiweights", suffix)]] %||% "volume"
         } else if (model_type == "SRTM2") {
           model_params$R1 = list(
             start = input[[paste0("R1.start", suffix)]] %||% 1,
@@ -2067,10 +2211,15 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             )
           }
           
-          # Multstart iterations
-          model_params$multstart_iter = input[[paste0("multstart_iter", suffix)]] %||% 1
+          # Multstart iterations (the nested panel has its own input)
+          multstart_input <- if (model_type == "nestedSRTM") {
+            paste0("nested_multstart_iter", suffix)
+          } else {
+            paste0("multstart_iter", suffix)
+          }
+          model_params$multstart_iter = input[[multstart_input]] %||% 1
         }
-        
+
         return(model_params)
       }
       

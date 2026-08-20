@@ -10,6 +10,7 @@
 test_that("get_model_template maps invasive models correctly", {
   expect_equal(get_model_template("1TCM"), "1tcm_report.Rmd")
   expect_equal(get_model_template("2TCM"), "2tcm_report.Rmd")
+  expect_equal(get_model_template("nested2TCM"), "nested2tcm_report.Rmd")
   expect_equal(get_model_template("2TCM_irr"), "2tcmirr_report.Rmd")
   expect_equal(get_model_template("Logan"), "logan_report.Rmd")
   expect_equal(get_model_template("MA1"), "ma1_report.Rmd")
@@ -19,6 +20,7 @@ test_that("get_model_template maps invasive models correctly", {
 
 test_that("get_model_template maps non-invasive models correctly", {
   expect_equal(get_model_template("SRTM"), "srtm_report.Rmd")
+  expect_equal(get_model_template("nestedSRTM"), "nestedsrtm_report.Rmd")
   expect_equal(get_model_template("SRTM2"), "srtm2_report.Rmd")
   expect_equal(get_model_template("refLogan"), "reflogan_report.Rmd")
   expect_equal(get_model_template("MRTM1"), "mrtm1_report.Rmd")

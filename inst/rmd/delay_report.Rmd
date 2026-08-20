@@ -102,6 +102,8 @@ if (!is.null(config$FitDelay)) {
     "2tcm_singletac" = "2TCM Delay from Single Representative TAC (Less Quick)",
     "1tcm_median" = "1TCM Median Delay from Multiple Regions (Recommended)",
     "2tcm_median" = "2TCM Median Delay from Multiple Regions (Very Slow)",
+    "nested_1tcm" = "Nested 1TCM Shared Delay from Multiple Regions",
+    "nested_2tcm" = "Nested 2TCM Shared Delay from Multiple Regions",
     "Unknown method"
   )
   
@@ -120,7 +122,8 @@ if (!is.null(config$FitDelay)) {
   )
   
   # Add multiple regions info if applicable
-  if (delay_config$model %in% c("1tcm_median", "2tcm_median")) {
+  if (delay_config$model %in% c("1tcm_median", "2tcm_median",
+                                "nested_1tcm", "nested_2tcm")) {
     multiple_regions <- delay_config$multiple_regions %||% ""
     if (multiple_regions != "") {
       config_items[["Regions for Analysis"]] <- multiple_regions
@@ -152,9 +155,11 @@ if (delay_method == "none") {
 }
 
 do_1tcm_singletac <- delay_method == "1tcm_singletac"
-do_2tcm_singletac <- delay_method == "2tcm_singletac" 
+do_2tcm_singletac <- delay_method == "2tcm_singletac"
 do_1tcm_median <- delay_method == "1tcm_median"
 do_2tcm_median <- delay_method == "2tcm_median"
+do_nested_1tcm <- delay_method == "nested_1tcm"
+do_nested_2tcm <- delay_method == "nested_2tcm"
 ```
 
 <!-- ## Delay Estimation Method Details -->
@@ -211,6 +216,14 @@ is_single_region <- delay_method %in% c("1tcm_singletac", "2tcm_singletac")
 # Note: This is TRUE even if only one region is specified for median procedures
 # because it defines how we load the data (individual regions vs combined)
 is_multiple_regions <- delay_method %in% c("1tcm_median", "2tcm_median")
+
+# is_nested: the nested approaches fit all regions of a measurement jointly
+# with a single shared delay. They load the same regional TAC data as the
+# median approaches.
+is_nested <- delay_method %in% c("nested_1tcm", "nested_2tcm")
+
+# Regional TAC loading is shared between the median and nested approaches
+load_regional_tacs <- is_multiple_regions || is_nested
 ```
 
 ```{r load-tacs-single, echo=is_single_region, eval=is_single_region}
@@ -231,7 +244,7 @@ tac_data <- tibble(
 ```
 
 
-```{r load-tacs-multiple, echo=is_multiple_regions, eval=is_multiple_regions}
+```{r load-tacs-multiple, echo=load_regional_tacs, eval=load_regional_tacs}
 weights_files <- list.files(analysis_folder,
                         pattern = "*_weights.tsv",
                         recursive = TRUE)
@@ -260,9 +273,20 @@ tac_data <- tibble(
   group_by(filename) %>%
   mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
   ungroup() %>%
-  unnest(tacs) %>% 
-  select(-basename, -measurement, -desc) %>% 
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc) %>%
   inner_join(weightsdata)
+
+# Apply the optional region subset for the multiple-regions and nested
+# approaches. Uses the same parsing, validation and negation semantics as the
+# Subsetting configuration.
+delay_region_values <- parse_semicolon_values(
+  config$FitDelay$multiple_regions %||% "", field = "Regions")
+
+if (!is.null(delay_region_values)) {
+  tac_data <- subset_combined_tacs(tac_data,
+                                   list(regions = delay_region_values))
+}
 ```
 
 
@@ -361,9 +385,15 @@ stop("No blood data available - provide blood_dir or ensure blood data exists in
 # Combining Blood and TAC Data
 
 ```{r}
-tac_data_nested <- tac_data %>% 
-  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
-                                           "run", "pet", "filename", "region")))) %>% 
+# The nested approaches fit all regions of a measurement together, so `region`
+# stays inside the nested TAC data rather than in the grouping keys.
+nest_keys <- c("sub", "ses", "trc", "rec", "task", "run", "pet", "filename")
+if (!is_nested) {
+  nest_keys <- c(nest_keys, "region")
+}
+
+tac_data_nested <- tac_data %>%
+  group_by(across(intersect(colnames(.), nest_keys))) %>%
   nest(.key="tacs")
 
 model_data <- inner_join(tac_data_nested, blood_data,
@@ -373,11 +403,26 @@ model_data <- inner_join(tac_data_nested, blood_data,
   ungroup() %>%
   mutate(output_stem = filename) %>% 
   select(-filename) %>% 
-  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>% 
-  mutate(output_stem = str_remove(output_stem, "_weights.*")) %>% 
+  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>%
+  mutate(output_stem = str_remove(output_stem, "_weights.*")) %>%
   mutate(output_stem = str_remove(output_stem, "_tacs.*"))
 ```
 
+```{r, eval=is_nested, echo=is_nested, results='asis'}
+str_glue("## Checking Regions per Measurement
+
+         A nested delay model shares the delay across the regions of each
+         measurement, so a measurement with fewer than two regions cannot be
+         fitted, and is excluded with a warning.")
+```
+
+```{r nested-region-check, eval=is_nested, echo=is_nested, report_warnings=TRUE}
+region_counts <- validate_min_regions_per_pet(tac_data, min_regions = 2)
+
+sufficient_pets <- region_counts$pet[region_counts$sufficient]
+model_data <- model_data %>%
+  filter(pet %in% sufficient_pets)
+```
 
 
 # Delay Estimation
@@ -529,6 +574,68 @@ model_data <- model_data %>%
                          .options = furrr_options(seed = TRUE)))
 ```
 
+```{r, eval=do_nested_1tcm, echo=do_nested_1tcm, results='asis'}
+str_glue("## Nested 1TCM Shared Delay from Multiple Regions")
+```
+
+```{r delay-fit-nested-1tcm, eval=do_nested_1tcm, echo=do_nested_1tcm, report_warnings=TRUE}
+# Nested 1TCM delay estimation: all regions of a measurement are fitted
+# jointly, sharing a single delay parameter
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_nested_1tcm_delay <- possibly(nested_1tcm_delay, otherwise = NA)
+
+model_data <- model_data %>%
+  mutate(delayFit = future_map2(tacs, input,
+                         ~safe_nested_1tcm_delay(t_tac = .x$frame_mid, tac = .x$TAC,
+                                 region = .x$region,
+                                 input = .y,
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB = vB_value,
+                                 timeStartEnd = c(0,time_window),
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
+```
+
+```{r, eval=do_nested_2tcm, echo=do_nested_2tcm, results='asis'}
+str_glue("## Nested 2TCM Shared Delay from Multiple Regions")
+```
+
+```{r delay-fit-nested-2tcm, eval=do_nested_2tcm, echo=do_nested_2tcm, report_warnings=TRUE}
+# Nested 2TCM delay estimation: all regions of a measurement are fitted
+# jointly, sharing a single delay parameter
+time_window <- config$FitDelay$time_window %||% 5
+vB_value <- config$FitDelay$vB_value %||% 0.05
+use_weights <- config$FitDelay$use_weights %||% FALSE
+inpshift_lower <- config$FitDelay$inpshift_lower %||% -0.5
+inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
+
+safe_nested_2tcm_delay <- possibly(nested_2tcm_delay, otherwise = NA)
+
+model_data <- model_data %>%
+  mutate(delayFit = future_map2(tacs, input,
+                         ~safe_nested_2tcm_delay(t_tac = .x$frame_mid, tac = .x$TAC,
+                                 region = .x$region,
+                                 input = .y,
+                                 weights = if(use_weights) .x$weights else NULL,
+                                 vB = vB_value,
+                                 timeStartEnd = c(0,time_window),
+                                 K1.upper = 2,
+                                 k2.upper = 2,
+                                 inpshift.upper = inpshift_upper,
+                                 inpshift.lower = inpshift_lower,
+                                 multstart_iter = 5 ),
+                         .options = furrr_options(seed = TRUE)))
+```
+
 ### Extract results
 
 ```{r, eval=is_single_region, echo=is_single_region}
@@ -549,11 +656,22 @@ delay_estimates <- model_data %>%
   })) %>% 
   select(-delayFit, -tacs, -input)
 
-delay_out <- delay_estimates %>% 
-  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task", 
+delay_out <- delay_estimates %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet",
-                                           "output_stem")))) %>% 
+                                           "output_stem")))) %>%
   summarise(inpshift = median(inpshift))
+```
+
+```{r, eval=is_nested, echo=is_nested}
+# The nested fit estimates one shared delay per measurement directly, so no
+# median step is needed: the fitted inpshift is constant across regions.
+delay_out <- model_data %>%
+  ungroup() %>%
+  mutate(inpshift = map_dbl(delayFit, ~{
+    if(!is.list(.x)) NA_real_ else .x$par$inpshift[1]
+  })) %>%
+  select(-delayFit, -tacs, -input)
 ```
 
 
@@ -585,6 +703,18 @@ Inspect these plots to ascertain that the red arterial input function rises arou
 ```{r delay-plot-single, eval=is_single_region, echo=is_single_region,fig.width=6, fig.height=4}
 walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
         labs(title=.y)))
+```
+
+```{r delay-plot-nested, eval=is_nested, echo=is_nested, fig.width=7, fig.height=4}
+# The nested fit already used a single shared delay across regions, so its own
+# fit can be plotted directly: all regions with their fits, and the shifted AIF
+# as a red dashed line.
+walk2(model_data$delayFit, model_data$pet, ~{
+  if (is.list(.x)) {
+    print(plot(.x) +
+            labs(title = .y, x = "Time (min)"))
+  }
+})
 ```
 
 ```{r delay-refit-1tcm-median, eval=do_1tcm_median, echo=do_1tcm_median, report_warnings=TRUE}
@@ -758,7 +888,12 @@ walk(histograms$plot, print)
 # Saving Outcomes
 
 ```{r}
-ModelName = str_match(method_display, "^(\\w*) ")[,2]
+# The regex scrape of method_display would yield "Nested" for the nested
+# methods, so their model names are set explicitly.
+ModelName = switch(delay_method,
+                   "nested_1tcm" = "nested1TCM",
+                   "nested_2tcm" = "nested2TCM",
+                   str_match(method_display, "^(\\w*) ")[,2])
 
 delay_out <- delay_out %>% 
   mutate(filename = paste0(output_stem, 
