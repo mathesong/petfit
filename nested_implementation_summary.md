@@ -115,23 +115,32 @@ Also package-wide (your separate request to the other session): `lhstype = "impr
 `nls_multstart()` call sites, `nls.multstart (>= 2.0.0)` in DESCRIPTION, documentation updated,
 NEWS.md entries added. kinfitr test suite: 794 pass / 0 fail (16 nested test blocks, 83 assertions).
 
-**Three judgement calls the other session made, flagged for your decision** (I reviewed and agree
-with all three; each is a small change to revert):
+**Three judgement calls — you ruled on these overnight** (relayed via the kinfitr session, and
+implemented): single-region input now **errors** (your provenance argument: a "nested" report in
+which no nesting occurred misdocuments the analysis — this is a no-op for petfit, whose templates
+exclude sub-2-region measurements before kinfitr is called); a failed final-pass region **errors**
+(confirmed); the faceted plots' legend has **no title** (`name = NULL`; the delay plot keeps
+"Region", where regions genuinely are the colour aesthetic). The single-region SE validation test
+was replaced by a sharper k-duplicated-regions test that directly checks the degrees-of-freedom
+accounting; nested tests now 86 pass / 0 fail.
 
-- Single-region input **warns** rather than errors (it reduces exactly to the unnested model, so an
-  error would break mathematically valid code). petfit enforces its own ≥2-region policy anyway.
-- A failed final-pass region **errors** rather than returning NA rows (an NA row would sit next to
-  a shared estimate that a 1e10 penalty may have contaminated).
-- The faceted plots' legend title is now "Type" rather than "Region" (the unnested plots' "Region"
-  legends genuinely contain region-prefixed labels; the nested faceted ones do not).
+I performed a full second-opinion review of the kinfitr implementation at your request (relayed):
+verified the profile-Hessian SE estimator (the profiled objective's Hessian is the Schur
+complement, i.e. the correct marginal information; n and n_par accounting right; finite-difference
+steps sane), independently confirmed the delta-method invariants on pbr28 (with Vnd fixed,
+`k2.se == K1.se` and `BPnd.se == BPp.se` hold exactly), and traced the weights/shift alignment
+invariant to `tidyinput_long`'s zero-prepend. Verdict: approved. The one hardening I suggested —
+guarding the finite-difference Hessian against inner-fit failures at perturbed points — turned out
+to be a real bug, not a nicety: the kinfitr session reproduced it on a minimal example where the
+shared-parameter SE came out understated by a factor of ~3.5 million while passing every existing
+guard. It is fixed with a failure scoreboard in `.nested_fit_region` (recording failure at the
+site it is observed, which is exact where my suggested closure would have needed a penalty
+threshold heuristic), three new tests, and a NEWS entry; a clean fit still reports its SE. Final
+kinfitr suite after everything: **802 pass / 0 fail** (test-nested.R: 91 assertions).
 
-Two minor kinfitr notes from my review, not fixed (cosmetic/edge-case, listed for completeness):
-
-- `.nested_outer_se()`'s finite-difference Hessian can be contaminated if an inner fit fails at a
-  perturbed point (the 1e10 penalty is finite, so the guards don't catch it) — worst case is a
-  wrong shared-parameter SE, not a wrong estimate.
-- `.nested_align_bounds()` silently renames a *named* bounds vector positionally when its names
-  don't cover the parameters but its length matches.
+One further minor kinfitr note from my review, not fixed (edge case, listed for completeness):
+`.nested_align_bounds()` silently renames a *named* bounds vector positionally when its names
+don't cover the parameters but its length matches.
 
 ## Test results
 
