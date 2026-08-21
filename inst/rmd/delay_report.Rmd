@@ -717,8 +717,11 @@ walk2(model_data$delayFit, model_data$pet, ~print(plot(.x) +
 # as a red dashed line.
 walk2(model_data$delayFit, model_data$pet, ~{
   if (is.list(.x)) {
+    # Points remain sized by weight, but the size legend adds clutter next to
+    # the region legend, so only the regions are shown
     print(plot(.x) +
-            labs(title = .y, x = "Time (min)"))
+            labs(title = .y, x = "Time (min)") +
+            guides(size = "none"))
   }
 })
 ```
