@@ -589,6 +589,9 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 
 safe_nested_1tcm_delay <- possibly(nested_1tcm_delay, otherwise = NA)
 
+# multstart_iter = 1 here, unlike the median methods: the nested fit refits
+# every region at every outer objective evaluation, so multistart multiplies
+# an already large cost, and the outer optimisation already explores the delay.
 model_data <- model_data %>%
   mutate(delayFit = future_map2(tacs, input,
                          ~safe_nested_1tcm_delay(t_tac = .x$frame_mid, tac = .x$TAC,
@@ -601,7 +604,7 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ),
+                                 multstart_iter = 1 ),
                          .options = furrr_options(seed = TRUE)))
 ```
 
@@ -620,6 +623,9 @@ inpshift_upper <- config$FitDelay$inpshift_upper %||% 0.5
 
 safe_nested_2tcm_delay <- possibly(nested_2tcm_delay, otherwise = NA)
 
+# multstart_iter = 1 here, unlike the median methods: the nested fit refits
+# every region at every outer objective evaluation, so multistart multiplies
+# an already large cost, and the outer optimisation already explores the delay.
 model_data <- model_data %>%
   mutate(delayFit = future_map2(tacs, input,
                          ~safe_nested_2tcm_delay(t_tac = .x$frame_mid, tac = .x$TAC,
@@ -632,7 +638,7 @@ model_data <- model_data %>%
                                  k2.upper = 2,
                                  inpshift.upper = inpshift_upper,
                                  inpshift.lower = inpshift_lower,
-                                 multstart_iter = 5 ),
+                                 multstart_iter = 1 ),
                          .options = furrr_options(seed = TRUE)))
 ```
 

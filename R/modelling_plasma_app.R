@@ -1856,13 +1856,19 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       )
       
       # Fit Delay
+      # The nested delay methods take a fixed vB and cannot fit it. The fit_vB
+      # checkbox is hidden for them, but Shiny retains its last value, so it is
+      # forced to FALSE here to keep the saved configuration honest.
+      delay_model_selected <- input$delay_model %||% "1tcm_median"
+      delay_is_nested <- delay_model_selected %in% c("nested_1tcm", "nested_2tcm")
+
       FitDelay <- list(
-        model = input$delay_model %||% "1tcm_median",
+        model = delay_model_selected,
         time_window = input$delay_time_window %||% 5,
         regions = input$delay_regions %||% "",
         multiple_regions = input$delay_multiple_regions %||% "",
         vB_value = input$delay_vB %||% 0.05,
-        fit_vB = input$delay_fit_vB %||% FALSE,
+        fit_vB = if (delay_is_nested) FALSE else input$delay_fit_vB %||% FALSE,
         use_weights = input$delay_use_weights %||% FALSE,
         inpshift_lower = input$delay_inpshift_lower %||% -0.5,
         inpshift_upper = input$delay_inpshift_upper %||% 0.5

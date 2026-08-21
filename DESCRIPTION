@@ -35,7 +35,7 @@ Imports:
     rmarkdown,
     plotly,
     readr,
-    kinfitr (>= 0.9.3),
+    kinfitr (>= 0.9.4),
     future,
     furrr,
     callr,
@@ -46,6 +46,6 @@ Suggests:
     withr,
     optparse
 Config/testthat/edition: 3
-Remotes: 
+Remotes:
     mathesong/kinfitr
 Config/roxygen2/version: 8.0.0

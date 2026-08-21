@@ -135,8 +135,17 @@ to be a real bug, not a nicety: the kinfitr session reproduced it on a minimal e
 shared-parameter SE came out understated by a factor of ~3.5 million while passing every existing
 guard. It is fixed with a failure scoreboard in `.nested_fit_region` (recording failure at the
 site it is observed, which is exact where my suggested closure would have needed a penalty
-threshold heuristic), three new tests, and a NEWS entry; a clean fit still reports its SE. Final
-kinfitr suite after everything: **802 pass / 0 fail** (test-nested.R: 91 assertions).
+threshold heuristic), three new tests, and a NEWS entry; a clean fit still reports its SE.
+
+A Codex review of the kinfitr branch then surfaced two further `.nested_outer_se` guards, both
+applied: SEs are NA unless the outer `optim()` reports convergence, and NA when the objective is
+not reproducible at the optimum (probed directly with two evaluations, rather than inferred from
+whether scalar multstart is in use — which would have discarded legitimate SEs). The multstart
+docs were also corrected (vector `multstart_iter` is a Cartesian grid; LHS applies to scalar
+only). Net effect for petfit: shared-SE columns can legitimately be NA; the templates tolerate
+this by construction (all-NA columns drop from display, partial NA shows as NA, and the
+measurement-level GoF table shows the convergence code alongside). Final kinfitr suite:
+**806 pass / 0 fail** on branch `nested_tac_update`, version 0.9.4 (test-nested.R: 95 assertions).
 
 One further minor kinfitr note from my review, not fixed (edge case, listed for completeness):
 `.nested_align_bounds()` silently renames a *named* bounds vector positionally when its names
@@ -179,8 +188,14 @@ Note: `derivatives/petfit/desc-combinedregions_tacs.tsv` was an unfetched annex 
 ## Not done / known limitations
 
 - Nested 2TCM vB inheritance from a previous model (deferred; needs a scalar-per-measurement path).
-- The delay step's nested methods use the same hardcoded internals as the median methods
-  (`K1.upper = 2`, `k2.upper = 2`, `multstart_iter = 5`) — consistent with existing behaviour, not
-  configurable.
+- The delay step's nested methods use the same hardcoded bounds as the median methods
+  (`K1.upper = 2`, `k2.upper = 2`) but `multstart_iter = 1` rather than 5, per your instruction:
+  the nested fit refits every region at every outer objective evaluation, so multistart multiplied
+  an already large cost. Validated on ds004869 sub-01 baseline: 76 s vs 523 s (7×) with the delay
+  estimate unchanged to 2×10⁻⁴ min. One side effect: at multstart 1 the outer L-BFGS-B ends with
+  code 52 (a line-search artefact at a genuine optimum — restart does not clear it, and the same
+  data through nested 2TCM converges with code 0), so under kinfitr 0.9.4's convergence guard
+  `inpshift.se` is NA for such fits. Harmless in petfit (the delay step consumes only the
+  estimate); an optional guard refinement has been proposed to the kinfitr session.
 - No roiweights option for the nested *delay* methods (no UI surface there; equal weights used).
 - The Interactive Sandbox intentionally rejects nested types (single-TAC by design).
