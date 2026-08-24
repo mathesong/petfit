@@ -39,13 +39,15 @@ But usually, the raw reference TAC is sufficient.
 
 Fits non-invasive kinetic models to each PET measurement and region. You can configure up to three models simultaneously.
 
-**Available models:** SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak. See [Supported models](../models.md) for details.
+**Available models:** SRTM, nestedSRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak. See [Supported models](../models.md) for details.
 
 Models that require a **k2prime** value (SRTM2, MRTM2, refLogan) can obtain it from:
 
 - A fixed value you provide
-- The fitted results of another model in the same analysis (e.g. MRTM1's k2a estimate)
+- The fitted results of another model in the same analysis (e.g. SRTM's, MRTM1's or nestedSRTM's shared k2prime)
 - An ancillary analysis folder (when using the ancillary analysis workflow)
+
+**nestedSRTM** fits all the target regions of a measurement together, estimating a single k2prime shared across them rather than one per region. It is the natural source for the constrained models: SRTM2, refLogan and MRTM2 inherit its k2prime through the same options they use for SRTM or MRTM1, but the value they inherit was estimated jointly rather than summarised across independent fits. It needs at least two target regions per measurement, and takes a region weighting setting controlling how much each region pulls on the shared estimate. See [Nested models](../models.md#nested-models).
 
 ## Running the pipeline
 
@@ -129,7 +131,7 @@ petfit_auto(
 
 ## Interactive exploration
 
-Same as the [plasma input app](modelling-plasma.md#interactive-exploration). The Interactive tab lets you manually load TAC data and test model fits on individual PET measurements and regions.
+Same as the [plasma input app](modelling-plasma.md#interactive-exploration). The Interactive tab lets you manually load TAC data and test model fits on individual PET measurements and regions. Nested models are not available here, since they fit all regions together.
 
 ## State persistence
 

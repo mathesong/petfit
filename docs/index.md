@@ -3,7 +3,7 @@
 PETFit is a [BIDS App](https://bids-apps.neuroimaging.io/) for fitting kinetic models to PET time activity curve (TAC) data. It takes preprocessed PET data in [BIDS](https://bids-specification.readthedocs.io/) format and runs a configurable kinetic modelling pipeline, producing parameter estimates and detailed HTML reports for quality control.
 
 ```{note}
-PETFit is currently in active development (v0.1.3). If you encounter any bugs, please report them on the [GitHub issues page](https://github.com/mathesong/petfit/issues) — they are extremely valuable for making this pipeline robust.
+PETFit is currently in active development (v0.2.1). If you encounter any bugs, please report them on the [GitHub issues page](https://github.com/mathesong/petfit/issues) — they are extremely valuable for making this pipeline robust.
 ```
 
 ## How it works
@@ -23,8 +23,8 @@ The typical workflow has two stages:
 PETFit provides three separate Shiny web applications for interactive mode:
 
 - **Region Definition App** — Creates combined regional TACs from PET preprocessing derivative data.
-- **Modelling App with Plasma Input** — Configures invasive kinetic models (1TCM, 2TCM, Logan, MA1, Patlak) that require blood input data.
-- **Modelling App with Reference Tissue** — Configures non-invasive kinetic models (SRTM, refLogan, MRTM1, MRTM2) that use a reference region.
+- **Modelling App with Plasma Input** — Configures invasive kinetic models (1TCM, 2TCM, nested2TCM, 2TCM_irr, Logan, MA1, Patlak) that require blood input data.
+- **Modelling App with Reference Tissue** — Configures non-invasive kinetic models (SRTM, nestedSRTM, SRTM2, refLogan, MRTM1, MRTM2) that use a reference region.
 
 ## Getting started
 

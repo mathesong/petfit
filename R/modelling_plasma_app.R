@@ -477,7 +477,9 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                           "1TCM Delay from Single Representative TAC (Quick)" = "1tcm_singletac",
                                                           "2TCM Delay from Single Representative TAC (Less Quick)" = "2tcm_singletac",
                                                           "1TCM Median Delay from Multiple Regions (Recommended, Slow)" = "1tcm_median",
-                                                          "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median"),
+                                                          "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median",
+                                                          "Nested 1TCM Shared Delay from Multiple Regions (Slow)" = "nested_1tcm",
+                                                          "Nested 2TCM Shared Delay from Multiple Regions (Very Slow)" = "nested_2tcm"),
                                                 selected = "1tcm_median",
                                                 width = "100%"),
                                      conditionalPanel(
@@ -486,9 +488,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                          style = "font-size: 12px; color: #666; margin-top: 5px;")
                                      ),
                                      
+                                     conditionalPanel(
+                                       condition = "input.delay_model == 'nested_1tcm' || input.delay_model == 'nested_2tcm'",
+                                       p("Note: \"Nested\" methods fit all regions of a measurement jointly with a single shared delay, instead of taking the median of independent per-region delay estimates. They require at least two regions per measurement.",
+                                         style = "font-size: 12px; color: #666; margin-top: 5px;")
+                                     ),
+
                                      # Conditional input for Multiple TACs approaches
                                      conditionalPanel(
-                                       condition = "input.delay_model == '1tcm_median' || input.delay_model == '2tcm_median'",
+                                       condition = "input.delay_model == '1tcm_median' || input.delay_model == '2tcm_median' || input.delay_model == 'nested_1tcm' || input.delay_model == 'nested_2tcm'",
                                        br(),
                                        textInput("delay_multiple_regions", "Regions for Multiple Regions Analysis (Optional):",
                                                value = "",
@@ -515,7 +523,11 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                      h4("Blood Volume (vB)"),
                                      numericInput("delay_vB", "vB value:",
                                                 value = 0.05, min = 0, max = 1, step = 0.01),
-                                     checkboxInput("delay_fit_vB", "Fit vB parameter", value = FALSE)
+                                     # Nested delay models take a fixed vB and cannot fit it
+                                     conditionalPanel(
+                                       condition = "input.delay_model != 'nested_1tcm' && input.delay_model != 'nested_2tcm'",
+                                       checkboxInput("delay_fit_vB", "Fit vB parameter", value = FALSE)
+                                     )
                                    ),
                                    column(4,
                                      h4("Blood Time Shift Search Range"),
@@ -603,6 +615,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                          choices = c("No Model 1" = "none",
                                                      "1TCM (Non-linear, Reversible binding)" = "1TCM",
                                                      "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "Nested 2TCM (Non-linear, Reversible binding, shared parameters)" = "nested2TCM",
                                                      "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
                                                      "Logan (Linear, Reversible binding)" = "Logan",
                                                      "MA1 (Linear, Reversible binding)" = "MA1",
@@ -651,6 +664,51 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                h4("Multiple Starting Points"),
                                p("Fit model multiple times with different starting parameters to avoid local minima."),
                                numericInput("multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                             ),
+
+                             # Nested 2TCM panel (shared parameters within each measurement)
+                             conditionalPanel(
+                               condition = "input.button == 'nested2TCM'",
+                               p("The nested 2TCM fits all regions of each PET measurement jointly, sharing the selected parameter(s) across regions. It uses the macro parameterisation (K1, Vnd, BPp, k4) and requires at least two regions per measurement."),
+                               selectInput("nested_shared", "Shared parameter(s) within each measurement:",
+                                           choices = c("Vnd" = "Vnd",
+                                                       "k4" = "k4",
+                                                       "Vnd and k4" = "Vnd_k4"),
+                                           selected = "Vnd"),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_K1.start", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.lower", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.upper", "K1.upper", value = 1, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_Vnd.start", "Vnd.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.lower", "Vnd.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.upper", "Vnd.upper", value = 10, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_BPp.start", "BPp.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.lower", "BPp.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.upper", "BPp.upper", value = 50, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_k4.start", "k4.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.lower", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.upper", "k4.upper", value = 0.5, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_vB", "vB (fixed value)", value = 0.05, min = 0, max = 1, step = .001)),
+                                 column(5, offset = 0, selectInput("nested_roiweights", "Region weighting:",
+                                                                   choices = c("Volume-weighted" = "volume",
+                                                                               "Equal" = "equal"),
+                                                                   selected = "volume")),
+                               ),
+                               p("vB is fixed (not fitted) in the nested 2TCM. Region weighting determines how much each region contributes to the shared parameter estimates.",
+                                 style = "font-size: 12px; color: #666;"),
+
+                               # Multiple Starting Points
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("nested_multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                              ),
 
                              # Linear models panel (Logan, MA1, Patlak)
@@ -733,6 +791,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                          choices = c("No Model 2" = "none",
                                                      "1TCM (Non-linear, Reversible binding)" = "1TCM",
                                                      "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "Nested 2TCM (Non-linear, Reversible binding, shared parameters)" = "nested2TCM",
                                                      "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
                                                      "Logan (Linear, Reversible binding)" = "Logan",
                                                      "MA1 (Linear, Reversible binding)" = "MA1",
@@ -780,6 +839,51 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                h4("Multiple Starting Points"),
                                p("Fit model multiple times with different starting parameters to avoid local minima."),
                                numericInput("multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                             ),
+
+                             # Nested 2TCM panel (shared parameters within each measurement)
+                             conditionalPanel(
+                               condition = "input.button2 == 'nested2TCM'",
+                               p("The nested 2TCM fits all regions of each PET measurement jointly, sharing the selected parameter(s) across regions. It uses the macro parameterisation (K1, Vnd, BPp, k4) and requires at least two regions per measurement."),
+                               selectInput("nested_shared2", "Shared parameter(s) within each measurement:",
+                                           choices = c("Vnd" = "Vnd",
+                                                       "k4" = "k4",
+                                                       "Vnd and k4" = "Vnd_k4"),
+                                           selected = "Vnd"),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_K1.start2", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.lower2", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.upper2", "K1.upper", value = 1, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_Vnd.start2", "Vnd.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.lower2", "Vnd.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.upper2", "Vnd.upper", value = 10, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_BPp.start2", "BPp.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.lower2", "BPp.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.upper2", "BPp.upper", value = 50, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_k4.start2", "k4.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.lower2", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.upper2", "k4.upper", value = 0.5, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_vB2", "vB (fixed value)", value = 0.05, min = 0, max = 1, step = .001)),
+                                 column(5, offset = 0, selectInput("nested_roiweights2", "Region weighting:",
+                                                                   choices = c("Volume-weighted" = "volume",
+                                                                               "Equal" = "equal"),
+                                                                   selected = "volume")),
+                               ),
+                               p("vB is fixed (not fitted) in the nested 2TCM. Region weighting determines how much each region contributes to the shared parameter estimates.",
+                                 style = "font-size: 12px; color: #666;"),
+
+                               # Multiple Starting Points
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("nested_multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                              ),
 
                              # Linear models panel (Logan, MA1, Patlak)
@@ -873,6 +977,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                          choices = c("No Model 3" = "none",
                                                      "1TCM (Non-linear, Reversible binding)" = "1TCM",
                                                      "2TCM (Non-linear, Reversible binding)" = "2TCM",
+                                                     "Nested 2TCM (Non-linear, Reversible binding, shared parameters)" = "nested2TCM",
                                                      "2TCM_irr (Non-linear, Irreversible binding)" = "2TCM_irr",
                                                      "Logan (Linear, Reversible binding)" = "Logan",
                                                      "MA1 (Linear, Reversible binding)" = "MA1",
@@ -920,6 +1025,51 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                h4("Multiple Starting Points"),
                                p("Fit model multiple times with different starting parameters to avoid local minima."),
                                numericInput("multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                             ),
+
+                             # Nested 2TCM panel (shared parameters within each measurement)
+                             conditionalPanel(
+                               condition = "input.button3 == 'nested2TCM'",
+                               p("The nested 2TCM fits all regions of each PET measurement jointly, sharing the selected parameter(s) across regions. It uses the macro parameterisation (K1, Vnd, BPp, k4) and requires at least two regions per measurement."),
+                               selectInput("nested_shared3", "Shared parameter(s) within each measurement:",
+                                           choices = c("Vnd" = "Vnd",
+                                                       "k4" = "k4",
+                                                       "Vnd and k4" = "Vnd_k4"),
+                                           selected = "Vnd"),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_K1.start3", "K1.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.lower3", "K1.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_K1.upper3", "K1.upper", value = 1, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_Vnd.start3", "Vnd.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.lower3", "Vnd.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_Vnd.upper3", "Vnd.upper", value = 10, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_BPp.start3", "BPp.start", value = 1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.lower3", "BPp.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_BPp.upper3", "BPp.upper", value = 50, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_k4.start3", "k4.start", value = 0.1, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.lower3", "k4.lower", value = 0.0001, min = 0, step = .001)),
+                                 column(3, offset = 0, numericInput("nested_k4.upper3", "k4.upper", value = 0.5, min = 0, step = .001)),
+                               ),
+                               fluidRow(
+                                 column(3, offset = 0, numericInput("nested_vB3", "vB (fixed value)", value = 0.05, min = 0, max = 1, step = .001)),
+                                 column(5, offset = 0, selectInput("nested_roiweights3", "Region weighting:",
+                                                                   choices = c("Volume-weighted" = "volume",
+                                                                               "Equal" = "equal"),
+                                                                   selected = "volume")),
+                               ),
+                               p("vB is fixed (not fitted) in the nested 2TCM. Region weighting determines how much each region contributes to the shared parameter estimates.",
+                                 style = "font-size: 12px; color: #666;"),
+
+                               # Multiple Starting Points
+                               h4("Multiple Starting Points"),
+                               p("Fit model multiple times with different starting parameters to avoid local minima."),
+                               numericInput("nested_multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
                              ),
 
                              # Linear models panel (Logan, MA1, Patlak)
@@ -1107,6 +1257,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                           "2TCM Delay from Single Representative TAC (Less Quick)" = "2tcm_singletac",
                           "1TCM Median Delay from Multiple Regions (Recommended, Slow)" = "1tcm_median",
                           "2TCM Median Delay from Multiple Regions (Very Slow)" = "2tcm_median",
+                          "Nested 1TCM Shared Delay from Multiple Regions (Slow)" = "nested_1tcm",
+                          "Nested 2TCM Shared Delay from Multiple Regions (Very Slow)" = "nested_2tcm",
                           ancillary_delay_opts)
         updateSelectInput(session, "delay_model",
                          choices = delay_choices,
@@ -1227,6 +1379,39 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                   updateSelectInput(session, paste0("vB_source", suffix), selected = vB_source_value)
                 }
               }
+            }
+          } else if (!is.null(model_type) && model_type == "nested2TCM") {
+            # Parameter restoration for nested 2TCM (shared, K1, Vnd, BPp, k4, fixed vB)
+            updateSelectInput(session, paste0("nested_shared", suffix),
+                              selected = model_config$shared %||% "Vnd")
+            if (!is.null(model_config$K1)) {
+              updateNumericInput(session, paste0("nested_K1.start", suffix), value = model_config$K1$start %||% 0.1)
+              updateNumericInput(session, paste0("nested_K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_K1.upper", suffix), value = model_config$K1$upper %||% 1)
+            }
+            if (!is.null(model_config$Vnd)) {
+              updateNumericInput(session, paste0("nested_Vnd.start", suffix), value = model_config$Vnd$start %||% 1)
+              updateNumericInput(session, paste0("nested_Vnd.lower", suffix), value = model_config$Vnd$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_Vnd.upper", suffix), value = model_config$Vnd$upper %||% 10)
+            }
+            if (!is.null(model_config$BPp)) {
+              updateNumericInput(session, paste0("nested_BPp.start", suffix), value = model_config$BPp$start %||% 1)
+              updateNumericInput(session, paste0("nested_BPp.lower", suffix), value = model_config$BPp$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_BPp.upper", suffix), value = model_config$BPp$upper %||% 50)
+            }
+            if (!is.null(model_config$k4)) {
+              updateNumericInput(session, paste0("nested_k4.start", suffix), value = model_config$k4$start %||% 0.1)
+              updateNumericInput(session, paste0("nested_k4.lower", suffix), value = model_config$k4$lower %||% 0.0001)
+              updateNumericInput(session, paste0("nested_k4.upper", suffix), value = model_config$k4$upper %||% 0.5)
+            }
+            if (!is.null(model_config$vB_value)) {
+              updateNumericInput(session, paste0("nested_vB", suffix), value = model_config$vB_value %||% 0.05)
+            }
+            updateSelectInput(session, paste0("nested_roiweights", suffix),
+                              selected = model_config$roiweights %||% "volume")
+            if (!is.null(model_config$multstart_iter)) {
+              updateNumericInput(session, paste0("nested_multstart_iter", suffix),
+                                 value = model_config$multstart_iter %||% 1)
             }
           } else if (!is.null(model_type) && model_type == "2TCM_irr") {
             # Parameter restoration for 2TCM_irr (K1, k2, k3, vB - no k4)
@@ -1671,13 +1856,19 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
       )
       
       # Fit Delay
+      # The nested delay methods take a fixed vB and cannot fit it. The fit_vB
+      # checkbox is hidden for them, but Shiny retains its last value, so it is
+      # forced to FALSE here to keep the saved configuration honest.
+      delay_model_selected <- input$delay_model %||% "1tcm_median"
+      delay_is_nested <- delay_model_selected %in% c("nested_1tcm", "nested_2tcm")
+
       FitDelay <- list(
-        model = input$delay_model %||% "1tcm_median",
+        model = delay_model_selected,
         time_window = input$delay_time_window %||% 5,
         regions = input$delay_regions %||% "",
         multiple_regions = input$delay_multiple_regions %||% "",
         vB_value = input$delay_vB %||% 0.05,
-        fit_vB = input$delay_fit_vB %||% FALSE,
+        fit_vB = if (delay_is_nested) FALSE else input$delay_fit_vB %||% FALSE,
         use_weights = input$delay_use_weights %||% FALSE,
         inpshift_lower = input$delay_inpshift_lower %||% -0.5,
         inpshift_upper = input$delay_inpshift_upper %||% 0.5
@@ -1765,6 +1956,31 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             )
             model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
           }
+        } else if (model_type == "nested2TCM") {
+          model_params$shared = input[[paste0("nested_shared", suffix)]] %||% "Vnd"
+          model_params$K1 = list(
+            start = input[[paste0("nested_K1.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("nested_K1.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_K1.upper", suffix)]] %||% 1
+          )
+          model_params$Vnd = list(
+            start = input[[paste0("nested_Vnd.start", suffix)]] %||% 1,
+            lower = input[[paste0("nested_Vnd.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_Vnd.upper", suffix)]] %||% 10
+          )
+          model_params$BPp = list(
+            start = input[[paste0("nested_BPp.start", suffix)]] %||% 1,
+            lower = input[[paste0("nested_BPp.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_BPp.upper", suffix)]] %||% 50
+          )
+          model_params$k4 = list(
+            start = input[[paste0("nested_k4.start", suffix)]] %||% 0.1,
+            lower = input[[paste0("nested_k4.lower", suffix)]] %||% 0.0001,
+            upper = input[[paste0("nested_k4.upper", suffix)]] %||% 0.5
+          )
+          # vB is a fixed scalar in the nested 2TCM (not fitted)
+          model_params$vB_value = input[[paste0("nested_vB", suffix)]] %||% 0.05
+          model_params$roiweights = input[[paste0("nested_roiweights", suffix)]] %||% "volume"
         } else if (model_type == "2TCM_irr") {
           model_params$K1 = list(
             start = input[[paste0("K1.start", suffix)]] %||% 0.1,
@@ -1914,10 +2130,15 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
             )
           }
           
-          # Multstart iterations
-          model_params$multstart_iter = input[[paste0("multstart_iter", suffix)]] %||% 1
+          # Multstart iterations (the nested panel has its own input)
+          multstart_input <- if (model_type == "nested2TCM") {
+            paste0("nested_multstart_iter", suffix)
+          } else {
+            paste0("multstart_iter", suffix)
+          }
+          model_params$multstart_iter = input[[multstart_input]] %||% 1
         }
-        
+
         return(model_params)
       }
       

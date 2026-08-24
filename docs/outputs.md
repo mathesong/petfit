@@ -20,7 +20,7 @@ derivatives/                              # Processed outputs
         ├── sub-01/
         │   ├── sub-01_desc-combinedregions_tacs.tsv
         │   ├── sub-01_desc-weights_weights.tsv
-        │   └── sub-01_model-2TCM_kinpar.tsv
+        │   └── sub-01_model-2TCM_desc-model1_kinpar.tsv
         ├── sub-02/
         │   └── ...
         └── reports/
@@ -58,9 +58,11 @@ One file per PET measurement, named `{pet_id}_desc-weights_weights.tsv`. Contain
 
 ### Kinetic parameter files
 
-One file per PET measurement per model, named `{pet_id}_model-{MODEL}_kinpar.tsv`. 
+One file per PET measurement per model, named `{pet_id}_model-{MODEL}_desc-{MODEL_NUMBER}_kinpar.tsv`. 
 Contains the fitted kinetic parameters for each region._
-There is also a global kinetic parameter file for all subjects in the analysis created in the main analysis folder, named `model_{MODEL}_desc-{MODEL_NUMBER}_kinpar.tsv`
+There is also a global kinetic parameter file for all subjects in the analysis created in the main analysis folder, named `model-{MODEL}_desc-{MODEL_NUMBER}_kinpar.tsv`.
+
+For the [nested models](models.md#nested-models), `{MODEL}` is `nested2TCM` or `nestedSRTM`; the files have the same shape as for any other model, one row per region, with the shared parameters repeated across the regions of each measurement.
 
 ### Configuration file
 

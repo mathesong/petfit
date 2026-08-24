@@ -132,3 +132,51 @@ test_that("validate_subset_params judges included and excluded fields independen
   # ...and the bad exclude still warns
   expect_warning(try(validate_subset_params(d, params), silent = TRUE), "ses")
 })
+
+# ---------------------------------------------------------------------------
+# validate_min_regions_per_pet: region counts for nested models
+# ---------------------------------------------------------------------------
+
+test_that("validate_min_regions_per_pet summarises region counts per measurement", {
+
+  d <- tibble::tibble(
+    pet = rep(c("sub-01_ses-a", "sub-02_ses-a"), each = 6),
+    region = rep(c("Frontal", "Temporal", "Occipital"), times = 4),
+    TAC = rnorm(12)
+  )
+
+  counts <- validate_min_regions_per_pet(d, min_regions = 2)
+
+  expect_equal(nrow(counts), 2)
+  expect_equal(counts$n_regions, c(3, 3))
+  expect_true(all(counts$sufficient))
+})
+
+test_that("validate_min_regions_per_pet warns about insufficient measurements", {
+
+  d <- tibble::tibble(
+    pet = c(rep("sub-01_ses-a", 3), rep("sub-02_ses-a", 1)),
+    region = c("Frontal", "Temporal", "Occipital", "Frontal")
+  )
+
+  expect_warning(counts <- validate_min_regions_per_pet(d, min_regions = 2),
+                 "sub-02_ses-a")
+  expect_equal(counts$sufficient, c(TRUE, FALSE))
+})
+
+test_that("validate_min_regions_per_pet errors when no measurement has enough regions", {
+
+  d <- tibble::tibble(
+    pet = c("sub-01_ses-a", "sub-02_ses-a"),
+    region = c("Frontal", "Frontal")
+  )
+
+  expect_error(validate_min_regions_per_pet(d, min_regions = 2),
+               "at least 2 regions")
+})
+
+test_that("validate_min_regions_per_pet requires pet and region columns", {
+
+  expect_error(validate_min_regions_per_pet(tibble::tibble(pet = "a")),
+               "must contain")
+})

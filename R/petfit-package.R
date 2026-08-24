@@ -15,9 +15,10 @@ utils::globalVariables(c(
   "desc_from_path", "description", "description_parsed", "descriptions",
   "filedata", "folder", "foldername", "frame_dur", "frame_end", "frame_mid",
   "frame_num", "frame_start", "key_value_pairs", "label", "mappings",
-  "match_key", "measurement", "morph_filename", "morph_path", "name",
-  "participant_id", "path", "pet", "plasma_radioactivity", "region", "run",
-  "run_score", "seg", "seg_meanTAC", "segmentation", "ses", "ses_score",
+  "match_key", "measurement", "morph_filename", "morph_path", "n_regions",
+  "name", "participant_id", "path", "pet", "plasma_radioactivity", "region",
+  "run", "run_score", "seg", "seg_meanTAC", "segmentation", "ses", "ses_score",
+  "sufficient",
   "tacs_attrs", "tacs_basename", "tacs_filedescription", "tacs_filename",
   "tacs_path", "task", "time", "volume-mm3", "volume_mm3",
   "whole_blood_radioactivity"

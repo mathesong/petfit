@@ -1,0 +1,925 @@
+---
+title: "Nested 2TCM Model Fitting Report"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  cores: 1
+  model_number: "Model 1"
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(glue)
+library(DT)
+library(furrr)
+
+# Fixed seed. The model fits use multstart, which draws its starting parameter
+# sets at random; furrr_options(seed = TRUE) makes those draws parallel-safe but
+# not reproducible, because it derives its streams from whatever state the
+# session happens to be in. Seeding here makes a re-run of the same analysis
+# give the same numbers, whatever `cores` is set to. Vary it deliberately if you
+# want to know how seed-dependent a fit is.
+set.seed(123)
+
+theme_set(theme_light())
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
+
+# Use parameters (from params or debugging section above)
+analysis_folder <- params$analysis_folder
+model_number <- params$model_number
+bids_dir <- params$bids_dir
+blood_dir <- params$blood_dir
+
+# Load configuration from standard location
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    config <- coerce_bounds_numeric(config)
+    # cat("Loaded config from:", config_path, "\n")
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+```{r, include=FALSE}
+# Remove old files from previous runs
+desc <- str_remove(str_to_lower(model_number), " ")
+
+oldfiles <- list.files(analysis_folder, pattern=desc,
+                       recursive = T, full.names = T)
+
+file.remove(oldfiles)
+```
+
+
+
+This report summarises the nested 2TCM model fitting step. The nested 2TCM fits
+all regions of each PET measurement jointly: the shared parameter(s) are
+estimated across regions in an outer optimisation, while the remaining
+parameters are fitted per region in an inner optimisation. The model uses the
+macro parameterisation of the 2TCM, i.e. K1, Vnd, BPp and k4, from which k2,
+k3, Vt and BPnd are derived.
+
+# Analysis Configuration
+
+**Model:** `r params$model_number` - Nested 2TCM (Two Tissue Compartment Model with shared parameters)
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Model Configuration and Parameters
+
+```{r model-config}
+# Extract model configuration for this specific model
+model_config <- NULL
+if (!is.null(config$Models)) {
+  if (params$model_number == "Model 1") {
+    model_config <- config$Models$Model1
+  } else if (params$model_number == "Model 2") {
+    model_config <- config$Models$Model2
+  } else if (params$model_number == "Model 3") {
+    model_config <- config$Models$Model3
+  }
+}
+
+if (!is.null(model_config) && model_config$type == "nested2TCM") {
+
+  shared <- model_config$shared %||% "Vnd"
+  shared_display <- switch(shared,
+                           "Vnd" = "Vnd",
+                           "k4" = "k4",
+                           "Vnd_k4" = "Vnd and k4",
+                           shared)
+  roiweights_setting <- model_config$roiweights %||% "volume"
+  roiweights_display <- switch(roiweights_setting,
+                               "volume" = "Volume-weighted",
+                               "equal" = "Equal",
+                               roiweights_setting)
+
+  # Create configuration table
+  config_items <- list(
+    "Model Type" = "Nested 2TCM (Two Tissue Compartment Model with shared parameters)",
+    "Shared Parameter(s)" = shared_display,
+    "K1 Start Value" = model_config$K1$start %||% "Default",
+    "K1 Lower Bound" = model_config$K1$lower %||% "Default",
+    "K1 Upper Bound" = model_config$K1$upper %||% "Default",
+    "Vnd Start Value" = model_config$Vnd$start %||% "Default",
+    "Vnd Lower Bound" = model_config$Vnd$lower %||% "Default",
+    "Vnd Upper Bound" = model_config$Vnd$upper %||% "Default",
+    "BPp Start Value" = model_config$BPp$start %||% "Default",
+    "BPp Lower Bound" = model_config$BPp$lower %||% "Default",
+    "BPp Upper Bound" = model_config$BPp$upper %||% "Default",
+    "k4 Start Value" = model_config$k4$start %||% "Default",
+    "k4 Lower Bound" = model_config$k4$lower %||% "Default",
+    "k4 Upper Bound" = model_config$k4$upper %||% "Default",
+    "vB Value (fixed)" = model_config$vB_value %||% 0.05,
+    "Region Weighting" = roiweights_display
+  )
+
+  # vB is always fixed in the nested 2TCM. The "vB Parameter Source" entry is
+  # kept for consistency with the other model reports, which reference it in
+  # their output sidecars.
+  config_items[["Fit vB Parameter"]] <- "No"
+  config_items[["vB Parameter Source"]] <- "Set to fixed value"
+
+  # Add common parameters
+  config_items[["Multstart Iterations"]] <- model_config$multstart_iter %||% 1
+
+  # Add subset information if configured
+  if (!is.null(model_config$subset)) {
+    subset_info <- paste0(
+      "Type: ", model_config$subset$type %||% "time",
+      ", Start: ", model_config$subset$start %||% "Not set",
+      ", End: ", model_config$subset$end %||% "Not set"
+    )
+    config_items[["TAC Subset"]] <- subset_info
+  } else {
+    config_items[["TAC Subset"]] <- "Use all frames"
+  }
+
+  config_df <- tibble(
+    Parameter = names(config_items),
+    Value = map_chr(config_items, as.character)
+  )
+
+  kable(config_df, caption = "Nested 2TCM Model Configuration")
+
+} else {
+  cat("Nested 2TCM model configuration not found or incomplete.")
+}
+```
+
+```{r setup-conditions, echo=FALSE}
+# Verify we have a valid nested 2TCM configuration
+has_nested2tcm_config <- !is.null(model_config) && model_config$type == "nested2TCM"
+
+# Exit early if not a nested 2TCM configuration
+if (!has_nested2tcm_config) {
+  cat("Invalid or missing nested 2TCM configuration. This report should not have been generated.")
+  knitr::knit_exit()
+}
+```
+
+# Loading Data
+
+## Loading TAC Data
+
+```{r load-tacs}
+weights_files <- list.files(analysis_folder,
+                        pattern = "*_weights.tsv",
+                        recursive = TRUE)
+
+weightsdata <- tibble(
+  filename = weights_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-filename, -basename, -measurement, -desc, -TAC)
+
+
+tacs_files <- list.files(analysis_folder,
+                        pattern = "*_desc-combinedregions_tacs.tsv",
+                        recursive = TRUE)
+
+tac_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc) %>%
+  inner_join(weightsdata)
+```
+
+Because we are now working with kinetic modelling, we need to use minutes instead of seconds. Hence, we will henceforth use minutes for time.
+
+```{r}
+tac_data <- tac_data %>%
+  mutate(frame_start = frame_start/60,
+         frame_end = frame_end/60,
+         frame_dur = frame_dur/60,
+         frame_mid = frame_mid/60)
+```
+
+
+## Loading Blood Data
+
+```{r blood-loading-setup, echo=FALSE}
+# Determine which blood loading approach to use
+if (!is.null(blood_dir)) {
+  use_blood_dir <- TRUE
+  use_analysis_folder <- FALSE
+  use_bids_raw <- FALSE
+} else {
+  use_blood_dir <- FALSE
+  blood_source <- determine_blood_source(analysis_folder, bids_dir)
+  use_analysis_folder <- blood_source == "analysis_folder"
+  use_bids_raw <- blood_source == "bids_dir"
+}
+```
+
+```{r load-from-blood-dir, eval=use_blood_dir, echo=use_blood_dir}
+# Load blood data from specified blood_dir
+inputfunction_files <- list.files(blood_dir, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in blood_dir: ", blood_dir)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(blood_dir) %>%
+  select(-measurement)
+```
+
+```{r load-from-analysis-folder, eval=use_analysis_folder, echo=use_analysis_folder}
+# Load processed inputfunction files from analysis folder
+inputfunction_files <- list.files(analysis_folder, pattern = "*_inputfunction\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(inputfunction_files) == 0) {
+  stop("No inputfunction.tsv files found in analysis_folder: ", analysis_folder)
+}
+
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>%
+  select(-measurement, -desc)
+```
+
+```{r create-analysis-inputfunctions, eval=use_bids_raw, echo=use_bids_raw, results='asis'}
+str_glue("Because we are loading blood data from the raw BIDS folder, we will first generate
+         an arterial input function using linear interpolation of the measured curves,
+         and then create *_inputfunction.tsv files in the petfit analysis folder.")
+```
+
+```{r load-from-bids-raw, eval=use_bids_raw}
+# Load blood files from bids_dir
+blood_files <- list.files(bids_dir, pattern = "*_blood\\.tsv$", recursive = TRUE, full.names = TRUE)
+
+if (length(blood_files) == 0) {
+  stop("No _blood.tsv files found in bids_dir")
+}
+
+# Generate blood data from raw BIDS data
+raw_data <- kinfitr::bids_parse_study(bids_dir) %>%
+  select(any_of(names(tac_data)), blooddata)
+
+tac_data_files <- tac_data %>%
+  filter(!duplicated(filename)) %>%
+   select(any_of(names(raw_data)), filename)
+
+save_data <- inner_join(raw_data, tac_data_files) %>%
+  mutate(filename = str_remove(filename, "_desc.*")) %>%
+  mutate(filename = str_remove(filename, "_weights.*")) %>%
+  mutate(filename = str_remove(filename, "_tacs.*")) %>%
+  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>%
+  mutate(filename = paste0(analysis_folder, "/", filename))
+
+walk2(save_data$blooddata, save_data$filename, blooddata2inputfunction_tsv)
+
+# Load the created inputfunction files
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>%
+  select(-measurement, -desc)
+```
+
+```{r blood-loading-error, eval=(!use_blood_dir && !use_analysis_folder && !use_bids_raw)}
+stop("No blood data available - provide blood_dir or ensure blood data exists in analysis folder or BIDS directory")
+```
+
+## Loading Delay Information
+
+```{r load-delay}
+delay_data <- tibble(
+  filename = list.files(analysis_folder, pattern = "*_desc-delayfit_kinpar.tsv",
+                       recursive = TRUE, full.names = TRUE)
+)
+
+if( nrow(delay_data)==0 ) {
+  cat("No delay data found for kinetic modelling.")
+  cat("Delay will be set to 0.")
+
+  delay_source <- "Not estimated: assumed to be zero"
+
+  delay_data <- blood_data %>%
+    select(-input) %>%
+    mutate(inpshift = 0)
+
+} else{
+
+  delay_data <- delay_data %>%
+    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+    unnest(attributes) %>%
+    filter(!is.na(sub)) %>%
+    mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
+    mutate(pet = str_remove(basename(pet), "_desc.*")) %>%
+    mutate(pet = str_remove(pet, "_kinpar.*")) %>%
+    mutate(
+      inpshift = map_dbl(filename, ~{
+          tryCatch({
+            delay <- read_tsv(.x)
+            if (!is.null(delay$blood_timeshift)) {
+              delay$blood_timeshift
+            } else {
+              0  # Default to zero if no delay found
+            }
+          }, error = function(e) 0)  # Default to zero on error
+        })
+      ) %>%
+    select(-filename, -measurement, -model, -desc)
+
+  delay_source <- "Inherited from delay fit"
+}
+```
+
+
+# Combining Data
+
+For the nested model, all regions of each PET measurement are fitted together,
+so the data are nested by measurement (keeping `region` inside the nested TAC
+data) rather than by measurement and region.
+
+```{r}
+tac_data_nested <- tac_data %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet", "filename")))) %>%
+  nest(.key="tacs")
+
+model_data <- inner_join(tac_data_nested, blood_data,
+                         # One blood record per measurement. A duplicate would
+                         # otherwise multiply every region's TAC rows silently.
+                         relationship = "many-to-one") %>%
+  ungroup() %>%
+  mutate(output_stem = filename) %>%
+  select(-filename) %>%
+  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>%
+  mutate(output_stem = str_remove(output_stem, "_weights.*")) %>%
+  mutate(output_stem = str_remove(output_stem, "_tacs.*"))
+
+model_data <- model_data %>%
+  left_join(delay_data, relationship = "many-to-one")
+```
+
+## Checking Regions per Measurement
+
+A nested model shares parameters across the regions of each measurement, so a
+measurement with fewer than two regions cannot be fitted, and is excluded with
+a warning.
+
+```{r region-check, report_warnings=TRUE}
+region_counts <- validate_min_regions_per_pet(tac_data, min_regions = 2)
+
+sufficient_pets <- region_counts$pet[region_counts$sufficient]
+model_data <- model_data %>%
+  filter(pet %in% sufficient_pets)
+
+region_counts %>%
+  rename(`Number of Regions` = n_regions,
+         `Sufficient for Nested Fitting` = sufficient) %>%
+  kable(caption = "Regions per PET measurement")
+```
+
+
+# Nested 2TCM Model Fitting
+
+Now we proceed to the actual nested 2TCM model fitting: one joint fit per PET
+measurement, with `r shared_display` shared across regions.
+
+```{r model-prep, report_warnings=TRUE}
+# Extract model parameters from configuration
+K1_start <- model_config$K1$start %||% 0.1
+K1_lower <- model_config$K1$lower %||% 0.0001
+K1_upper <- model_config$K1$upper %||% 1
+
+Vnd_start <- model_config$Vnd$start %||% 1
+Vnd_lower <- model_config$Vnd$lower %||% 0.0001
+Vnd_upper <- model_config$Vnd$upper %||% 10
+
+BPp_start <- model_config$BPp$start %||% 1
+BPp_lower <- model_config$BPp$lower %||% 0.0001
+BPp_upper <- model_config$BPp$upper %||% 50
+
+k4_start <- model_config$k4$start %||% 0.1
+k4_lower <- model_config$k4$lower %||% 0.0001
+k4_upper <- model_config$k4$upper %||% 0.5
+
+vB_value <- model_config$vB_value %||% 0.05
+
+multstart_iter <- model_config$multstart_iter %||% 1
+
+# Region weighting: larger regions provide more precise mean TACs, so their
+# volumes are a sensible relative weighting for the shared parameter estimates
+use_volume_roiweights <- roiweights_setting == "volume"
+if (use_volume_roiweights && !"volume_mm3" %in% colnames(tac_data)) {
+  warning("Volume-weighted region weighting was requested, but the combined ",
+          "TACs carry no volume_mm3 column. Using equal region weights instead.")
+  use_volume_roiweights <- FALSE
+}
+
+# Extract TAC subset parameters
+subset_config <- model_config$subset
+frameStartEnd <- NULL
+timeStartEnd <- NULL
+
+if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset_config$end))) {
+  if (subset_config$type == "frame") {
+    frameStartEnd <- c(subset_config$start, subset_config$end)
+  } else if (subset_config$type == "time") {
+    timeStartEnd <- c(subset_config$start, subset_config$end)
+  }
+}
+```
+
+
+```{r model-fitting, report_warnings=TRUE}
+# Safe nested 2TCM function to handle errors
+safe_nested_2tcm <- possibly(nested_2tcm, otherwise = NA)
+
+# Fit the nested 2TCM model, one joint fit per measurement
+model_data <- model_data %>%
+  mutate(fit_nested2tcm = future_pmap(list(tacs, input, inpshift),
+                         ~safe_nested_2tcm(t_tac = ..1$frame_mid, tac = ..1$TAC,
+                                 region = ..1$region,
+                                 input = ..2,
+                                 shared = shared,
+                                 inpshift = ..3,
+                                 vB = vB_value,
+                                 weights = ..1$weights,
+                                 roiweights = if (use_volume_roiweights) {
+                                   ..1$volume_mm3
+                                 } else {
+                                   NULL
+                                 },
+                                 frameStartEnd = frameStartEnd,
+                                 timeStartEnd = timeStartEnd,
+                                 K1.start = K1_start,
+                                 K1.lower = K1_lower,
+                                 K1.upper = K1_upper,
+                                 Vnd.start = Vnd_start,
+                                 Vnd.lower = Vnd_lower,
+                                 Vnd.upper = Vnd_upper,
+                                 BPp.start = BPp_start,
+                                 BPp.lower = BPp_lower,
+                                 BPp.upper = BPp_upper,
+                                 k4.start = k4_start,
+                                 k4.lower = k4_lower,
+                                 k4.upper = k4_upper,
+                                 multstart_iter = multstart_iter),
+                         .options = furrr_options(seed = TRUE))) %>%
+  ungroup() %>%
+  mutate(success = map_dbl(fit_nested2tcm, length) > 1)
+```
+
+```{r, results='asis'}
+success_n <- sum(model_data$success)
+tot_n <- nrow(model_data)
+
+str_glue("Model successfully estimated for {success_n} / {tot_n} ({round(100*success_n/tot_n)}%) of measurements.
+
+         Model estimation unsuccessful for {tot_n-success_n} / {tot_n}  ({100-(round(100*success_n/tot_n))}%) of measurements.")
+```
+
+# Results
+
+```{r}
+model_data <- model_data %>%
+  filter(success)
+```
+
+
+## Shared Parameters
+
+The shared parameter(s) (`r shared_display`) take a single value per PET
+measurement. Standard errors, where shown, are expressed as a fraction of the
+estimate, and are approximate: they are derived from the curvature of the
+profiled objective at the optimum.
+
+```{r}
+shared_par_table <- model_data %>%
+  mutate(shared_pars = map(fit_nested2tcm, ~{
+    outer_names <- .x$outer_pars
+    est <- .x$par %>%
+      slice(1) %>%
+      select(all_of(outer_names))
+    ses <- .x$par.se %>%
+      slice(1) %>%
+      select(any_of(paste0(outer_names, ".se")))
+    bind_cols(est, ses)
+  })) %>%
+  select(-fit_nested2tcm, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(shared_pars) %>%
+  select(where(~ mean(is.na(.x)) < 1))
+
+shared_par_table %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+### Shared Parameter Histograms
+
+```{r, fig.width=7, fig.height=4}
+shared_par_long <- shared_par_table %>%
+  pivot_longer(cols = any_of(c("Vnd", "k4")),
+               names_to = "Parameter",
+               values_to = "Value")
+
+ggplot(shared_par_long, aes(x=Value, fill=Parameter)) +
+  geom_histogram(colour="black") +
+  facet_wrap(~Parameter, scales="free", ncol=2) +
+  guides(fill="none")
+```
+
+
+## Parameters
+
+```{r}
+model_res <- model_data %>%
+  ungroup() %>%
+  mutate(par = map(fit_nested2tcm, "par")) %>%
+  select(-fit_nested2tcm, -tacs, -input)
+```
+
+### Estimates
+
+```{r}
+par_table <- model_res %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(par)
+
+par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+### Standard Error
+
+Here is shown the standard error as a fraction of the mean value (i.e. 1 = 100\%).
+Standard errors of the shared parameters are approximate (see above), and
+repeated for each region of the measurement they belong to.
+
+```{r}
+par_se_table <- model_data %>%
+  ungroup() %>%
+  mutate(par.se = map(fit_nested2tcm, "par.se")) %>%
+  select(-fit_nested2tcm, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(par.se) %>%
+  select(where(~ mean(is.na(.x)) < 1))
+
+par_se_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+### Goodness of Fit
+
+The nested fit optimises a joint objective across regions, so the per-region
+AIC and BIC of the independent models are not defined here: the effective
+number of parameters per region is ambiguous when parameters are shared. The
+weighted residual sum of squares is reported per region, along with the joint
+objective value (the region-weighted sum of the weighted residual sums of
+squares) and the optimiser convergence code (0 = converged) per measurement.
+
+```{r}
+gof_table <- model_data %>%
+  ungroup() %>%
+  mutate(gof = map(fit_nested2tcm, ~ .x$tacs %>%
+    group_by(region = Region) %>%
+    summarise(RSS = sum(Weights * (Radioactivity - Fitted)^2, na.rm = TRUE),
+              n_frames = n(),
+              .groups = "drop"))) %>%
+  select(-fit_nested2tcm, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift"))) %>%
+  unnest(gof) %>%
+  select(where(~ mean(is.na(.x)) < 1))
+
+gof_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable()
+```
+
+```{r}
+exam_gof_table <- model_data %>%
+  ungroup() %>%
+  mutate(objective = map_dbl(fit_nested2tcm, ~ .x$fit$value),
+         convergence = map_dbl(fit_nested2tcm, ~ .x$fit$convergence)) %>%
+  select(-fit_nested2tcm, -tacs, -input) %>%
+  select(-output_stem) %>%
+  select(-any_of(c("vB", "inpshift")))
+
+exam_gof_table %>%
+  select(where(~ n_distinct(.x) > 1), objective, convergence) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  DT::datatable(caption = "Measurement-level joint objective and convergence")
+```
+
+### Parameter Plots
+
+#### Overall Histogram
+
+```{r, fig.width=7, fig.height=9}
+par_table_long <- par_table %>%
+  pivot_longer(cols=c(K1, k2, k3, k4, Vt, Vnd, BPp, BPnd),
+               names_to = "Parameter",
+               values_to = "Value")
+
+
+ggplot(par_table_long, aes(x=Value, fill=Parameter)) +
+  geom_histogram(colour="black") +
+  facet_wrap(~Parameter, scales="free", ncol=2) +
+  guides(fill="none")
+```
+
+
+#### Histograms By Region
+
+```{r, fig.width=7, fig.height=9}
+ggplot(par_table_long, aes(x=Value, fill=region)) +
+  geom_histogram(colour="black") +
+  facet_wrap(~Parameter, scales="free", ncol=2)
+```
+
+
+## Fits
+
+### Plots
+
+Each measurement produces one joint fit across its regions; the fit plots are
+faceted by region, with up to three regions per page.
+
+```{r, results='asis'}
+n_fit_meas <- nrow(model_data %>% filter(success))
+embed_fit_plots <- n_fit_meas <= 50
+
+if (embed_fit_plots) {
+  fit_plot_dir <- tempdir()
+} else {
+  fit_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "fit")
+  dir.create(fit_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+fit_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(safe_filename = str_replace_all(pet, "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap(
+    list(.$fit_nested2tcm, .$pet, .$safe_filename),
+    function(fit, pet, fname) {
+      pages <- plot(fit)
+      if (inherits(pages, "ggplot")) pages <- list(pages)
+      imap_chr(pages, function(p, i) {
+        p <- p +
+          labs(subtitle = pet, y = "Radioactivity (kBq)", x = "Time (min)") +
+          theme_light()
+        filepath <- file.path(fit_plot_dir,
+                              paste0("fit_", fname, "_page", i, ".png"))
+        ggsave(filepath, p, width = 9, height = 4, dpi = 96)
+        filepath
+      })
+    }, .options = furrr_options(seed = TRUE))} %>%
+  flatten_chr()
+
+if (embed_fit_plots) {
+  walk(fit_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** fit plots for {n_fit_meas} measurements saved to: `reports/{desc}_report_plots/fit/`\n\n"))
+}
+```
+
+### Residuals
+
+```{r, results='asis'}
+n_res_meas <- nrow(model_data %>% filter(success))
+embed_res_plots <- n_res_meas <= 50
+
+if (embed_res_plots) {
+  res_plot_dir <- tempdir()
+} else {
+  res_plot_dir <- file.path(analysis_folder, "reports",
+                        paste0(desc, "_report_plots"), "residuals")
+  dir.create(res_plot_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+res_plot_files <- model_data %>%
+  filter(success) %>%
+  mutate(safe_filename = str_replace_all(pet, "[^A-Za-z0-9_-]", "_")) %>%
+  {future_pmap_chr(
+    list(.$fit_nested2tcm, .$pet, .$safe_filename),
+    function(fit, pet, fname) {
+      resid_data <- fit$tacs %>%
+        mutate(Residuals = Radioactivity - Fitted)
+      p <- ggplot(resid_data, aes(x = Time, y = Residuals)) +
+        geom_point(aes(size = Weights)) +
+        geom_line(alpha = 0.5) +
+        geom_hline(yintercept = 0, linetype = "dashed") +
+        facet_wrap(~Region) +
+        scale_size(range = c(1, 3)) +
+        guides(size = "none") +
+        labs(title = pet, x = "Time (min)", y = "Residuals") +
+        theme_light()
+      filepath <- file.path(res_plot_dir, paste0("res_", fname, ".png"))
+      ggsave(filepath, p, width = 9, height = 6, dpi = 96)
+      filepath
+    }, .options = furrr_options(seed = TRUE))}
+
+if (embed_res_plots) {
+  walk(res_plot_files, ~cat("![](", .x, ")\n\n", sep = ""))
+} else {
+  cat(str_glue("\n\n**Note:** residual plots for {n_res_meas} measurements saved to: `reports/{desc}_report_plots/residuals/`\n\n"))
+}
+```
+
+
+
+
+# Saving Parameters
+
+## Main TSV
+
+```{r}
+savepar <- inner_join(par_table,
+                      par_se_table) %>%
+  inner_join(gof_table) %>%
+  # Fixing parameter names
+  rename_with(~str_replace(.x, "\\.se", "-se")) %>%
+  rename_with(~str_replace(.x, "Vt", "VT"))
+
+write_tsv(savepar,
+          file=paste0(analysis_folder, "/",
+                      "model-", "nested2TCM","_",
+                      "desc-", desc,"_",
+                      "kinpar.tsv"))
+```
+
+## PET Folder TSVs
+
+```{r}
+folder_data <- tibble(
+  filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  mutate(dirname = dirname(filename)) %>%
+  select(-filename, -basename, -measurement, -desc)
+
+savepar_pet <- savepar %>%
+    group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key="kinpars") %>%
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model-", "nested2TCM","_",
+                            "desc-", desc,"_",
+                            "kinpar.tsv"))
+
+walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r}
+savepar_pet <- savepar_pet %>%
+  group_by(pet) %>%
+  mutate(jsondat = map(kinpars, ~list(
+      Description = paste("Nested two tissue compartmental model (macro parameterisation)",
+                          "fit using nonlinear least squares estimation, with parameters",
+                          "shared across regions within each measurement."),
+      ModelName = "nested2TCM",
+      AdditionalModelDetails = str_glue("Shared parameter(s): {shared_display}. vB fixed at {vB_value}. Region weighting: {config_items$`Region Weighting`}. Blood delay source: {delay_source}")))) %>%
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+
+walk2(savepar_pet$jsondat,
+      savepar_pet$filename_json,
+      ~writeLines(.x, .y))
+```
+
+# Saving Fitted Values
+
+## PET Folder TSVs
+
+```{r}
+savefits <- model_data %>%
+  filter(success) %>%
+  mutate(fitvals = map(fit_nested2tcm, ~{
+
+    measured <- .x$tacs %>%
+      transmute(region = Region,
+                frame_mid = Time,
+                TAC = Radioactivity,
+                weights = Weights)
+
+    interpfitvals <- crossing(
+      region = unique(.x$tacs$Region),
+      frame_mid = seq(from=min(.x$tacs$Time),
+                      to=max(.x$tacs$Time),
+                      length.out=500))
+
+    # predict.nested_2tcm requires a data frame (it uses nrow()), with columns
+    # t_tac and region
+    interpfitvals$TAC_fitted <- predict(
+      .x, newdata = tibble(t_tac = interpfitvals$frame_mid,
+                           region = interpfitvals$region))
+
+    measured %>%
+      full_join(interpfitvals) %>%
+      arrange(region, frame_mid)
+  })) %>%
+  # Entities are optional: a study whose files name no session has no ses
+  # column. pet, inpshift and fitvals are required, so they stay strict and a
+  # genuine absence still errors.
+  select(any_of(c("sub", "ses", "task", "trc", "run", "rec")),
+         pet, inpshift, fitvals) %>%
+  unnest(cols=c("fitvals")) %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key="fitvals")
+
+savefits_pet <- savefits %>%
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model-", "nested2TCM","_",
+                            "desc-", desc,"fitted",
+                            "_",
+                            "tacs.tsv"))
+
+walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r}
+savefits_pet <- savefits_pet %>%
+  group_by(pet) %>%
+  mutate(jsondat = map(fitvals, ~list(
+      Description = "Nested two tissue compartment model fitted values.",
+      ModelName = "nested2TCM",
+      AdditionalModelDetails = str_glue("Shared parameter(s): {shared_display}. vB fixed at {vB_value}. Region weighting: {config_items$`Region Weighting`}. Blood delay source: {delay_source}"),
+      frame_mid = "The frame middle time in minutes",
+      TAC = paste("TAC radioactivity data in kBq to which the model was fitted.",
+                  "If there is a vB, this is after removal of blood radioactivity."),
+      TAC_fitted = "Model fitted values.",
+      weights = "Model weights"))) %>%
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+
+walk2(savefits_pet$jsondat,
+      savefits_pet$filename_json,
+      ~writeLines(.x, .y))
+```
+
+
+
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
+```
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

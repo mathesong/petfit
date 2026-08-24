@@ -1,0 +1,69 @@
+{
+  "modelling_configuration_type": "reference tissue",
+  "Subsetting": {
+    "sub": "01;02",
+    "ses": "",
+    "trc": "",
+    "rec": "",
+    "task": "",
+    "run": "",
+    "Regions": "Frontal;Temporal;Cerebellum"
+  },
+  "Weights": {
+    "region_type": "mean_combined",
+    "region": "",
+    "external_tacs": "",
+    "radioisotope": "C11",
+    "halflife": "",
+    "method": "2",
+    "formula": "sqrt(frame_dur * tac_uncor)",
+    "minweight": 0.25
+  },
+  "ReferenceTAC": {
+    "region": "Cerebellum",
+    "method": "raw",
+    "noise_approximation": false,
+    "weights_method": "same",
+    "custom_formula": ""
+  },
+  "Models": {
+    "Model1": {
+      "type": "nestedSRTM",
+      "R1": {
+        "start": 1,
+        "lower": 0.0001,
+        "upper": 5
+      },
+      "BPnd": {
+        "start": 0.5,
+        "lower": 0.0001,
+        "upper": 5
+      },
+      "k2prime": {
+        "start": 0.1,
+        "lower": 0.001,
+        "upper": 1
+      },
+      "roiweights": "volume",
+      "multstart_iter": 1
+    },
+    "Model2": {
+      "type": "SRTM2",
+      "R1": {
+        "start": 1,
+        "lower": 0.0001,
+        "upper": 5
+      },
+      "BPnd": {
+        "start": 0.5,
+        "lower": 0.0001,
+        "upper": 5
+      },
+      "k2prime_source": "inherit_model1_median",
+      "multstart_iter": 1
+    },
+    "Model3": {
+      "type": "No Model"
+    }
+  }
+}

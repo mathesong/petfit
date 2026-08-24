@@ -1,3 +1,94 @@
+# petfit 0.2.1
+
+## Nested models
+
+* **New: `nested2TCM`, a plasma-input two-tissue model whose regions are fitted
+  jointly within each measurement.** The conventional 2TCM fits each region on
+  its own, so every region carries its own estimate of quantities that are
+  properties of the measurement rather than of the region — chiefly the
+  non-displaceable distribution volume. Estimating them once per measurement,
+  from all regions at once, is both more faithful to what they mean and better
+  determined. `nested2TCM` fits all regions of a measurement together via
+  `kinfitr::nested_2tcm()`, sharing either V<sub>ND</sub>, `k4`, or both across
+  regions while `K1` and BP<sub>P</sub> stay regional.
+
+  It is configured in the **macro parameterisation** — `K1`, `Vnd`, `BPp`, `k4`
+  — rather than the micro rate constants, because that is the parameterisation
+  in which the shared quantities are the ones you would want to share. vB is a
+  fixed scalar (`vB_value`) and cannot be fitted: a blood volume estimated per
+  region against a shared V<sub>ND</sub> is not identifiable in practice.
+  `roiweights` chooses how much each region pulls on the shared estimate —
+  `"volume"` (larger regions have less noisy mean TACs, so they count for more)
+  or `"equal"`.
+
+* **New: `nestedSRTM`, the reference-tissue counterpart.** Fitted via
+  `kinfitr::nested_srtm()` in the SRTM2 parameterisation, with R1 and
+  BP<sub>ND</sub> per region and a single k2' per measurement. The usual route to
+  a shared k2' is to fit SRTM everywhere and then take a median or mean of the
+  per-region estimates, which is a summary of noisy numbers rather than an
+  estimate in its own right; here it is estimated directly from all the regions
+  at once. Its `kinpar` output carries a `k2prime` column, so the existing
+  `inherit_modelN_*` sources on SRTM2, refLogan and MRTM2 read it exactly as
+  they read SRTM's.
+
+* **New: nested delay estimation.** `FitDelay.model` accepts `nested_1tcm` and
+  `nested_2tcm`, which fit all the chosen regions of a measurement jointly for a
+  single shared delay, in place of taking the median of independent per-region
+  delay estimates. The delay is a property of the measurement, so estimating one
+  is the question actually being asked. Output files are named
+  `model-nested1TCM` and `model-nested2TCM`.
+
+  These run with `multstart_iter = 1` regardless of configuration: the nested
+  objective refits every region at each evaluation of the delay, so multistart
+  multiplies an already large cost, and the outer optimisation over the delay
+  already searches the range. vB is likewise fixed — the "Fit vB parameter"
+  checkbox is hidden for the nested methods, and saved as `FALSE`, so a
+  configuration written after switching to them does not carry a stale `TRUE`.
+
+* **Nested models require at least two regions per measurement**, since there is
+  nothing to share across otherwise. The new `validate_min_regions_per_pet()`
+  counts the regions of each measurement, warns about and drops those that fall
+  short, and stops with an explanatory error if no measurement qualifies — most
+  often because `Subsetting.Regions` was narrowed too far.
+
+* **The nested reports differ from the per-region ones in what they can say.**
+  A joint objective across regions makes the per-region AIC and BIC undefined —
+  the effective number of parameters per region is ambiguous once parameters are
+  shared — so the reports give the weighted residual sum of squares per region
+  instead, alongside the measurement-level joint objective and the optimiser's
+  convergence code. Standard errors on the shared parameters are approximate,
+  derived from the curvature of the profiled objective at the optimum, and those
+  on the derived parameters are conditional on the shared values.
+
+* **The Interactive tab rejects nested models with an explanation.** The sandbox
+  fits one TAC at a time, which is precisely what a nested model does not do, so
+  `fit_single_measurement_plasma()` and `fit_single_measurement_ref()` stop with
+  a message rather than fitting something other than what was asked for.
+
+## Delay estimation
+
+* **The delay step's "Regions for Multiple Regions Analysis" field now filters
+  the regions it names.** *This changes numerical results.* The field was
+  recorded in the configuration and printed in the report's configuration table,
+  but never applied: every median-delay analysis ran on all regions whatever was
+  typed there. It now subsets through the same code as the `Subsetting`
+  configuration, and so inherits its validation, its `;` separator with the
+  comma check, and the `-` exclusion prefix. A configuration that named regions
+  there will give different delays — the ones it was asking for — on re-running.
+
+## Bug fixes
+
+* **`determine_pipeline_type()` recognises every model type.** Its fallback,
+  used when a configuration declares neither a pipeline type nor a `Blood` or
+  `ReferenceTAC` section, matched only against `1TCM`, `2TCM`, `Logan`, `MA1`,
+  `SRTM`, `refLogan`, `MRTM1` and `MRTM2`. A configuration whose only models
+  were `2TCM_irr`, `Patlak` or `SRTM2` matched nothing and was routed by
+  whatever the remaining fallback decided. All model types are now listed,
+  nested ones included.
+
+* petfit now requires **kinfitr >= 0.9.4**, which supplies `nested_2tcm()`,
+  `nested_srtm()`, `nested_1tcm_delay()` and `nested_2tcm_delay()`.
+
 # petfit 0.2.0
 
 ## Reproducibility and provenance

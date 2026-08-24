@@ -1,6 +1,6 @@
 Package: petfit
 Title: PETFit BIDS App Configuration Interface
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: 
     c(person("Granville", "Matheson", , "granville.matheson@ki.se", role = c("aut", "cre")),
     person("Alessio", "Giacomel", , "alessio.giacomel@kcl.ac.uk", role = c("ctb")),
@@ -35,7 +35,7 @@ Imports:
     rmarkdown,
     plotly,
     readr,
-    kinfitr (>= 0.9.3),
+    kinfitr (>= 0.9.4),
     future,
     furrr,
     callr,
@@ -46,6 +46,6 @@ Suggests:
     withr,
     optparse
 Config/testthat/edition: 3
-Remotes: 
+Remotes:
     mathesong/kinfitr
 Config/roxygen2/version: 8.0.0

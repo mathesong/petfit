@@ -122,7 +122,7 @@ Another strategy is using multiple starting points when fitting nonlinear models
 
 **Cause:** When the nonlinear models are uniquely unstable, a common underlying culprit is a **poorly estimated blood–tissue delay**. A misaligned input function distorts the early frames that the compartmental models rely on, whereas the linearised models lean more on later time points and are less affected.
 
-**Fix:** Inspect the **delay fit reports extra carefully** and confirm the estimated delay looks sensible for each measurement. If the delay is unreliable, try a different delay-estimation method (e.g. fitting from multiple regions and taking the median), or estimate it from a small set of well-behaved regions using an [ancillary analysis](usage/folder-structure.md#ancillary-analysis-folders).
+**Fix:** Inspect the **delay fit reports extra carefully** and confirm the estimated delay looks sensible for each measurement. If the delay is unreliable, try a different delay-estimation method — fitting from multiple regions and taking the median, or one of the [nested](models.md#nested-models) methods, which fit those regions jointly for a single shared delay — or estimate it from a small set of well-behaved regions using an [ancillary analysis](usage/folder-structure.md#ancillary-analysis-folders).
 
 ### Unreliable delay or k2prime estimates
 
@@ -131,6 +131,24 @@ Another strategy is using multiple starting points when fitting nonlinear models
 **Cause:** Estimating the delay or `k2prime` from noisy or atypical regions yields unreliable values, which propagate into every model that depends on them.
 
 **Fix:** Estimate these parameters from a small set of clean, well-behaved regions using an **ancillary analysis folder**, then inherit the value into your primary analysis across all regions. This is exactly what ancillary folders are designed for — see [ancillary analysis folders](usage/folder-structure.md#ancillary-analysis-folders) for the delay-inheritance and k2prime-inheritance workflows.
+
+Alternatively, consider a [nested model](models.md#nested-models). The delay and `k2prime` are properties of the measurement rather than of any one region, and the nested methods estimate a single value directly from all the regions at once, rather than summarising a set of noisy per-region estimates after the fact.
+
+### Nested model reports no measurements with enough regions
+
+**Symptom:** A `nested2TCM`, `nestedSRTM` or nested delay step stops with an error saying no measurement has at least 2 regions, or warns that some measurements were excluded.
+
+**Cause:** Nested models share parameters *across* the regions of each measurement, so a measurement with a single region has nothing to share across. The usual culprit is a `Regions` subsetting field narrowed to one region, or region definitions that only matched one region for some measurements.
+
+**Fix:** Widen the `Regions` field of your subsetting configuration, and check the data definition report to confirm each measurement really carries the regions you expect. If only a few measurements are affected they are dropped with a warning naming them, and the rest are fitted normally.
+
+### Nested models are much slower than expected
+
+**Symptom:** A nested model or nested delay step takes far longer than the equivalent per-region model.
+
+**Cause:** A nested fit optimises all the regions of a measurement against one joint objective, so each evaluation refits every region. Nested delay estimation compounds this, refitting every region at each step of the delay search.
+
+**Fix:** This is inherent to the method rather than a fault, but the cost scales with the number of regions, so restricting the nested fit to the regions you actually need helps. Keep `multstart_iter` low — nested delay estimation ignores it entirely and always uses a single start for this reason. Parallelising across measurements with `--cores` helps as much here as elsewhere.
 
 ## Ancillary analysis issues
 
@@ -154,7 +172,7 @@ Another strategy is using multiple starting points when fitting nonlinear models
 
 ### Processing is too slow
 
-**Symptom:** Fitting takes a long time, particularly on large datasets or when using the slower delay-estimation methods (e.g. 2TCM from multiple regions).
+**Symptom:** Fitting takes a long time, particularly on large datasets, when using the slower delay-estimation methods (e.g. 2TCM from multiple regions), or when using [nested models](models.md#nested-models).
 
 **Cause:** By default PETFit runs on a single core.
 
