@@ -48,6 +48,15 @@ Estimates the temporal delay between the blood input function and the tissue TAC
 3. **2TCM from single representative TAC (less quick)** — Fits a 2TCM to one representative or high-quality region.
 4. **1TCM median from multiple regions (recommended)** — Fits 1TCM to multiple regions and takes the median delay. This is the default.
 5. **2TCM median from multiple regions (very slow)** — Fits 2TCM to multiple regions and takes the median delay.
+6. **Nested 1TCM shared delay from multiple regions (slow)** — Fits 1TCM to all the chosen regions *jointly*, estimating one delay shared across them.
+7. **Nested 2TCM shared delay from multiple regions (very slow)** — The same, with a 2TCM.
+
+The delay is a property of the measurement, not of any one region, so the nested methods estimate a single one directly rather than summarising independent per-region estimates. Like the other [nested models](../models.md#nested-models), they need at least two regions per measurement, and they take a fixed `vB` — the "Fit vB parameter" option is not offered for them. They always run with a single starting point regardless of the multistart setting: the nested fit refits every region at each evaluation of the delay, and the delay search itself already covers the range.
+
+**Regions for multiple regions analysis:**
+
+The multiple-regions and nested methods use every region in the analysis by default. The optional regions field restricts them to the regions you name, separated by `;`, with a leading `-` to exclude instead of include — the same syntax as the subsetting fields.
+
 
 **Blood input time shift controls:**
 
@@ -57,12 +66,14 @@ Estimates the temporal delay between the blood input function and the tissue TAC
 
 Fits kinetic models to each PET measurement and region. You can configure up to three models simultaneously for comparison.
 
-**Available models:** 1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak. See [Supported models](../models.md) for details.
+**Available models:** 1TCM, 2TCM, nested2TCM, 2TCM_irr, Logan, MA1, Patlak. See [Supported models](../models.md) for details.
 
 Each model has configurable:
 - Start values, lower bounds, and upper bounds for all parameters
 - Whether to fit vB (blood volume fraction)
 - Whether to use weights
+
+**nested2TCM** is configured differently from the others: it fits all the regions of a measurement together, so its parameters are given in the macro parameterisation (`K1`, `Vnd`, `BPp`, `k4`), you choose which of `Vnd` and `k4` are shared within each measurement, `vB` is a fixed value rather than a fitted one, and a region weighting setting controls how much each region pulls on the shared estimates. See [Nested models](../models.md#nested-models).
 
 ## Running the pipeline
 
@@ -187,7 +198,7 @@ petfit_auto(
 The Interactive tab lets you manually load and visualise individual TAC data. This is useful for validating model configurations before running the full pipeline:
 
 1. Click "Scan Analysis Folder" to discover available PET measurements and regions.
-2. Select a PET measurement, region, and model.
+2. Select a PET measurement, region, and model. Nested models are not available here — they fit all regions together, which is not what this tab does.
 3. Click "Load Data" to view the TAC.
 4. Click "Fit Model" to test the model fit.
 
