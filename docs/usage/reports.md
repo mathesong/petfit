@@ -35,7 +35,9 @@ Generated after each model fitting step. The template is chosen based on the mod
 
 For example, if you configure 2TCM as Model 1 and Logan as Model 2, PETFit uses `2tcm_report.Rmd` to generate `model1_report.html` and `logan_report.Rmd` to generate `model2_report.html`.
 
-Available model templates: 1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak, SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak.
+Available model templates: 1TCM, 2TCM, nested2TCM, 2TCM_irr, Logan, MA1, Patlak, SRTM, nestedSRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak.
+
+The [nested model](../models.md#nested-models) reports differ from the others in what they can report. Because all the regions of a measurement are fitted against a single joint objective, the effective number of parameters per region is ambiguous, so there is no per-region AIC or BIC: the weighted residual sum of squares per region is given instead, alongside the joint objective value and the optimiser's convergence code for each measurement. They also list the regions found per measurement, and name any dropped for having fewer than two.
 
 
 
