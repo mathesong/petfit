@@ -57,6 +57,135 @@ if (cores > 1) {
 
 theme_set(theme_light())
 
+# ---------------------------------------------------------------------------
+# Reference TAC spline fitting helpers
+#
+# kinfitr::spline_tac() takes the basis dimension as `k`, following mgcv, where
+# k = -1 means "choose the dimension automatically". The configured
+# ReferenceTAC$spline_df is that k. Anything negative or missing is therefore a
+# request for the automatic choice, not a degenerate basis.
+# ---------------------------------------------------------------------------
+
+# A basis of 0 or 1 dimensions cannot describe anything but a level, and a
+# steady-state reference TAC can fail spline basis construction outright. In
+# both cases fall back to the weighted mean, which is the honest fit, and say so
+# in the report rather than failing the whole step.
+constant_reference_tac_fit <- function(t_tac, tac, weights = NULL, reason = "") {
+  if (is.null(weights)) {
+    weights <- rep(1, length(tac))
+  }
+
+  fitted_tac <- weighted.mean(tac, w = weights, na.rm = TRUE)
+
+  structure(
+    list(
+      tacs = tibble(
+        Time = t_tac,
+        TAC = tac,
+        TAC_fitted = rep(fitted_tac, length(tac))
+      ),
+      par = tibble(t0 = min(t_tac, na.rm = TRUE)),
+      fit_message = reason,
+      petfit_constant_fallback = TRUE
+    ),
+    class = c("petfit_constant_reference_tac_fit", "list")
+  )
+}
+
+fit_reference_spline_tac <- function(t_tac, tac, weights = NULL, spline_df = NULL) {
+  spline_df <- suppressWarnings(as.numeric(spline_df %||% NA_real_))
+
+  # Negative or missing: let kinfitr pick the basis dimension itself.
+  auto_df <- is.na(spline_df) || spline_df < 0
+
+  if (!auto_df && spline_df < 2) {
+    return(constant_reference_tac_fit(
+      t_tac = t_tac,
+      tac = tac,
+      weights = weights,
+      reason = str_glue("Spline degrees of freedom ({spline_df}) is below 2, ",
+                        "which cannot form a spline basis; using a weighted constant fit.")
+    ))
+  }
+
+  spline_args <- list(
+    t_tac = t_tac,
+    tac = tac,
+    weights = weights
+  )
+
+  if (!auto_df) {
+    spline_args$k <- spline_df
+  }
+
+  tryCatch(
+    do.call(kinfitr::spline_tac, spline_args),
+    error = function(e) {
+      constant_reference_tac_fit(
+        t_tac = t_tac,
+        tac = tac,
+        weights = weights,
+        reason = str_glue("Spline fit failed ({conditionMessage(e)}); using a weighted constant fit.")
+      )
+    }
+  )
+}
+
+# spline_tac() returns its fitted values on its own internal time grid, which
+# tidyinput_ref() may have extended with a frame at time zero. Joining that grid
+# back onto the PET frames by equality silently drops rows, and plotting it
+# directly draws a curve starting at zero for a delayed-start acquisition.
+# Interpolate back onto the original frame midpoints instead.
+reference_spline_predictions <- function(ref_fit, ref_tacs) {
+  if (!all(c("Time", "TAC_fitted") %in% colnames(ref_fit$tacs))) {
+    stop("Spline fit output does not contain Time and TAC_fitted columns.")
+  }
+
+  original_time <- ref_tacs$frame_mid / 60
+  fit_time <- ref_fit$tacs$Time
+
+  if (!(min(fit_time, na.rm = TRUE) <= min(original_time, na.rm = TRUE) &&
+        max(fit_time, na.rm = TRUE) >= max(original_time, na.rm = TRUE))) {
+    shifted_fit_time <- fit_time + min(original_time, na.rm = TRUE) - min(fit_time, na.rm = TRUE)
+
+    if (min(shifted_fit_time, na.rm = TRUE) <= min(original_time, na.rm = TRUE) &&
+        max(shifted_fit_time, na.rm = TRUE) >= max(original_time, na.rm = TRUE)) {
+      fit_time <- shifted_fit_time
+    }
+  }
+
+  fitted_tac <- approx(
+    x = fit_time,
+    y = ref_fit$tacs$TAC_fitted,
+    xout = original_time,
+    rule = 2,
+    ties = "ordered"
+  )$y
+
+  ref_tacs %>%
+    transmute(
+      frame_start,
+      frame_mid,
+      RefTAC = RefTAC,
+      RefTAC_fitted = fitted_tac
+    )
+}
+
+plot_reference_spline_fit <- function(ref_fit, ref_tacs) {
+  plot_data <- reference_spline_predictions(ref_fit, ref_tacs) %>%
+    mutate(
+      plot_time = frame_mid / 60,
+      plot_start = frame_start / 60
+    )
+
+  ggplot(plot_data, aes(x = plot_time, y = RefTAC)) +
+    geom_point(colour = "black") +
+    geom_line(aes(y = RefTAC_fitted), colour = "black") +
+    coord_cartesian(xlim = range(plot_data$plot_start, plot_data$plot_time, na.rm = TRUE)) +
+    labs(x = "Time (min)", y = "Radioactivity (kBq)")
+}
+
+
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder
 bids_dir <- params$bids_dir
@@ -633,18 +762,27 @@ str_glue("### Feng+1TC Reference Model Plots")
 ```
 
 ```{r feng1tc-plotting, eval=use_feng1tc, echo=use_feng1tc}
-walk2(ref_tac_fitdata$ref_fit,
-      ref_tac_fitdata$pet, 
-      ~print(plot(.x) + labs(title = .y)))
+pwalk(list(ref_tac_fitdata$ref_fit,
+           ref_tac_fitdata$ref_tacs,
+           ref_tac_fitdata$pet),
+      ~print(plot_reference_spline_fit(..1, ..2) + labs(title = ..3)))
 ```
 
 
 
 ```{r, eval=use_spline, echo=use_spline, results='asis'}
-spline_df <- config$ReferenceTAC$spline_df %||% 5
+# Report what will actually be used: an unset or negative spline_df is a request
+# for kinfitr to choose the basis dimension itself, not a request for 5.
+spline_df_display <- suppressWarnings(as.numeric(config$ReferenceTAC$spline_df %||% NA_real_))
+spline_df_display <- if (is.na(spline_df_display) || spline_df_display < 0) {
+  "automatically selected"
+} else {
+  as.character(spline_df_display)
+}
+
 str_glue("## Spline Model Fitting
 
-Fitting reference TAC using smooth spline with **{spline_df}** degrees of freedom.")
+Fitting reference TAC using smooth spline with **{spline_df_display}** degrees of freedom.")
 ```
 
 ```{r spline-fitting, eval=use_spline, echo=use_spline, report_warnings=TRUE}
@@ -658,17 +796,25 @@ ref_tac_fitdata <- ref_tac_data %>%
   ungroup()
 
 ref_tac_fitdata <- ref_tac_fitdata %>%
-  mutate(ref_fit = future_map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
-                                              tac     = .x$RefTAC,
-                                              weights = .x$ref_weights),
+  mutate(ref_fit = future_map(ref_tacs, ~fit_reference_spline_tac(t_tac     = .x$frame_mid/60,
+                                                                  tac       = .x$RefTAC,
+                                                                  weights   = .x$ref_weights,
+                                                                  spline_df = spline_df),
                               .options = furrr_options(seed = TRUE)))
 
+# Surface any measurement that fell back to a constant fit, rather than letting
+# it pass silently as though it had been splined.
+spline_fit_messages <- ref_tac_fitdata %>%
+  mutate(fit_message = map_chr(ref_fit, ~.x$fit_message %||% "")) %>%
+  filter(fit_message != "") %>%
+  select(any_of(c("sub", "ses", "trc", "rec", "task", "run", "pet")), fit_message)
+
+if (nrow(spline_fit_messages) > 0) {
+  print(kable(spline_fit_messages, caption = "Spline fitting fallbacks"))
+}
+
 ref_tac_preddata <- ref_tac_fitdata %>%
-  mutate(ref_preds = map(ref_fit, ~.x$tacs %>%
-                          rename(frame_mid = Time,
-                                 RefTAC = TAC,
-                                 RefTAC_fitted = TAC_fitted) %>%
-                           mutate(frame_mid = frame_mid*60))) %>%
+  mutate(ref_preds = map2(ref_fit, ref_tacs, reference_spline_predictions)) %>%
   select(-ref_fit) %>%
   mutate(ref_tacs = map2(ref_tacs, ref_preds, inner_join)) %>%
   mutate(ref_tacs = map(ref_tacs, ~.x %>%
