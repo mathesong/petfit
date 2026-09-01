@@ -1,0 +1,542 @@
+---
+title: "SUVR Estimation Report"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    code_folding: hide
+params:
+  cores: 1
+  model_number: "Model 1"
+  analysis_folder: NULL
+  bids_dir: NULL
+  blood_dir: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = FALSE)
+# Warnings go to the console/step log, not into this report: dplyr's
+# many-to-many join warning is the signal that a duplicated record has
+# multiplied TAC rows, and it used to be discarded outright.
+petfit::divert_report_warnings()
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
+library(kinfitr)
+library(knitr)
+library(jsonlite)
+library(glue)
+library(DT)
+library(furrr)
+
+# Fixed seed for consistency with the fitting reports. SUVR itself is
+# deterministic, but furrr_options(seed = TRUE) still derives its streams from
+# the session state, so seeding here keeps a re-run byte-identical.
+set.seed(123)
+
+cores <- params$cores %||% 1
+if (cores > 1) {
+  if (future::supportsMulticore()) {
+    future::plan(future::multicore, workers = cores)
+  } else {
+    future::plan(future::multisession, workers = cores)
+  }
+} else {
+  future::plan(future::sequential)
+}
+
+theme_set(theme_light())
+
+analysis_folder <- params$analysis_folder
+model_number <- params$model_number
+bids_dir <- params$bids_dir
+
+config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+config <- NULL
+if (file.exists(config_path)) {
+  tryCatch({
+    config <- jsonlite::fromJSON(config_path)
+    config <- coerce_bounds_numeric(config)
+  }, error = function(e) {
+    cat("Warning: Could not load config file:", e$message, "\n")
+  })
+} else {
+  cat("Config file not found at:", config_path, "\n")
+}
+```
+
+```{r cleanup-old, include=FALSE}
+desc <- str_remove(str_to_lower(model_number), " ")
+oldfiles <- list.files(analysis_folder, pattern = desc,
+                       recursive = TRUE, full.names = TRUE)
+file.remove(oldfiles)
+```
+
+This report estimates Standardised Uptake Value Ratios (SUVR) as a target-to-reference tissue ratio over a configured frame or time window.
+
+The calculation mirrors the regional TAC ratio approach described by Turku PET Centre's `dftratio`: the outcome is the regional AUC over the selected interval divided by the reference AUC over the same interval. Concentration units cancel out, so the same ratio is obtained from radioactivity concentration or SUV TACs.
+
+# Analysis Configuration
+
+**Model:** `r params$model_number` - SUVR (AUC ratio)
+
+**Analysis folder:** `r params$analysis_folder`
+
+**Generated on:** `r format(Sys.time(), "%Y-%m-%d %H:%M:%S")`
+
+# Model Configuration
+
+```{r model-config}
+model_config <- NULL
+if (!is.null(config$Models)) {
+  if (params$model_number == "Model 1") {
+    model_config <- config$Models$Model1
+  } else if (params$model_number == "Model 2") {
+    model_config <- config$Models$Model2
+  } else if (params$model_number == "Model 3") {
+    model_config <- config$Models$Model3
+  }
+}
+
+if (!is.null(model_config) && model_config$type == "SUVR") {
+  config_items <- list("Model Type" = "SUVR (target-to-reference AUC ratio)")
+
+  subset_type <- model_config$subset$type %||% "none"
+
+  if (!is.null(model_config$subset) && subset_type %in% c("frame", "time")) {
+    subset_info <- paste0(
+      "Type: ", subset_type,
+      ", Start: ", model_config$subset$start %||% "Not set",
+      ", End: ", model_config$subset$end %||% "Not set"
+    )
+    config_items[["Window"]] <- subset_info
+  } else {
+    config_items[["Window"]] <- "Use all frames"
+  }
+
+  config_df <- tibble(
+    Parameter = names(config_items),
+    Value = map_chr(config_items, as.character)
+  )
+
+  kable(config_df, caption = "SUVR Configuration")
+} else {
+  cat("SUVR configuration not found or incomplete.")
+}
+```
+
+```{r setup-conditions, echo=FALSE}
+has_suvr_config <- !is.null(model_config) && model_config$type == "SUVR"
+
+if (!has_suvr_config) {
+  cat("Invalid or missing SUVR configuration. This report should not have been generated.")
+  knitr::knit_exit()
+}
+```
+
+# Loading Data
+
+```{r load-tacs}
+tacs_files <- list.files(analysis_folder,
+                         pattern = "*_desc-targetregions_tacs.tsv",
+                         recursive = TRUE)
+
+if (length(tacs_files) == 0) {
+  stop("No target TAC files found in analysis folder: ", analysis_folder)
+}
+
+tac_data <- tibble(filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(tacs) %>%
+  select(-basename, -measurement, -desc)
+
+ref_files <- list.files(analysis_folder,
+                        pattern = "*_desc-ref_tacs.tsv",
+                        recursive = TRUE)
+
+if (length(ref_files) == 0) {
+  stop("No reference TAC files found in analysis folder: ", analysis_folder)
+}
+
+ref_data <- tibble(filename = ref_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  group_by(filename) %>%
+  mutate(ref_tacs = map(filename, ~read_tsv(file.path(analysis_folder, .x), show_col_types = FALSE))) %>%
+  ungroup() %>%
+  unnest(ref_tacs) %>%
+  select(-basename, -measurement, -desc, -filename) %>%
+  select(-any_of("volume_mm3"))
+```
+
+```{r combine-data}
+model_data <- tac_data %>%
+  inner_join(ref_data) %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet", "filename", "region")))) %>%
+  mutate(frame_start = frame_start / 60,
+         frame_end = frame_end / 60,
+         frame_dur = frame_dur / 60,
+         frame_mid = frame_mid / 60) %>%
+  arrange(frame_start, .by_group = TRUE) %>%
+  nest(.key = "tacs") %>%
+  ungroup() %>%
+  mutate(output_stem = filename) %>%
+  select(-filename) %>%
+  mutate(output_stem = str_remove(output_stem, "_desc.*")) %>%
+  mutate(output_stem = str_remove(output_stem, "_tacs.*"))
+```
+
+# SUVR Estimation
+
+```{r suvr-functions}
+subset_config <- model_config$subset
+
+frameStartEnd <- NULL
+timeStartEnd <- NULL
+
+if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset_config$end))) {
+  if (subset_config$type == "frame") {
+    frameStartEnd <- c(subset_config$start, subset_config$end)
+  } else if (subset_config$type == "time") {
+    timeStartEnd <- c(subset_config$start, subset_config$end)
+  }
+}
+
+call_kinfitr_suv <- function(tac_values, tac, frameStartEnd = NULL, timeStartEnd = NULL) {
+  suv_args <- list(
+    tac = tac_values,
+    t_tac = tac$frame_mid,
+    dur_tac = tac$frame_dur,
+    injRad = 1,
+    bodymass = 1
+  )
+
+  if (!is.null(frameStartEnd)) {
+    suv_args$frameStartEnd <- frameStartEnd
+  }
+
+  if (!is.null(timeStartEnd)) {
+    if (!"timeStartEnd" %in% names(formals(kinfitr::SUV))) {
+      stop("The installed kinfitr::SUV() does not support timeStartEnd. Please update kinfitr to use time-windowed SUVR.")
+    }
+
+    suv_args$timeStartEnd <- timeStartEnd
+  }
+
+  do.call(kinfitr::SUV, suv_args)
+}
+
+scalar_or_default <- function(x, index, default) {
+  if (is.null(x) || length(x) < index || is.na(x[[index]])) {
+    default
+  } else {
+    x[[index]]
+  }
+}
+
+annotate_suvr_window <- function(tac, frameStartEnd = NULL, timeStartEnd = NULL) {
+  if (!is.null(frameStartEnd)) {
+    frameStartEnd <- c(
+      as.integer(scalar_or_default(frameStartEnd, 1, 1)),
+      as.integer(scalar_or_default(frameStartEnd, 2, nrow(tac)))
+    )
+  }
+
+  if (!is.null(timeStartEnd)) {
+    timeStartEnd <- c(
+      as.numeric(scalar_or_default(timeStartEnd, 1, min(tac$frame_start, na.rm = TRUE))),
+      as.numeric(scalar_or_default(timeStartEnd, 2, max(tac$frame_end, na.rm = TRUE)))
+    )
+  }
+
+  if (!is.null(frameStartEnd)) {
+    tac %>%
+      mutate(
+        included = frame_index >= frameStartEnd[[1]] & frame_index <= frameStartEnd[[2]],
+        window_duration = if_else(included, frame_dur, 0)
+      )
+  } else if (!is.null(timeStartEnd)) {
+    tac %>%
+      mutate(
+        window_duration = pmax(0, pmin(frame_end, timeStartEnd[[2]]) - pmax(frame_start, timeStartEnd[[1]])),
+        included = window_duration > 0
+      )
+  } else {
+    tac %>%
+      mutate(
+        window_duration = frame_dur,
+        included = TRUE
+      )
+  }
+}
+
+estimate_suvr <- function(tac, frameStartEnd = NULL, timeStartEnd = NULL) {
+  tac <- tac %>%
+    arrange(frame_start) %>%
+    mutate(frame_index = row_number())
+
+  if (!is.null(frameStartEnd) && all(as.numeric(frameStartEnd) == 0)) {
+    frameStartEnd <- NULL
+  }
+
+  if (!is.null(timeStartEnd) && all(as.numeric(timeStartEnd) == 0)) {
+    timeStartEnd <- NULL
+  }
+
+  target_suv <- call_kinfitr_suv(tac$TAC, tac, frameStartEnd, timeStartEnd)
+  reference_suv <- call_kinfitr_suv(tac$RefTAC, tac, frameStartEnd, timeStartEnd)
+
+  windowed <- annotate_suvr_window(tac, frameStartEnd, timeStartEnd)
+
+  selected <- windowed %>%
+    filter(included)
+
+  if (!is.null(timeStartEnd)) {
+    window_start <- as.numeric(timeStartEnd[[1]])
+    window_end <- as.numeric(timeStartEnd[[2]])
+  } else if (nrow(selected) > 0) {
+    window_start <- min(selected$frame_start, na.rm = TRUE)
+    window_end <- max(selected$frame_end, na.rm = TRUE)
+  } else {
+    window_start <- NA_real_
+    window_end <- NA_real_
+  }
+
+  if (nrow(selected) == 0) {
+    return(list(
+      par = tibble(
+        SUVR = NA_real_,
+        target_auc = NA_real_,
+        reference_auc = NA_real_,
+        target_uptake = NA_real_,
+        reference_uptake = NA_real_,
+        window_start = window_start,
+        window_end = window_end,
+        window_duration = 0,
+        n_frames = 0
+      ),
+      fitvals = windowed
+    ))
+  }
+
+  target_auc <- target_suv$par$intSUV
+  reference_auc <- reference_suv$par$intSUV
+  window_duration <- sum(selected$window_duration, na.rm = TRUE)
+
+  list(
+    par = tibble(
+      SUVR = target_auc / reference_auc,
+      target_auc = target_auc,
+      reference_auc = reference_auc,
+      target_uptake = target_auc / window_duration,
+      reference_uptake = reference_auc / window_duration,
+      window_start = window_start,
+      window_end = window_end,
+      window_duration = window_duration,
+      n_frames = nrow(selected)
+    ),
+    fitvals = windowed
+  )
+}
+```
+
+```{r suvr-estimation, report_warnings=TRUE}
+model_data <- model_data %>%
+  mutate(suvr_result = future_map(
+    tacs,
+    ~estimate_suvr(.x, frameStartEnd, timeStartEnd),
+    .options = furrr_options(seed = TRUE)
+  )) %>%
+  mutate(par = map(suvr_result, "par"),
+         fitvals = map(suvr_result, "fitvals"),
+         success = map_lgl(par, ~nrow(.x) == 1 && is.finite(.x$SUVR)))
+```
+
+```{r estimation-summary, results='asis'}
+success_n <- sum(model_data$success)
+tot_n <- nrow(model_data)
+
+str_glue("SUVR successfully estimated for {success_n} / {tot_n} ({round(100 * success_n / tot_n)}%) of measurements.
+
+         SUVR estimation unsuccessful for {tot_n - success_n} / {tot_n} ({100 - round(100 * success_n / tot_n)}%) of measurements.")
+```
+
+# Results
+
+```{r results-table}
+model_data <- model_data %>%
+  filter(success)
+
+par_table <- model_data %>%
+  ungroup() %>%
+  select(-tacs, -suvr_result, -fitvals, -output_stem) %>%
+  unnest(par)
+
+par_table %>%
+  select(where(~ n_distinct(.x) > 1)) %>%
+  mutate(across(where(is.numeric), ~round(.x, 3))) %>%
+  DT::datatable()
+```
+
+## Parameter Plots
+
+This plot keeps PET measurements explicit. Each panel shows one region, bar height is SUVR, and tracer is encoded by colour. For most analyses the tracer colour will be constant, but it remains visible if the analysis intentionally includes multiple tracers.
+
+```{r suvr-plot-data}
+plot_table <- par_table %>%
+  mutate(
+    tracer_label = if_else(is.na(trc) | trc == "", "Tracer not specified", trc),
+    measurement_label = pmap_chr(
+      select(., any_of(c("sub", "ses", "task", "run"))),
+      ~{
+        attrs <- list(...)
+        attrs <- attrs[!is.na(attrs) & attrs != ""]
+        if (length(attrs) == 0) {
+          "measurement"
+        } else {
+          paste(paste(names(attrs), attrs, sep = "-"), collapse = "\n")
+        }
+      }
+    )
+  )
+```
+
+```{r suvr-region-bars, fig.width=10, fig.height=6}
+ggplot(plot_table, aes(x = measurement_label, y = SUVR, fill = tracer_label)) +
+  geom_col(position = position_dodge2(width = 0.8, preserve = "single"), colour = "black", width = 0.75) +
+  facet_wrap(~region, scales = "free_x") +
+  labs(x = "Measurement", y = "SUVR", fill = "Tracer") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Saving Parameters
+
+## Main TSV
+
+```{r save-main-parameters}
+savepar <- par_table
+
+write_tsv(savepar,
+          file = paste0(analysis_folder, "/",
+                        "model-", "SUVR", "_",
+                        "desc-", desc, "_",
+                        "kinpar.tsv"))
+```
+
+## PET Folder TSVs
+
+```{r save-pet-parameters}
+folder_data <- tibble(filename = tacs_files) %>%
+  mutate(basename = basename(filename)) %>%
+  mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+  unnest(attributes) %>%
+  mutate(dirname = dirname(filename)) %>%
+  select(-filename, -basename, -measurement, -desc)
+
+savepar_pet <- savepar %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key = "kinpars") %>%
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model-", "SUVR", "_",
+                           "desc-", desc, "_",
+                           "kinpar.tsv"))
+
+walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r save-parameter-json}
+savepar_pet <- savepar_pet %>%
+  group_by(pet) %>%
+  mutate(jsondat = map(kinpars, ~list(
+    Description = "Standardised Uptake Value Ratio estimated as target-to-reference tissue AUC ratio.",
+    ModelName = "SUVR",
+    AdditionalModelDetails = "Reference tissue ratio - no blood data required",
+    SUVR = "Target region AUC divided by reference region AUC over the selected window",
+    target_auc = "Target region area under the TAC over the selected window",
+    reference_auc = "Reference region area under the TAC over the selected window",
+    target_uptake = "Frame-duration weighted target uptake over the selected window",
+    reference_uptake = "Frame-duration weighted reference uptake over the selected window",
+    window_start = "Window start time in minutes",
+    window_end = "Window end time in minutes",
+    window_duration = "Total included frame duration in minutes",
+    n_frames = "Number of frames included in the ratio"
+  ))) %>%
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+
+walk2(savepar_pet$jsondat,
+      savepar_pet$filename_json,
+      ~writeLines(.x, .y))
+```
+
+# Saving Ratio Inputs
+
+```{r save-fitvals}
+savefits <- model_data %>%
+  filter(success) %>%
+  select(any_of(c("sub", "ses", "task", "trc", "run",
+                  "rec", "pet", "region")), fitvals) %>%
+  unnest(cols = c("fitvals")) %>%
+  select(any_of(c("sub", "ses", "task", "trc", "run", "rec", "pet", "region",
+                  "frame_start", "frame_end", "frame_mid", "frame_dur",
+                  "TAC", "RefTAC", "included", "window_duration"))) %>%
+  group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
+                                           "run", "pet")))) %>%
+  nest(.key = "fitvals")
+
+savefits_pet <- savefits %>%
+  inner_join(folder_data) %>%
+  mutate(filename = paste0(analysis_folder, "/", dirname, "/", pet, "_",
+                           "model-", "SUVR", "_",
+                           "desc-", desc, "ratioinput",
+                           "_",
+                           "tacs.tsv"))
+
+walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
+```
+
+```{r save-fitvals-json}
+savefits_pet <- savefits_pet %>%
+  group_by(pet) %>%
+  mutate(jsondat = map(fitvals, ~list(
+    Description = "TAC values used for SUVR ratio estimation.",
+    ModelName = "SUVR",
+    frame_start = "Frame start time in minutes",
+    frame_end = "Frame end time in minutes",
+    frame_mid = "Frame middle time in minutes",
+    TAC = "Target region TAC radioactivity data",
+    RefTAC = "Reference region TAC radioactivity data",
+    included = "Whether the frame contributed to the selected ratio window",
+    window_duration = "Frame duration within the selected window in minutes"
+  ))) %>%
+  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+  mutate(filename_json = str_replace(filename, ".tsv", ".json"))
+
+walk2(savefits_pet$jsondat,
+      savefits_pet$filename_json,
+      ~writeLines(.x, .y))
+```
+
+```{r cleanup, include=FALSE}
+future::plan(future::sequential)
+```
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```

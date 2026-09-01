@@ -654,6 +654,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -720,6 +721,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
                             ),
 
                              # refLogan selection panel
@@ -847,6 +858,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -913,6 +925,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button2 == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
                             ),
 
                              # refLogan selection panel
@@ -1045,6 +1067,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -1111,6 +1134,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button3 == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
                             ),
 
                              # refLogan selection panel
