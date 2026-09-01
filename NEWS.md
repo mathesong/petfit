@@ -1,3 +1,77 @@
+# petfit (development version)
+
+## SUV and SUVR
+
+* **New: `SUVR`, a reference-tissue outcome that reports both SUV and SUVR.**
+  Where the kinetic models fit a curve, this one simply integrates: the outcome
+  is the target region's area under the TAC over a chosen window divided by the
+  reference region's area over the same window. It needs no blood data, so it
+  lives in the reference tissue app alongside SRTM and the graphical methods.
+
+  The two outcomes differ in what they need. SUVR is a ratio of two integrals
+  over the same frames, so the injected radioactivity and body weight cancel: it
+  is the same number computed from radioactivity concentrations or from SUV, and
+  it is always available. SUV does not cancel, and is reported only when the
+  injected radioactivity is known for every measurement — the report applies the
+  same rule the data definition report already used, falling back to an assumed
+  70 kg body weight when only the dose is known, and reporting SUVR alone when
+  the dose is missing anywhere. Which of the three applied is stated in the
+  report and recorded in the JSON sidecar.
+
+  The window is set under **TAC Subset Selection**, as for every other model.
+  Leaving it at "None" integrates the whole TAC, which is what static data
+  wants. A time window includes **whole frames whose midpoint falls inside it**,
+  never part of a frame, following `kinfitr::SUV()`; the window that was
+  actually integrated is reported alongside every estimate rather than left to
+  be inferred from what was requested.
+
+* **New: `suvr()` and `suv_denominator()`**, the estimator behind the report,
+  exported so that the report, the interactive sandbox and any downstream script
+  cannot drift apart in how they resolve a window. `suvr()` returns SUVR, SUV,
+  the underlying integrals and the resolved window, and has a `plot()` method.
+
+* **SUVR in the Interactive Sandbox.** Selecting a measurement and region draws
+  the target and reference TACs with the integrated frames shaded underneath, so
+  the window can be checked by eye before running the cohort. The shaded areas
+  are the two integrals whose ratio is the SUVR.
+
+## Reference TAC fixes
+
+* **The configured spline degrees of freedom now actually reach the fit.**
+  `ReferenceTAC$spline_df` was displayed in the report and written into the JSON
+  sidecar, but was never passed to `spline_tac()`, so changing it had no effect.
+  It is now passed as the basis dimension. An unset or negative value means
+  "choose automatically", which is what the fit already did; the report now says
+  so instead of claiming 5 degrees of freedom.
+
+* **A reference TAC that cannot be splined no longer fails the step.** Spline
+  basis construction can fail outright on a steady-state reference TAC, and a
+  degrees-of-freedom setting below 2 cannot form a basis at all. Such
+  measurements now fall back to a weighted constant fit and are listed in a
+  "Spline fitting fallbacks" table, rather than failing or passing silently as
+  though they had been splined.
+
+* **Spline-fitted reference TACs are plotted and saved on the PET frame
+  timing.** `spline_tac()` returns its fitted values on an internal grid that
+  may have been extended with a frame at time zero. Joining that back onto the
+  PET frames by equality could silently drop rows, and plotting it drew a curve
+  starting at zero for a delayed-start acquisition. Fitted values are now
+  interpolated back onto the original frame midpoints.
+
+## Bug fixes
+
+* **A saved TAC subset window is restored correctly in the reference tissue
+  app.** The shared restore path called `updateRadioButtons()` on `subset_type`,
+  which is a `selectInput`, so it silently did nothing. Every model with its own
+  restore branch was unaffected, but a model relying on the shared path alone
+  would reload with its window reset.
+
+* **A window is no longer recorded under a selection method of "None".** The
+  shared config path wrote a `subset` whenever a start or end point had been
+  typed, even with the method left at "None" — a setting the reports read and
+  then ignore. The recorded default also claimed "time" for a control whose own
+  default is "none"; both now agree.
+
 # petfit 0.2.1
 
 ## Nested models

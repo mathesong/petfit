@@ -1,5 +1,5 @@
 ---
-title: "SUVR Estimation Report"
+title: "SUV / SUVR Estimation Report"
 output:
   html_document:
     toc: true
@@ -77,13 +77,17 @@ oldfiles <- list.files(analysis_folder, pattern = desc,
 file.remove(oldfiles)
 ```
 
-This report estimates Standardised Uptake Value Ratios (SUVR) as a target-to-reference tissue ratio over a configured frame or time window.
+This report estimates both the Standardised Uptake Value (SUV) and the Standardised Uptake Value Ratio (SUVR) over a configured frame or time window.
 
-The calculation mirrors the regional TAC ratio approach described by Turku PET Centre's `dftratio`: the outcome is the regional AUC over the selected interval divided by the reference AUC over the same interval. Concentration units cancel out, so the same ratio is obtained from radioactivity concentration or SUV TACs.
+The calculation mirrors the regional TAC ratio approach described by Turku PET Centre's `dftratio`: the outcome is the regional AUC over the selected interval divided by the reference AUC over the same interval. Both integrals come from `kinfitr::SUV()`.
+
+The two outcomes differ in what they need. **SUVR** is a ratio of two integrals over the same frames, so the injected radioactivity and body weight cancel: it is the same number whether it is computed from radioactivity concentrations or from SUV, and it is always available. **SUV** does not cancel, and is only reported when the injected radioactivity is known for every measurement.
+
+A time window selects **whole frames whose midpoint falls inside it**, never part of a frame, following the convention of `kinfitr::SUV()`. The window that was actually integrated is reported alongside every estimate.
 
 # Analysis Configuration
 
-**Model:** `r params$model_number` - SUVR (AUC ratio)
+**Model:** `r params$model_number` - SUV / SUVR (AUC ratio)
 
 **Analysis folder:** `r params$analysis_folder`
 
@@ -104,7 +108,7 @@ if (!is.null(config$Models)) {
 }
 
 if (!is.null(model_config) && model_config$type == "SUVR") {
-  config_items <- list("Model Type" = "SUVR (target-to-reference AUC ratio)")
+  config_items <- list("Model Type" = "SUV / SUVR (target-to-reference AUC ratio)")
 
   subset_type <- model_config$subset$type %||% "none"
 
@@ -124,7 +128,7 @@ if (!is.null(model_config) && model_config$type == "SUVR") {
     Value = map_chr(config_items, as.character)
   )
 
-  kable(config_df, caption = "SUVR Configuration")
+  kable(config_df, caption = "SUV / SUVR Configuration")
 } else {
   cat("SUVR configuration not found or incomplete.")
 }
@@ -184,7 +188,8 @@ ref_data <- tibble(filename = ref_files) %>%
 model_data <- tac_data %>%
   inner_join(ref_data) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
-                                           "run", "pet", "filename", "region")))) %>%
+                                           "run", "pet", "filename", "region",
+                                           "InjectedRadioactivity", "bodyweight")))) %>%
   mutate(frame_start = frame_start / 60,
          frame_end = frame_end / 60,
          frame_dur = frame_dur / 60,
@@ -198,179 +203,89 @@ model_data <- tac_data %>%
   mutate(output_stem = str_remove(output_stem, "_tacs.*"))
 ```
 
-# SUVR Estimation
+# SUV Availability
 
-```{r suvr-functions}
+```{r suv-availability, results='asis'}
+# Decide once, across the whole cohort, how SUV should be calculated, so that
+# the SUV column means the same thing for every measurement. This follows the
+# same rule as the data definition report.
+inj_rad_col <- if ("InjectedRadioactivity" %in% colnames(model_data)) {
+  model_data$InjectedRadioactivity
+} else NULL
+bodyweight_col <- if ("bodyweight" %in% colnames(model_data)) {
+  model_data$bodyweight
+} else NULL
+
+suv_info <- suv_denominator(inj_rad_col, bodyweight_col)
+
+str_glue("{suv_info$label}")
+```
+
+```{r suv-denominator}
+# Per-measurement dose and body mass to hand to suvr(). NA means "no SUV",
+# which suvr() propagates into the SUV outcomes while leaving SUVR intact.
+if (suv_info$mode == "none") {
+  model_data$injRad_used <- NA_real_
+  model_data$bodymass_used <- NA_real_
+} else if (suv_info$mode == "SUV_bw70") {
+  model_data$injRad_used <- model_data$InjectedRadioactivity
+  model_data$bodymass_used <- 70
+} else {
+  model_data$injRad_used <- model_data$InjectedRadioactivity
+  model_data$bodymass_used <- model_data$bodyweight
+}
+```
+
+# SUV / SUVR Estimation
+
+```{r window-config}
+# Resolve the configured window. suvr() normalises a one-sided window and
+# resolves a time window to whole frames, so nothing more is needed here.
 subset_config <- model_config$subset
 
 frameStartEnd <- NULL
 timeStartEnd <- NULL
 
 if (!is.null(subset_config) && (!is.null(subset_config$start) || !is.null(subset_config$end))) {
-  if (subset_config$type == "frame") {
+  if (identical(subset_config$type, "frame")) {
     frameStartEnd <- c(subset_config$start, subset_config$end)
-  } else if (subset_config$type == "time") {
+  } else if (identical(subset_config$type, "time")) {
     timeStartEnd <- c(subset_config$start, subset_config$end)
   }
-}
-
-call_kinfitr_suv <- function(tac_values, tac, frameStartEnd = NULL, timeStartEnd = NULL) {
-  suv_args <- list(
-    tac = tac_values,
-    t_tac = tac$frame_mid,
-    dur_tac = tac$frame_dur,
-    injRad = 1,
-    bodymass = 1
-  )
-
-  if (!is.null(frameStartEnd)) {
-    suv_args$frameStartEnd <- frameStartEnd
-  }
-
-  if (!is.null(timeStartEnd)) {
-    if (!"timeStartEnd" %in% names(formals(kinfitr::SUV))) {
-      stop("The installed kinfitr::SUV() does not support timeStartEnd. Please update kinfitr to use time-windowed SUVR.")
-    }
-
-    suv_args$timeStartEnd <- timeStartEnd
-  }
-
-  do.call(kinfitr::SUV, suv_args)
-}
-
-scalar_or_default <- function(x, index, default) {
-  if (is.null(x) || length(x) < index || is.na(x[[index]])) {
-    default
-  } else {
-    x[[index]]
-  }
-}
-
-annotate_suvr_window <- function(tac, frameStartEnd = NULL, timeStartEnd = NULL) {
-  if (!is.null(frameStartEnd)) {
-    frameStartEnd <- c(
-      as.integer(scalar_or_default(frameStartEnd, 1, 1)),
-      as.integer(scalar_or_default(frameStartEnd, 2, nrow(tac)))
-    )
-  }
-
-  if (!is.null(timeStartEnd)) {
-    timeStartEnd <- c(
-      as.numeric(scalar_or_default(timeStartEnd, 1, min(tac$frame_start, na.rm = TRUE))),
-      as.numeric(scalar_or_default(timeStartEnd, 2, max(tac$frame_end, na.rm = TRUE)))
-    )
-  }
-
-  if (!is.null(frameStartEnd)) {
-    tac %>%
-      mutate(
-        included = frame_index >= frameStartEnd[[1]] & frame_index <= frameStartEnd[[2]],
-        window_duration = if_else(included, frame_dur, 0)
-      )
-  } else if (!is.null(timeStartEnd)) {
-    tac %>%
-      mutate(
-        window_duration = pmax(0, pmin(frame_end, timeStartEnd[[2]]) - pmax(frame_start, timeStartEnd[[1]])),
-        included = window_duration > 0
-      )
-  } else {
-    tac %>%
-      mutate(
-        window_duration = frame_dur,
-        included = TRUE
-      )
-  }
-}
-
-estimate_suvr <- function(tac, frameStartEnd = NULL, timeStartEnd = NULL) {
-  tac <- tac %>%
-    arrange(frame_start) %>%
-    mutate(frame_index = row_number())
-
-  if (!is.null(frameStartEnd) && all(as.numeric(frameStartEnd) == 0)) {
-    frameStartEnd <- NULL
-  }
-
-  if (!is.null(timeStartEnd) && all(as.numeric(timeStartEnd) == 0)) {
-    timeStartEnd <- NULL
-  }
-
-  target_suv <- call_kinfitr_suv(tac$TAC, tac, frameStartEnd, timeStartEnd)
-  reference_suv <- call_kinfitr_suv(tac$RefTAC, tac, frameStartEnd, timeStartEnd)
-
-  windowed <- annotate_suvr_window(tac, frameStartEnd, timeStartEnd)
-
-  selected <- windowed %>%
-    filter(included)
-
-  if (!is.null(timeStartEnd)) {
-    window_start <- as.numeric(timeStartEnd[[1]])
-    window_end <- as.numeric(timeStartEnd[[2]])
-  } else if (nrow(selected) > 0) {
-    window_start <- min(selected$frame_start, na.rm = TRUE)
-    window_end <- max(selected$frame_end, na.rm = TRUE)
-  } else {
-    window_start <- NA_real_
-    window_end <- NA_real_
-  }
-
-  if (nrow(selected) == 0) {
-    return(list(
-      par = tibble(
-        SUVR = NA_real_,
-        target_auc = NA_real_,
-        reference_auc = NA_real_,
-        target_uptake = NA_real_,
-        reference_uptake = NA_real_,
-        window_start = window_start,
-        window_end = window_end,
-        window_duration = 0,
-        n_frames = 0
-      ),
-      fitvals = windowed
-    ))
-  }
-
-  target_auc <- target_suv$par$intSUV
-  reference_auc <- reference_suv$par$intSUV
-  window_duration <- sum(selected$window_duration, na.rm = TRUE)
-
-  list(
-    par = tibble(
-      SUVR = target_auc / reference_auc,
-      target_auc = target_auc,
-      reference_auc = reference_auc,
-      target_uptake = target_auc / window_duration,
-      reference_uptake = reference_auc / window_duration,
-      window_start = window_start,
-      window_end = window_end,
-      window_duration = window_duration,
-      n_frames = nrow(selected)
-    ),
-    fitvals = windowed
-  )
 }
 ```
 
 ```{r suvr-estimation, report_warnings=TRUE}
+safe_suvr <- possibly(suvr, otherwise = NA)
+
 model_data <- model_data %>%
-  mutate(suvr_result = future_map(
-    tacs,
-    ~estimate_suvr(.x, frameStartEnd, timeStartEnd),
+  mutate(suvr_fit = future_pmap(
+    list(tacs, injRad_used, bodymass_used),
+    ~safe_suvr(t_tac       = ..1$frame_mid,
+               reftac      = ..1$RefTAC,
+               roitac      = ..1$TAC,
+               dur         = ..1$frame_dur,
+               frame_start = ..1$frame_start,
+               frame_end   = ..1$frame_end,
+               injRad      = ..2,
+               bodymass    = ..3,
+               frameStartEnd = frameStartEnd,
+               timeStartEnd  = timeStartEnd),
     .options = furrr_options(seed = TRUE)
   )) %>%
-  mutate(par = map(suvr_result, "par"),
-         fitvals = map(suvr_result, "fitvals"),
-         success = map_lgl(par, ~nrow(.x) == 1 && is.finite(.x$SUVR)))
+  mutate(success = map_lgl(suvr_fit, ~is.list(.x) && !is.null(.x$par) &&
+                                       nrow(.x$par) == 1 && is.finite(.x$par$SUVR)),
+         par = map(suvr_fit, ~if (is.list(.x)) .x$par else NULL),
+         fitvals = map(suvr_fit, ~if (is.list(.x)) .x$tacs else NULL))
 ```
 
 ```{r estimation-summary, results='asis'}
 success_n <- sum(model_data$success)
 tot_n <- nrow(model_data)
 
-str_glue("SUVR successfully estimated for {success_n} / {tot_n} ({round(100 * success_n / tot_n)}%) of measurements.
+str_glue("SUVR successfully estimated for {success_n} / {tot_n} ({round(100 * success_n / tot_n)}%) of region-measurements.
 
-         SUVR estimation unsuccessful for {tot_n - success_n} / {tot_n} ({100 - round(100 * success_n / tot_n)}%) of measurements.")
+         SUVR estimation unsuccessful for {tot_n - success_n} / {tot_n} ({100 - round(100 * success_n / tot_n)}%) of region-measurements.")
 ```
 
 # Results
@@ -379,10 +294,22 @@ str_glue("SUVR successfully estimated for {success_n} / {tot_n} ({round(100 * su
 model_data <- model_data %>%
   filter(success)
 
+if (nrow(model_data) == 0) {
+  stop("SUVR could not be estimated for any region-measurement.")
+}
+
 par_table <- model_data %>%
   ungroup() %>%
-  select(-tacs, -suvr_result, -fitvals, -output_stem) %>%
+  select(-tacs, -suvr_fit, -fitvals, -output_stem,
+         -any_of(c("injRad_used", "bodymass_used", "success"))) %>%
   unnest(par)
+
+# Drop the SUV columns entirely when there is no dose information, rather than
+# showing a column of NAs.
+if (suv_info$mode == "none") {
+  par_table <- par_table %>%
+    select(-any_of(c("SUV", "SUV_ref", "intSUV", "intSUV_ref")))
+}
 
 par_table %>%
   select(where(~ n_distinct(.x) > 1)) %>%
@@ -390,14 +317,18 @@ par_table %>%
   DT::datatable()
 ```
 
-## Parameter Plots
+## Outcome Plots
 
-This plot keeps PET measurements explicit. Each panel shows one region, bar height is SUVR, and tracer is encoded by colour. For most analyses the tracer colour will be constant, but it remains visible if the analysis intentionally includes multiple tracers.
+These plots keep PET measurements explicit. Each panel shows one region, bar height is the outcome, and tracer is encoded by colour. For most analyses the tracer colour will be constant, but it remains visible if the analysis intentionally includes multiple tracers.
 
 ```{r suvr-plot-data}
 plot_table <- par_table %>%
   mutate(
-    tracer_label = if_else(is.na(trc) | trc == "", "Tracer not specified", trc),
+    tracer_label = if ("trc" %in% colnames(.)) {
+      if_else(is.na(trc) | trc == "", "Tracer not specified", trc)
+    } else {
+      "Tracer not specified"
+    },
     measurement_label = pmap_chr(
       select(., any_of(c("sub", "ses", "task", "run"))),
       ~{
@@ -419,6 +350,37 @@ ggplot(plot_table, aes(x = measurement_label, y = SUVR, fill = tracer_label)) +
   facet_wrap(~region, scales = "free_x") +
   labs(x = "Measurement", y = "SUVR", fill = "Tracer") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r suv-region-bars, fig.width=10, fig.height=6, eval=suv_info$mode != "none", echo=suv_info$mode != "none"}
+suv_axis_label <- if (suv_info$mode == "SUV_bw70") {
+  "SUV (assuming a bodyweight of 70kg)"
+} else {
+  "SUV"
+}
+
+ggplot(plot_table, aes(x = measurement_label, y = SUV, fill = tracer_label)) +
+  geom_col(position = position_dodge2(width = 0.8, preserve = "single"), colour = "black", width = 0.75) +
+  facet_wrap(~region, scales = "free_x") +
+  labs(x = "Measurement", y = suv_axis_label, fill = "Tracer") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Integration Window
+
+The shaded area is what was integrated: its extent shows the window, and the ratio of the two areas is the SUVR. Shown for the first measurement, one panel per region. Use the Interactive Sandbox in the modelling app to inspect any other measurement.
+
+```{r window-plot, fig.width=10, fig.height=6}
+first_pet <- model_data$pet[[1]]
+
+window_plots <- model_data %>%
+  filter(pet == first_pet) %>%
+  mutate(plots = map2(suvr_fit, region,
+                      ~plot(.x, roiname = .y) +
+                        labs(title = .y, subtitle = NULL) +
+                        theme(legend.position = "bottom")))
+
+walk(window_plots$plots, print)
 ```
 
 # Saving Parameters
@@ -461,20 +423,27 @@ walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
 ```{r save-parameter-json}
 savepar_pet <- savepar_pet %>%
   group_by(pet) %>%
-  mutate(jsondat = map(kinpars, ~list(
-    Description = "Standardised Uptake Value Ratio estimated as target-to-reference tissue AUC ratio.",
+  mutate(jsondat = map(kinpars, ~c(list(
+    Description = "Standardised Uptake Value (SUV) and Uptake Value Ratio (SUVR), estimated as target and reference tissue AUCs over a frame or time window, and their ratio.",
     ModelName = "SUVR",
     AdditionalModelDetails = "Reference tissue ratio - no blood data required",
-    SUVR = "Target region AUC divided by reference region AUC over the selected window",
-    target_auc = "Target region area under the TAC over the selected window",
-    reference_auc = "Reference region area under the TAC over the selected window",
-    target_uptake = "Frame-duration weighted target uptake over the selected window",
-    reference_uptake = "Frame-duration weighted reference uptake over the selected window",
+    SUVCalculation = suv_info$label,
+    WindowConvention = "A time window includes whole frames whose midpoint falls within it. The window actually integrated is recorded per row.",
+    SUVR = "Target region AUC divided by reference region AUC over the window. Dose and body weight cancel, so this is unaffected by whether SUV could be calculated.",
+    meanTAC = "Frame-duration weighted mean target radioactivity concentration over the window",
+    meanTAC_ref = "Frame-duration weighted mean reference radioactivity concentration over the window",
+    intTAC = "Target region area under the TAC over the window",
+    intTAC_ref = "Reference region area under the TAC over the window",
     window_start = "Window start time in minutes",
     window_end = "Window end time in minutes",
     window_duration = "Total included frame duration in minutes",
     n_frames = "Number of frames included in the ratio"
-  ))) %>%
+  ), if (suv_info$mode == "none") list() else list(
+    SUV = "Frame-duration weighted mean target SUV over the window",
+    SUV_ref = "Frame-duration weighted mean reference SUV over the window",
+    intSUV = "Target region SUV integral over the window",
+    intSUV_ref = "Reference region SUV integral over the window"
+  )))) %>%
   mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
 
@@ -483,7 +452,7 @@ walk2(savepar_pet$jsondat,
       ~writeLines(.x, .y))
 ```
 
-# Saving Ratio Inputs
+# Saving Integration Inputs
 
 ```{r save-fitvals}
 savefits <- model_data %>%
@@ -492,8 +461,8 @@ savefits <- model_data %>%
                   "rec", "pet", "region")), fitvals) %>%
   unnest(cols = c("fitvals")) %>%
   select(any_of(c("sub", "ses", "task", "trc", "run", "rec", "pet", "region",
-                  "frame_start", "frame_end", "frame_mid", "frame_dur",
-                  "TAC", "RefTAC", "included", "window_duration"))) %>%
+                  "frame_start", "frame_end", "Time", "Duration",
+                  "Target", "Reference", "included", "window_duration"))) %>%
   group_by(across(intersect(colnames(.), c("sub", "ses", "trc", "rec", "task",
                                            "run", "pet")))) %>%
   nest(.key = "fitvals")
@@ -513,15 +482,16 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 savefits_pet <- savefits_pet %>%
   group_by(pet) %>%
   mutate(jsondat = map(fitvals, ~list(
-    Description = "TAC values used for SUVR ratio estimation.",
+    Description = "TAC values used for SUV / SUVR estimation.",
     ModelName = "SUVR",
     frame_start = "Frame start time in minutes",
     frame_end = "Frame end time in minutes",
-    frame_mid = "Frame middle time in minutes",
-    TAC = "Target region TAC radioactivity data",
-    RefTAC = "Reference region TAC radioactivity data",
-    included = "Whether the frame contributed to the selected ratio window",
-    window_duration = "Frame duration within the selected window in minutes"
+    Time = "Frame midpoint time in minutes",
+    Duration = "Frame duration in minutes",
+    Target = "Target region TAC radioactivity data",
+    Reference = "Reference region TAC radioactivity data",
+    included = "Whether the frame contributed to the window",
+    window_duration = "Frame duration counted towards the window, in minutes (zero for excluded frames)"
   ))) %>%
   mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))

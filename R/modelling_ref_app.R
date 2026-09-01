@@ -654,7 +654,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
-                                                     "SUVR (AUC ratio)" = "SUVR",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -730,7 +730,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                             conditionalPanel(
                               condition = "input.button == 'SUVR'",
                               h4("Time Window"),
-                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -858,7 +858,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
-                                                     "SUVR (AUC ratio)" = "SUVR",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -934,7 +934,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                             conditionalPanel(
                               condition = "input.button2 == 'SUVR'",
                               h4("Time Window"),
-                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -1067,7 +1067,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
-                                                     "SUVR (AUC ratio)" = "SUVR",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -1143,7 +1143,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                             conditionalPanel(
                               condition = "input.button3 == 'SUVR'",
                               h4("Time Window"),
-                              p("SUVR is estimated as the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below. Leave the selection method as \"None\" to use all frames, as for static data or whole-TAC ratios.")
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -1673,9 +1673,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           }
           
-          # Restore common parameters for all model types
+          # Restore common parameters for all model types. subset_type is a
+          # selectInput, so this must be updateSelectInput: updateRadioButtons
+          # silently does nothing.
           if (!is.null(model_config$subset)) {
-            updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+            updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
             updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
             updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
           }
@@ -2231,12 +2233,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
         # Add common parameters for all models
         if (model_type != "none" && !is.null(model_type)) {
-          # TAC subset selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          # TAC subset selection. The default matches the control's own default
+          # of "none": recording "time" for an input that has not rendered yet
+          # claims a window type the user never chose. A window is only recorded
+          # when a type was actually selected, because the reports read the type
+          # and silently ignore a start/end recorded under "none".
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
           
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2901,6 +2907,17 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
       if (is.null(res)) {
         return(tags$p("Select PET, Region and Model, then click Fit Model.",
                       style = "color:#666;"))
+      }
+      if (identical(res$type, "SUVR")) {
+        # SUVR integrates rather than fits, so there is no standard error to
+        # show. Say so, instead of leaving an unexplained empty panel.
+        return(tagList(
+          tags$p(tags$strong("SUV / SUVR"), " \u2014 ", res$pet, " : ", res$region),
+          tags$p(res$fit$suv_label %||% "",
+                 " Shaded frames are those integrated; SUVR is the ratio of the two shaded areas.",
+                 " Being a ratio of integrals rather than a fit, it has no standard errors.",
+                 style = "color:#666; font-size: 12px;")
+        ))
       }
       tags$p(tags$strong(paste0(res$type, " fit")), " \u2014 ", res$pet, " : ", res$region)
     })

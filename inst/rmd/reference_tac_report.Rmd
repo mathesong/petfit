@@ -762,10 +762,9 @@ str_glue("### Feng+1TC Reference Model Plots")
 ```
 
 ```{r feng1tc-plotting, eval=use_feng1tc, echo=use_feng1tc}
-pwalk(list(ref_tac_fitdata$ref_fit,
-           ref_tac_fitdata$ref_tacs,
-           ref_tac_fitdata$pet),
-      ~print(plot_reference_spline_fit(..1, ..2) + labs(title = ..3)))
+walk2(ref_tac_fitdata$ref_fit,
+      ref_tac_fitdata$pet, 
+      ~print(plot(.x) + labs(title = .y)))
 ```
 
 
@@ -882,9 +881,10 @@ str_glue("### Spline Reference Model Plots")
 ```
 
 ```{r spline-plotting, eval=use_spline, echo=use_spline}
-walk2(ref_tac_fitdata$ref_fit,
-      ref_tac_fitdata$pet, 
-      ~print(plot(.x) + labs(title = .y)))
+pwalk(list(ref_tac_fitdata$ref_fit,
+           ref_tac_fitdata$ref_tacs,
+           ref_tac_fitdata$pet),
+      ~print(plot_reference_spline_fit(..1, ..2) + labs(title = ..3)))
 ```
 
 
