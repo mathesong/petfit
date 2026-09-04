@@ -1346,11 +1346,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                uiOutput("fit_status"),
                                plotOutput("fit_plot", width = "100%", height = "520px"),
                                br(),
-                               fluidRow(
-                                 column(6, h5("Parameter Estimates"), tableOutput("fit_par_table")),
-                                 column(6, h5("Standard Errors (fraction of estimate)"),
-                                        tableOutput("fit_se_table"))
-                               )
+                               uiOutput("fit_tables")
                              )
                     )
         )
@@ -2925,10 +2921,41 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
     output$fit_plot <- renderPlot({
       res <- fit_result()
       req(res)
-      plot(res$fit, roiname = res$region) +
-        ggplot2::labs(title = paste0(res$pet, " : ", res$region, "  (", res$type, ")")) +
-        ggplot2::theme_light()
+      if (identical(res$type, "SUVR")) {
+        # The same plot the report shows: both TACs, with the integrated frames
+        # shaded, so the two areas whose ratio is the SUVR are visible.
+        kinfitr::plot_suvrfit(res$fit, roiname = res$region,
+                              refname = res$fit$refname %||% "Reference") +
+          ggplot2::labs(
+            title = paste0(res$pet, " : ", res$region, "  (", res$type, ")"),
+            subtitle = paste0("SUVR = ", signif(res$par$SUVR, 4),
+                              " | window ", signif(res$fit$window_start, 4), "-",
+                              signif(res$fit$window_end, 4), " min (",
+                              res$par$n_frames, " frames)"),
+            x = "Time (min)", y = "Radioactivity") +
+          ggplot2::theme_light()
+      } else {
+        plot(res$fit, roiname = res$region) +
+          ggplot2::labs(title = paste0(res$pet, " : ", res$region, "  (", res$type, ")")) +
+          ggplot2::theme_light()
+      }
     }, res = 96)
+
+    # SUVR has no standard errors, so its estimates take the full width rather
+    # than leaving an empty second column.
+    output$fit_tables <- renderUI({
+      res <- fit_result()
+      req(res)
+      if (is.null(res$par.se)) {
+        fluidRow(column(12, h5("Parameter Estimates"), tableOutput("fit_par_table")))
+      } else {
+        fluidRow(
+          column(6, h5("Parameter Estimates"), tableOutput("fit_par_table")),
+          column(6, h5("Standard Errors (fraction of estimate)"),
+                 tableOutput("fit_se_table"))
+        )
+      }
+    })
 
     output$fit_par_table <- renderTable({
       res <- fit_result()

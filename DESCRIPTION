@@ -35,7 +35,7 @@ Imports:
     rmarkdown,
     plotly,
     readr,
-    kinfitr (>= 0.9.4),
+    kinfitr (>= 0.9.5),
     future,
     furrr,
     callr,

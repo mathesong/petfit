@@ -57,6 +57,10 @@ theme_set(theme_light())
 
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder
+# The units of the TACs everything downstream is derived from, recorded by
+# the region definition step. Read rather than assumed, so that the sidecars
+# written below cannot claim units the data does not have.
+tac_units <- petfit_tac_units(analysis_folder)
 model_number <- params$model_number
 bids_dir <- params$bids_dir
 ```
@@ -396,8 +400,10 @@ gof_table %>%
 #### Overall Histogram
 
 ```{r, fig.width=7, fig.height=7}
-# Dynamically select available parameters
-available_params <- intersect(colnames(par_table), c("R1", "k2", "BPnd", "k2prime"))
+# Dynamically select available parameters. R1, k2 and k2a are only returned
+# when no t* was applied, so intersect() drops them when they are absent.
+available_params <- intersect(colnames(par_table),
+                              c("R1", "k2", "k2a", "BPnd", "k2prime"))
 
 par_table_long <- par_table %>%
   pivot_longer(cols=any_of(available_params),
@@ -552,11 +558,12 @@ tstar_desc <- if (!is.null(tstar)) {
 
 savepar_pet <- savepar_pet %>%
   group_by(pet) %>%
-  mutate(jsondat = map(kinpars, ~list(
+  mutate(jsondat = map(kinpars, ~c(list(
       Description = "Multilinear Reference Tissue Model 1 fit using linear regression.",
       ModelName = "MRTM1",
-      AdditionalModelDetails = str_glue("Reference tissue model - no blood data required. {tstar_desc}")))) %>%
-  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+      AdditionalModelDetails = str_glue("Reference tissue model - no blood data required. {tstar_desc}")),
+      kinpar_units(names(.x), tac_units$radioactivity)))) %>%
+  mutate(jsondat = map_chr(jsondat, ~jsonlite::toJSON(.x, pretty = TRUE, auto_unbox = TRUE))) %>%
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
 
 walk2(savepar_pet$jsondat,
@@ -603,15 +610,18 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 ```{r}
 savefits_pet <- savefits_pet %>%
   group_by(pet) %>%
-  mutate(jsondat = map(fitvals, ~list(
+  mutate(jsondat = map(fitvals, ~c(list(
       Description = "Multilinear Reference Tissue Model 1 fitted values.",
       ModelName = "MRTM1",
-      AdditionalModelDetails = str_glue("{tstar_desc}"),
-      frame_mid = "The frame middle time in minutes",
-      TAC = "TAC radioactivity data in kBq to which the model was fitted.",
-      TAC_fitted = "Model fitted values.",
-      weights = "Model weights"))) %>%
-  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>%
+      AdditionalModelDetails = str_glue("{tstar_desc}")),
+      bids_column_units(list(
+        frame_mid = "The frame middle time",
+        TAC = "TAC radioactivity data to which the model was fitted.",
+        TAC_fitted = "Model fitted values.",
+        weights = "Model weights"),
+        radioactivity_units = tac_units$radioactivity,
+        time_units = "min")))) %>%
+  mutate(jsondat = map_chr(jsondat, ~jsonlite::toJSON(.x, pretty = TRUE, auto_unbox = TRUE))) %>%
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
 
 walk2(savefits_pet$jsondat,

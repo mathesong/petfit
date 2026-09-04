@@ -188,6 +188,10 @@ plot_reference_spline_fit <- function(ref_fit, ref_tacs) {
 
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder
+# The units of the TACs everything downstream is derived from, recorded by
+# the region definition step. Read rather than assumed, so that the sidecars
+# written below cannot claim units the data does not have.
+tac_units <- petfit_tac_units(analysis_folder)
 bids_dir <- params$bids_dir
 
 # Load configuration from standard location
@@ -579,13 +583,19 @@ ref_tac_preddata <- ref_tac_data %>%
                                            "run", "pet", "tac_filename")))) %>%
   nest(.key = "ref_tacs") %>%
   ungroup() %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
+  mutate(ref_tacs_json = map(1:n(), ~c(list(
     Description = "Raw Reference TAC (no fitting applied).",
     ModelName = "Raw",
     FittingMethod = "raw",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. No fitting performed."),
-    RefTAC = "Original reference TAC (unmodified)"
-  )))
+    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. No fitting performed.")),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Original reference TAC (unmodified)"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 
@@ -693,15 +703,21 @@ ref_tac_preddata <- ref_tac_fitdata %>%
                                  RefTAC = RefTAC_fitted,
                                  RefTAC_weights = ref_weights))) %>%
   select(-ref_preds) %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
+  mutate(ref_tacs_json = map(1:n(), ~c(list(
     Description = "Feng+1TC Reference TAC Model fitted values.",
     ModelName = "Feng+1TC",
     FittingMethod = "feng1tc",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}"),
-    RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
-    RefTAC_original = "Original measured reference TAC",
-    RefTAC_weights = "Weights used for reference TAC fitting"
-  )))
+    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}")),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
+      RefTAC_original = "Original measured reference TAC",
+      RefTAC_weights = "Weights used for reference TAC fitting"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 
@@ -822,15 +838,21 @@ ref_tac_preddata <- ref_tac_fitdata %>%
                                  RefTAC = RefTAC_fitted,
                                  RefTAC_weights = ref_weights))) %>%
   select(-ref_preds) %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
+  mutate(ref_tacs_json = map(1:n(), ~c(list(
     Description = "Spline Reference TAC Model fitted values.",
     ModelName = "Spline",
     FittingMethod = "spline",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}. Degrees of freedom: {spline_df}"),
-    RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
-    RefTAC_original = "Original measured reference TAC",
-    RefTAC_weights = "Weights used for reference TAC fitting"
-  )))
+    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}. Degrees of freedom: {spline_df}")),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
+      RefTAC_original = "Original measured reference TAC",
+      RefTAC_weights = "Weights used for reference TAC fitting"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 ```{r spline-saving, eval=use_spline, echo=use_spline}
@@ -940,6 +962,35 @@ target_tac_files %>%
                                    "desc-targetregions_tacs.tsv")
     write_tsv(.x,
               file = paste0(analysis_folder, "/", target_filename))
+  })
+```
+
+```{r save-target-tacs-json}
+target_tacs_json <- c(
+  list(
+    Description = str_glue("Target region TACs for model fitting: the combined ",
+                           "regions excluding the reference region."),
+    AdditionalModelDetails = str_glue("Reference region excluded: {ref_region_name}")),
+  bids_column_units(list(
+    region = "Brain region name (combined from constituent regions)",
+    frame_start = "Frame start time",
+    frame_end = "Frame end time",
+    frame_dur = "Frame duration",
+    frame_mid = "Frame midpoint time",
+    TAC = "Time activity curve value (volume-weighted average over the region)"),
+    radioactivity_units = tac_units$radioactivity,
+    time_units = tac_units$time))
+
+target_tac_files %>%
+  group_by(filename) %>%
+  group_walk(~{
+    target_filename <- str_replace(.y$filename,
+                                   "desc-combinedregions_tacs.tsv",
+                                   "desc-targetregions_tacs.json")
+    write_json(target_tacs_json,
+               path = paste0(analysis_folder, "/", target_filename),
+               pretty = TRUE,
+               auto_unbox = TRUE)
   })
 ```
 

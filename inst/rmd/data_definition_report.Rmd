@@ -251,17 +251,20 @@ if( sum(is.na(tacdata$InjectedRadioactivity)) > 0 ) {
 ```
 
 ```{r, eval=do_suv, echo=do_suv}
+# Body weight in grams, not the kilograms it is recorded in: SUV is the tissue
+# concentration over the dose per gram of body mass, which for a TAC in kBq/mL
+# and a dose in kBq gives the conventional g/mL.
 tacdata <- tacdata %>% 
-  mutate(SUV = TAC / (InjectedRadioactivity/bodyweight))
+  mutate(SUV = TAC / (InjectedRadioactivity/(bodyweight*1000)))
 
-y_axis_title <- "SUV"
+y_axis_title <- "SUV (g/mL)"
 ```
 
 ```{r, eval=do_suv70, echo=do_suv70}
 tacdata <- tacdata %>% 
-  mutate(SUV = TAC / (InjectedRadioactivity/70))
+  mutate(SUV = TAC / (InjectedRadioactivity/(70*1000)))
 
-y_axis_title <- "SUV (assuming a bodyweight of 70kg)"
+y_axis_title <- "SUV (g/mL, assuming a bodyweight of 70kg)"
 ```
 
 ```{r, eval=do_tac, echo=do_tac}

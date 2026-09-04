@@ -76,9 +76,14 @@ test_that("SUVR outputs carry the outcomes and the resolved window", {
 
   kinpar <- readr::read_tsv(kinpar_path, show_col_types = FALSE)
 
-  expect_true(all(c("SUVR", "meanTAC", "meanTAC_ref", "intTAC", "intTAC_ref",
-                    "window_start", "window_end", "window_duration",
-                    "n_frames") %in% colnames(kinpar)))
+  expect_true(all(c("SUVR", "SUV", "SUV_ref", "SUV_AUC", "SUV_ref_AUC",
+                    "SUV_denominator", "window_start", "window_end",
+                    "window_duration", "n_frames") %in% colnames(kinpar)))
+
+  # The ratio is of the two integrals which were reported
+  expect_equal(kinpar$SUVR, kinpar$SUV_AUC / kinpar$SUV_ref_AUC)
+  # And the means are those integrals over the duration integrated
+  expect_equal(kinpar$SUV, kinpar$SUV_AUC / kinpar$window_duration)
 
   # Only the target regions are estimated; the reference region is not one of them.
   expect_false("Cerebellum" %in% kinpar$region)
@@ -148,9 +153,8 @@ test_that("SUVR writes per-measurement outputs into the PET folders", {
 
   inputs <- readr::read_tsv(file.path(analysis_dir, ratio_inputs[1]),
                             show_col_types = FALSE)
-  expect_true(all(c("Target", "Reference", "included", "window_duration") %in%
-                    colnames(inputs)))
-  expect_true(any(inputs$included))
+  expect_true(all(c("Target", "Reference", "Included") %in% colnames(inputs)))
+  expect_true(any(inputs$Included))
 })
 
 test_that("the interactive sandbox estimates SUVR for a single measurement", {
@@ -179,7 +183,7 @@ test_that("the interactive sandbox estimates SUVR for a single measurement", {
   expect_equal(res$type, "SUVR")
   expect_s3_class(res$fit, "suvr")
   expect_true(is.finite(res$par$SUVR))
-  expect_true(any(res$fit$tacs$included))
+  expect_true(any(res$fit$tacs$Included))
 
   p <- plot(res$fit, roiname = res$region)
   expect_s3_class(p, "ggplot")

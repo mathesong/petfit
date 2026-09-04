@@ -119,6 +119,45 @@ echo "Blood files: ${BLOOD_COUNT}"
 echo "Morph files: ${MORPH_COUNT}"
 echo "JSON files: ${JSON_COUNT}"
 
+# Step 4b: Correct InjectedRadioactivityUnits
+#
+# ds004869 declares InjectedRadioactivityUnits as "Bq", but the values are kBq.
+# The dataset said kBq up to v1.1.1; its v1.2.0 CHANGES entry reads
+# "InjectedRadioactivityUnits kBq -> Bq for all subjects", and relabelled the
+# field without changing any value. It is still "Bq" as of v1.4.0.
+#
+# Three things show the values are kBq: RadionuclideTotalDose (a DICOM field, in
+# Bq) is 1000x the declared value in every measurement; InjectedMass x
+# SpecificRadioactivity reproduces InjectedRadioactivity exactly only when it is
+# read as kBq (48 of 49 measurements, and none when read as Bq); and as declared
+# the doses would be 0.65-0.78 MBq for an [11C] brain scan rather than 650-780.
+#
+# Left uncorrected, every SUV computed from this dataset is 1000x too high. This
+# is patched here rather than worked around in petfit, so that the test data
+# exercises the same code path correct data would. Remove this step once the
+# dataset is fixed upstream.
+echo ""
+echo "=== Step 4b: Correcting InjectedRadioactivityUnits (Bq -> kBq) ==="
+python3 - "${WORK_DIR}/ds004869" <<'PYEOF'
+import json, glob, os, sys
+
+root = sys.argv[1]
+patched = 0
+for path in glob.glob(os.path.join(root, "**", "*.json"), recursive=True):
+    try:
+        with open(path) as fh:
+            meta = json.load(fh)
+    except (ValueError, OSError):
+        continue
+    if isinstance(meta, dict) and meta.get("InjectedRadioactivityUnits") == "Bq":
+        meta["InjectedRadioactivityUnits"] = "kBq"
+        with open(path, "w") as fh:
+            json.dump(meta, fh, indent=4)
+            fh.write("\n")
+        patched += 1
+print("Corrected InjectedRadioactivityUnits in %d files" % patched)
+PYEOF
+
 # Step 5: Create tarball
 echo ""
 echo "=== Step 5: Creating tarball ==="
