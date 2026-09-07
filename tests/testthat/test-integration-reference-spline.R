@@ -69,9 +69,10 @@ test_that("the spline reference TAC step runs and reports on the PET frame timin
   expect_setequal(ref$frame_start, unique(target$frame_start))
 
   expect_true(all(is.finite(ref$RefTAC)))
-  # A spline fit tracks the data rather than flattening it to a constant, which
-  # is what the weighted-constant fallback would produce.
+  # A spline fit smooths the data, so the fitted TAC is neither flat nor the
+  # measured TAC passed straight through, which is what the fallback returns.
   expect_gt(stats::sd(ref$RefTAC), 0)
+  expect_false(isTRUE(all.equal(ref$RefTAC, ref$RefTAC_original)))
 })
 
 test_that("the configured spline degrees of freedom reach the fit", {
@@ -106,7 +107,7 @@ test_that("the configured spline degrees of freedom reach the fit", {
   expect_false(isTRUE(all.equal(fit_df5$tacs$TAC_fitted, fit_df3$tacs$TAC_fitted)))
 })
 
-test_that("a degenerate spline_df falls back to a weighted constant fit", {
+test_that("a degenerate spline_df falls back to the raw reference TAC", {
   skip_if_no_integration()
 
   ws <- setup_refspline_workspace()
@@ -145,8 +146,18 @@ test_that("a degenerate spline_df falls back to a weighted constant fit", {
   skip_if(length(ref_files) == 0, "No reference TAC written")
 
   ref <- readr::read_tsv(ref_files[1], show_col_types = FALSE)
-  # The fallback is a single weighted mean, so every frame gets the same value.
-  expect_equal(length(unique(round(ref$RefTAC, 8))), 1)
+  # The fallback is the measured TAC itself, unsmoothed: a real reference input
+  # for the models to work with, rather than a flat line.
+  expect_equal(ref$RefTAC, ref$RefTAC_original)
+  expect_gt(stats::sd(ref$RefTAC), 0)
+
+  # The sidecar records what was actually used, not the spline that was asked
+  # for.
+  ref_json <- list.files(analysis_dir, pattern = "_desc-ref_tacs\\.json$",
+                         recursive = TRUE, full.names = TRUE)
+  sidecar <- jsonlite::fromJSON(ref_json[1])
+  expect_equal(sidecar$FittingMethod, "raw")
+  expect_match(sidecar$AdditionalModelDetails, "below 2")
 
   # And the report says so rather than passing it off as a spline.
   report <- paste(readLines(file.path(analysis_dir, "reports", "reference_tac_report.html"),

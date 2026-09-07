@@ -7,8 +7,10 @@
 petfit_tac_units(analysis_folder)
 }
 \arguments{
-\item{analysis_folder}{Path to the analysis folder. The sidecar lives one
-level above it, next to the shared combined regions TACs.}
+\item{analysis_folder}{Path to the analysis folder. The analysis's own
+sidecar is preferred where it exists, since it describes the copies of the
+TACs this analysis actually reads; otherwise the shared one, one level
+above next to the combined regions TACs, is used.}
 }
 \value{
 A list with \code{radioactivity} (e.g. \code{"kBq/mL"}) and \code{time} (e.g.
@@ -23,9 +25,11 @@ of every derived TAC come from: the reference TAC, the target region TACs and
 the fitted values a model writes back out.
 
 The region definition step converts every TAC to kBq as it combines them,
-whatever the source data used, so in practice the answer is \code{"kBq/mL"}. It is
-read rather than assumed so that the sidecars cannot claim units the data
-does not have.
+whatever the source data used, and the data definition step converts any
+analysis whose TACs are not already kBq — writing a sidecar of its own beside
+the converted copies — so in practice the answer is \code{"kBq/mL"}. It is read
+rather than assumed so that the sidecars cannot claim units the data does not
+have.
 
 Note that the frame times are \strong{not} the same throughout. The TAC files
 record them in seconds, as BIDS does, while the models are fitted in minutes

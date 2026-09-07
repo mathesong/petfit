@@ -1,187 +1,146 @@
-# petfit (development version)
+# petfit 0.2.2
+
+## Injected radioactivity
+
+* **Fixed: an unlabelled dose was silently treated as kBq.** A TACs sidecar with
+  `InjectedRadioactivity` but no `InjectedRadioactivityUnits` had its value
+  passed through untouched. It is now automatically read as MBq, and warns once
+  per measurement that it has assumed this.
+
+* **That warning comes from the parent process.** Region definition combines its
+  file groups in parallel, and a warning raised inside a furrr worker is
+  deduplicated against nothing, so a measurement warned once per segmentation.
+  The extractors report what they assumed in `AssumedDoseUnitsFor`, and the
+  parent warns once for each measurement when the groups come back.
 
 ## Test data
 
-* **The ds004869 test fixture's `InjectedRadioactivityUnits` is corrected from
-  `Bq` to `kBq`.** The dataset declares Bq but the values are kBq: its
-  `RadionuclideTotalDose` (a DICOM field, in Bq) is a thousand times the
-  declared value in every measurement, and `InjectedMass` ×
-  `SpecificRadioactivity` reproduces `InjectedRadioactivity` only when read as
-  kBq. The dataset said kBq until v1.1.1; v1.2.0 relabelled the field without
-  changing a value, and v1.4.0 still says Bq. `prepare_testdata.sh` applies the
-  correction so it survives a regeneration; remove that step once the dataset is
+* **The testing ds004869 dataset's `InjectedRadioactivityUnits` is corrected from `Bq`
+  to `kBq`.** The dataset declares Bq but the values are kBq, on the evidence of
+  its own `RadionuclideTotalDose` and `InjectedMass` × `SpecificRadioactivity`.
+  `prepare_testdata.sh` applies the correction; remove it once the dataset is
   fixed upstream.
-
-  Until now this cancelled the SUV unit error below, so the fixture's SUVs
-  looked right for the wrong reason. Both are fixed, and the SUVs are unchanged.
 
 ## Units in the JSON sidecars
 
 * **Every output sidecar now states its units, in the BIDS data dictionary
-  form.** A column used to be described by a sentence — `"TAC radioactivity data
-  in kBq to which the model was fitted."` — which a person can read and a
-  program cannot. Each column is now an object with a `Description` and, where
-  the column has them, `Units`, so a tool ingesting the outputs can convert
-  rather than guess.
-
-  The units are read from `desc-combinedregions_tacs.json`, which the region
-  definition step already wrote them into, rather than asserted in each report.
-  The region definition step converts every TAC to kBq as it combines them, so
-  the answer in practice is **kBq/mL** whatever the source data used, and a
-  consumer of these files should not expect them to match the raw data's units.
+  form**: each column is an object with a `Description` and, where it has them,
+  under `Units`. The units are read from
+  `desc-combinedregions_tacs.json` rather than asserted in each report;
   `petfit_tac_units()` is the accessor.
 
-* **The frame times are not on the same base throughout, and now say so.** The
+* **The frame times are not on the same base throughout, and now say so**: the
   TAC files record seconds, as BIDS does, while the models are fitted in minutes
-  and write their fitted values back out in minutes. Both were previously
-  labelled only in prose, and only sometimes.
+  and write their fitted values out in minutes.
 
-* **A sidecar for the target region TACs**, which had none, though it is the
-  file every model is fitted to.
+* **A sidecar is now produced for the target region TACs**, which previously had
+  none.
 
 * **The kinpar sidecars carry the units of the outcome parameters**: `mL/cm^3`
   for the distribution volumes, `1/min` for the rate constants, `mL/cm^3/min`
-  for `K1` and `Ki`, and minutes for the times. Parameters which are ratios —
-  `BPnd`, `R1`, `SUVR`, `vB` — and the standard errors, which are expressed as a
-  fraction of the estimate, are dimensionless and are given no units rather than
-  an invented one.
+  for `K1` and `Ki`, minutes for the times. `BPnd`, `R1` and `SUVR` are ratios
+  of like quantities and say so, as `unitless`; `vB` is a `fraction`, the blood
+  volume of the tissue over its total volume, which is the percentage everyone
+  quotes divided by 100. A standard error is a `fraction` too, whatever the
+  parameter it belongs to, since kinfitr reports it as `|SE / estimate|`. The
+  goodness-of-fit columns carry no quantity and are given no entry.
 
-* **Fixed: SUV is now the conventional g/mL.** It was calculated from the
-  injected radioactivity in kBq and the body weight in **kg**, making it kg/mL —
-  a thousandth of an SUV calculated the usual way. `suv_denominator()` now
-  returns the body mass in grams, so the SUVR report's `SUV` and `SUV_ref`
-  columns, the interactive sandbox and the data definition report's SUV plots
-  are all a thousand times larger than before and in the units everyone expects.
-  `SUV_denominator` is correspondingly kBq/g.
+* **The delay sidecar states that its estimate is in minutes**, with its sign
+  convention: a positive `blood_timeshift` shifts the blood data later. Thanks
+  to @pwighton (#58).
 
 * **Fixed: the model sidecars were a JSON array, not an object.** Every
-  `_kinpar.json` and fitted-values sidecar was written as `[ { ... } ]`, because
-  the list column rather than its contents was passed to `toJSON()`. A BIDS
-  sidecar is an object, and a parser expecting one would reject these.
+  `_kinpar.json` and fitted-values sidecar was written as `[ { ... } ]`, which a
+  parser expecting a BIDS sidecar would reject.
 
 ## Inherited parameter loading
 
 * **Fixed: the analysis folder's own path was being read as BIDS entities.** The
-  chunks which load a delay, a vB or a k2' from an earlier model step list their
-  files with `full.names = TRUE` and then handed the whole path to
-  `bids_filename_attributes()`. Every hyphenated directory above the analysis
-  folder was parsed as a key-value pair, so a study directory named
-  `Study-2024` added a `tudy` column of `2024`, and the extra columns were
-  carried through the join and written into the kinpar TSVs.
-
-  Worse than the clutter: a directory whose name collides with a real entity —
-  `rec-test`, say — produced a second `rec` column which then acted as a join
-  key, and could silently drop the rows it failed to match. The attributes are
-  now read from the basename, which is where the entities of the file itself
-  live. This affects the delay loading in every plasma report, the vB
-  inheritance in `1tcm`, `2tcm`, `2tcmirr`, `logan`, `ma1` and `patlak`, and the
-  k2' inheritance in `mrtm2`, `srtm2` and `reflogan`.
+  chunks which inherit a delay, a vB or a k2' handed a full path to
+  `bids_filename_attributes()`, so every hyphenated directory above the analysis
+  folder became a column — and one colliding with a real entity, `rec-test` say,
+  produced a second `rec` which acted as a join key and could silently drop
+  rows. They now read the basename.
 
 * **The `model` entity of the inherited file no longer follows it out.**
   Inheriting k2' from an MRTM1 fit left a `model` column reading `MRTM1` in the
-  MRTM2 kinpar, naming the wrong model. The delay chunks already dropped it; the
-  vB and k2' chunks now do too.
+  MRTM2 kinpar, naming the wrong model.
 
 ## MRTM1 and MRTM2
 
-* **`k2a` now appears in the MRTM1 and MRTM2 parameter histograms.** kinfitr's
-  `mrtm1()` and `mrtm2()` corrected their R1 and k2, and added `k2a`, which the
-  reports already carried through into the kinpar TSVs and the interactive
-  sandbox without needing a change. The histograms selected their parameters by
-  name, so `k2a` was written out but never plotted. MRTM1 now shows `R1`, `k2`,
-  `k2a`, `BPnd` and `k2prime`, and MRTM2 shows `R1`, `k2a` and `BPnd` — not
-  `k2`, which in MRTM2 is `R1` times the k2' prior and so adds nothing to it.
-  All three remain absent, as before, when a t\* means the model does not return
-  them.
+* **`k2a` now appears in the parameter histograms.** It was written to the
+  kinpar TSVs but never plotted, because the histograms select by name. MRTM1
+  now shows `R1`, `k2`, `k2a`, `BPnd` and `k2prime`; MRTM2 shows `R1`, `k2a` and
+  `BPnd` — not `k2`, which there is `R1` times the k2' prior.
 
 ## SUV and SUVR
 
-* **New: `SUVR`, a reference-tissue outcome that reports both SUV and SUVR.**
-  Where the kinetic models fit a curve, this one simply integrates: the outcome
-  is the target region's area under the TAC over a chosen window divided by the
-  reference region's area over the same window. It needs no blood data, so it
-  lives in the reference tissue app alongside SRTM and the graphical methods.
+* **New: `SUVR`, a reference-tissue outcome reporting both SUV and SUVR.** Where
+  the kinetic models fit a curve, this one integrates: the target region's area
+  under the TAC over a window, over the reference region's area over the same
+  window. It needs no blood data, so it sits in the reference tissue app. The
+  window is set under **TAC Subset Selection**, "None" integrating the whole TAC
+  as static data wants, and includes **whole frames whose midpoint falls inside
+  it**, following `kinfitr::suv()`. Thanks to @mnoergaard, whose PR (#37) this
+  is built on.
 
-  The two outcomes differ in what they need. SUVR is a ratio of two integrals
-  over the same frames, so the injected radioactivity and body weight cancel: it
-  is the same number computed from radioactivity concentrations or from SUV, and
-  it is always available. SUV does not cancel, and is reported only when the
-  injected radioactivity is known for every measurement — the report applies the
-  same rule the data definition report already used, falling back to an assumed
-  70 kg body weight when only the dose is known, and reporting SUVR alone when
-  the dose is missing anywhere. Which of the three applied is stated in the
-  report and recorded in the JSON sidecar.
+* **SUVR is always available; SUV is not.** The ratio cancels the dose and body
+  weight, but SUV needs them: it is reported only when the injected
+  radioactivity is known for every measurement, falling back to an assumed 70 kg
+  when only the dose is. Which case applied is recorded.
 
-  The window is set under **TAC Subset Selection**, as for every other model.
-  Leaving it at "None" integrates the whole TAC, which is what static data
-  wants. A time window includes **whole frames whose midpoint falls inside it**,
-  never part of a frame, following `kinfitr::suv()`; the window that was
-  actually integrated is reported alongside every estimate rather than left to
-  be inferred from what was requested.
+* **An assumed body weight is stated as a warning.** The 70 kg is applied to
+  *every* measurement, including those whose weight is known, so that SUV means
+  the same thing across the cohort. Both the SUVR and data definition reports
+  now say so in bold.
 
-* The estimation itself is `kinfitr::suvr()`, added to kinfitr alongside
-  `kinfitr::suv()`, so that the report, the interactive sandbox and any
-  downstream script cannot drift apart in how they resolve a window. petfit adds
-  only `suv_denominator()`, the cohort-wide decision about which of the three
-  SUV cases applies, which is a reporting convention rather than a model.
+* **The estimation is `kinfitr::suvr()`**, so the report, the sandbox and any
+  downstream script resolve a window identically; petfit adds only
+  `suv_denominator()`. The outcomes are `SUVR`; `SUV` and `SUV_ref`; `SUV_AUC`
+  and `SUV_ref_AUC`, whose ratio is the SUVR; `SUV_denominator`; and
+  `window_start`, `window_end`, `window_duration` and `n_frames`.
 
-  The outcomes are `SUVR`; `SUV` and `SUV_ref`, the mean SUV of each region over
-  the window; `SUV_AUC` and `SUV_ref_AUC`, their integrals, whose ratio is the
-  SUVR; and `SUV_denominator`, the injected radioactivity over body mass which
-  was applied. `window_start`, `window_end`, `window_duration` and `n_frames`
-  record what was integrated, so the window need not be inferred from what was
-  requested.
+* **A SUVR which is not a number says why.** A reference region integrating to
+  zero over the window gives `NaN` or `Inf` without raising an error, so the
+  measurement was counted as unsuccessful above an empty table of reasons.
 
-* **The report follows the shape of the model fitting reports.** The estimates
-  table is followed by histograms of `SUVR`, `SUV`, `SUV_ref` and
-  `SUV_denominator`, overall and by region, and then by one window plot per
-  region-measurement, in the same places the fitting reports put their parameter
-  histograms and fit plots. Sections which mean nothing for an integral —
-  standard errors, goodness of fit and residuals — are absent rather than empty.
-
-* **SUVR in the Interactive Sandbox.** Selecting a measurement and region draws
-  the target and reference TACs with the integrated frames shaded underneath, so
-  the window can be checked by eye before running the cohort. The shaded areas
-  are the two integrals whose ratio is the SUVR. It is the same plot the report
-  shows, with the reference region named from the analysis configuration, and
-  the standard error panel is dropped rather than left unexplained and empty.
+* **The report follows the shape of the model fitting reports**, with histograms
+  and one window plot per region-measurement. The sandbox draws the target and
+  reference TACs with the integrated frames shaded underneath, so a window can
+  be checked by eye before running the cohort.
 
 ## Reference TAC fixes
 
 * **The configured spline degrees of freedom now actually reach the fit.**
-  `ReferenceTAC$spline_df` was displayed in the report and written into the JSON
-  sidecar, but was never passed to `spline_tac()`, so changing it had no effect.
-  It is now passed as the basis dimension. An unset or negative value means
-  "choose automatically", which is what the fit already did; the report now says
-  so instead of claiming 5 degrees of freedom.
+  `ReferenceTAC$spline_df` was displayed and written to the sidecar, but never
+  passed to `spline_tac()`. An unset or negative value means "choose
+  automatically", which the report now says instead of claiming 5. Thanks to
+  @mnoergaard, who reported and fixed all three of these (#38, #39).
 
-* **A reference TAC that cannot be splined no longer fails the step.** Spline
-  basis construction can fail outright on a steady-state reference TAC, and a
-  degrees-of-freedom setting below 2 cannot form a basis at all. Such
-  measurements now fall back to a weighted constant fit and are listed in a
-  "Spline fitting fallbacks" table, rather than failing or passing silently as
-  though they had been splined.
+* **A reference TAC that cannot be splined falls back to the raw TAC.** Basis
+  construction can fail on a steady-state TAC or one with too few frames, and a
+  `spline_df` below 2 cannot form a basis at all. Such a measurement uses its
+  measured TAC unsmoothed — the "raw" method the app already offers — is listed
+  in a "Spline fitting fallbacks" table, and has `raw` recorded in its own
+  sidecar.
 
 * **Spline-fitted reference TACs are plotted and saved on the PET frame
-  timing.** `spline_tac()` returns its fitted values on an internal grid that
-  may have been extended with a frame at time zero. Joining that back onto the
-  PET frames by equality could silently drop rows, and plotting it drew a curve
-  starting at zero for a delayed-start acquisition. Fitted values are now
-  interpolated back onto the original frame midpoints.
+  timing.** `spline_tac()` may add a frame at time zero, so joining its fitted
+  values back by equality could drop rows, and plotting them drew a curve from
+  zero for a delayed-start acquisition. They are now interpolated onto the
+  original frame midpoints.
 
 ## Bug fixes
 
 * **A saved TAC subset window is restored correctly in the reference tissue
   app.** The shared restore path called `updateRadioButtons()` on `subset_type`,
-  which is a `selectInput`, so it silently did nothing. Every model with its own
-  restore branch was unaffected, but a model relying on the shared path alone
-  would reload with its window reset.
+  which is a `selectInput`, so it silently did nothing.
 
-* **A window is no longer recorded under a selection method of "None".** The
-  shared config path wrote a `subset` whenever a start or end point had been
-  typed, even with the method left at "None" — a setting the reports read and
-  then ignore. The recorded default also claimed "time" for a control whose own
-  default is "none"; both now agree.
+* **A window is no longer recorded under a selection method of "None"**, in
+  either modelling app. The shared config path wrote a `subset` whenever a start
+  or end point had been typed, even with the method left at "None" — a setting
+  the reports then ignore. The plasma app's shared path was still overwriting
+  the correct value its own model branches had worked out.
 
 # petfit 0.2.1
 

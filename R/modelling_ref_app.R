@@ -2129,11 +2129,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           )
 
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
 
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (!is.null(subset_type) && subset_type != "none" &&
+              (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2178,11 +2179,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           }
 
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
 
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (!is.null(subset_type) && subset_type != "none" &&
+              (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,

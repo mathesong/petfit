@@ -12,9 +12,11 @@
 #' the cohort.
 #'
 #' The result is passed to [kinfitr::suvr()], which does the estimation: a mode
-#' of `"none"` corresponds to leaving its `injRad` unset, so that the SUV
-#' outcomes come back as `NA` while the SUVR, in which the dose cancels, is
-#' unaffected.
+#' of `"none"` corresponds to leaving its `injRad` and `bodymass` unset, which
+#' makes its denominator 1, so that the SUV outcomes come back as
+#' *radioactivity concentrations* rather than as SUVs or as `NA`. They are
+#' meaningless as SUVs, and the callers drop them; do not test for them with
+#' `is.na()`. The SUVR, in which the denominator cancels, is unaffected.
 #'
 #' `bodymass` is returned in **grams**, not the kilograms it is supplied in.
 #' SUV is conventionally the tissue concentration over the dose per unit body

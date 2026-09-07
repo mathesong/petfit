@@ -8,17 +8,21 @@
 #' the fitted values a model writes back out.
 #'
 #' The region definition step converts every TAC to kBq as it combines them,
-#' whatever the source data used, so in practice the answer is `"kBq/mL"`. It is
-#' read rather than assumed so that the sidecars cannot claim units the data
-#' does not have.
+#' whatever the source data used, and the data definition step converts any
+#' analysis whose TACs are not already kBq — writing a sidecar of its own beside
+#' the converted copies — so in practice the answer is `"kBq/mL"`. It is read
+#' rather than assumed so that the sidecars cannot claim units the data does not
+#' have.
 #'
 #' Note that the frame times are **not** the same throughout. The TAC files
 #' record them in seconds, as BIDS does, while the models are fitted in minutes
 #' and write their fitted values back out in minutes. Each sidecar states which
 #' it is; `time` here is the units of the TAC files.
 #'
-#' @param analysis_folder Path to the analysis folder. The sidecar lives one
-#'   level above it, next to the shared combined regions TACs.
+#' @param analysis_folder Path to the analysis folder. The analysis's own
+#'   sidecar is preferred where it exists, since it describes the copies of the
+#'   TACs this analysis actually reads; otherwise the shared one, one level
+#'   above next to the combined regions TACs, is used.
 #'
 #' @return A list with `radioactivity` (e.g. `"kBq/mL"`) and `time` (e.g.
 #'   `"s"`). Where the sidecar is missing or unreadable, the defaults the region
@@ -26,7 +30,13 @@
 #'
 #' @export
 petfit_tac_units <- function(analysis_folder) {
-  sidecar <- file.path(dirname(analysis_folder), "desc-combinedregions_tacs.json")
+  # The analysis's own sidecar wins: where the data definition step converted
+  # these copies to kBq, it is the only record of that, and the shared one still
+  # describes the units the TACs were combined in.
+  sidecar <- file.path(analysis_folder, "desc-combinedregions_tacs.json")
+  if (!file.exists(sidecar)) {
+    sidecar <- file.path(dirname(analysis_folder), "desc-combinedregions_tacs.json")
+  }
 
   radioactivity <- NULL
   time <- NULL
@@ -46,11 +56,98 @@ petfit_tac_units <- function(analysis_folder) {
   )
 }
 
+#' Convert an analysis's TACs to kBq, once
+#'
+#' @description
+#' petfit works in kBq throughout. The region definition step converts every TAC
+#' as it combines them, so an analysis built by the current version has nothing
+#' to do here; TACs written by an older petfit, or brought in from elsewhere, are
+#' converted by this function instead — once, in the analysis's own copies of the
+#' files, so that every later step reads kBq rather than each of them having to
+#' convert again.
+#'
+#' What it did is recorded in a sidecar beside those copies, rather than in the
+#' shared one above the analysis folder: the shared file describes other
+#' analyses' copies too, which have not been touched. That sidecar is also what
+#' stops a second run from converting the same files a second time, which would
+#' scale them by a further thousand.
+#'
+#' @param analysis_folder Path to the analysis folder.
+#' @param tacs_files Paths of the analysis's combined regions TACs files,
+#'   relative to `analysis_folder`.
+#'
+#' @return Invisibly, a list with `from_units` (the units the files were in),
+#'   `converted` (whether anything was rewritten) and `message`, a sentence for
+#'   the report to print. When `converted` is `TRUE`, the caller's own copy of
+#'   the data still needs converting from `from_units`.
+#'
+#' @export
+standardise_analysis_tac_units <- function(analysis_folder, tacs_files) {
+  analysis_sidecar <- file.path(analysis_folder, "desc-combinedregions_tacs.json")
+  shared_sidecar <- file.path(dirname(analysis_folder),
+                              "desc-combinedregions_tacs.json")
+  sidecar_path <- if (file.exists(analysis_sidecar)) {
+    analysis_sidecar
+  } else {
+    shared_sidecar
+  }
+
+  unchanged <- function(message) {
+    invisible(list(from_units = "kBq", converted = FALSE, message = message))
+  }
+
+  if (!file.exists(sidecar_path)) {
+    return(unchanged("Combined TACs JSON not found, assuming TAC values already in kBq"))
+  }
+
+  meta <- tryCatch(jsonlite::fromJSON(sidecar_path), error = function(e) NULL)
+  if (is.null(meta)) {
+    return(unchanged("Combined TACs JSON could not be read, assuming TAC values already in kBq"))
+  }
+
+  recorded <- meta$radioactivity$Units %||% meta$TAC$Units
+  if (is.null(recorded)) {
+    return(unchanged("No radioactivity units found in JSON metadata, assuming already in kBq"))
+  }
+
+  from_units <- kinfitr::get_units_radioactivity(recorded)$rad
+  if (identical(from_units, "kBq")) {
+    return(unchanged(paste("TAC units from combined regions JSON:", recorded)))
+  }
+
+  to_kBq <- function(x) {
+    kinfitr::unit_convert(x, from_units = from_units, to_units = "kBq")
+  }
+
+  purrr::walk(tacs_files, function(relative_path) {
+    tac_path <- file.path(analysis_folder, relative_path)
+    tacs <- readr::read_tsv(tac_path, show_col_types = FALSE)
+    tacs <- dplyr::mutate(tacs,
+                          dplyr::across(dplyr::any_of(c("TAC", "seg_meanTAC")),
+                                        to_kBq))
+    readr::write_tsv(tacs, tac_path)
+  })
+
+  meta$radioactivity <- list(Units = "kBq/mL")
+  if (!is.null(meta$TAC)) meta$TAC$Units <- "kBq/mL"
+  if (!is.null(meta$seg_meanTAC)) meta$seg_meanTAC$Units <- "kBq/mL"
+  jsonlite::write_json(meta, analysis_sidecar, pretty = TRUE, auto_unbox = TRUE)
+
+  invisible(list(
+    from_units = from_units,
+    converted = TRUE,
+    message = paste0("Converted ", length(tacs_files), " TACs files from ",
+                     from_units, " to kBq, and recorded kBq/mL in ",
+                     basename(analysis_sidecar))
+  ))
+}
+
 # The units of every column petfit writes, in one table, so that the reports
-# cannot disagree with each other about what a column holds. A column which is
-# genuinely dimensionless — a weight, a binding potential, a region name, a
-# relative standard error — is absent, and is then described without units
-# rather than given a made-up one.
+# cannot disagree with each other about what a column holds. A column which
+# carries no quantity at all — a region name, a fit statistic — is absent, and
+# is then described without units rather than given a made-up one. An outcome
+# which is genuinely dimensionless is not the same thing: it says so, so that a
+# consumer can tell "no units" from "units not stated".
 #
 # `radioactivity_units` is the concentration the TACs are in, and `time_units`
 # the time base of the file being described: the TAC files record seconds, while
@@ -64,8 +161,28 @@ petfit_tac_units <- function(analysis_folder) {
 
   # The conventional SUV: a concentration in kBq/mL over a dose in kBq per gram
   # of body mass. suv_denominator() converts the recorded body weight from kg to
-  # g for exactly this reason.
+  # g for exactly this reason. These two are not parameterised on
+  # radioactivity_units, unlike everything else here, because both the dose and
+  # the TACs are standardised to kBq before any model sees them — the region
+  # definition step converts the TACs it writes, and the data definition step
+  # converts an analysis whose TACs arrived in anything else.
   suv <- "g/mL"
+
+  # A ratio of two like quantities, whose units cancel. Stated rather than left
+  # out, so that a column which has no units is distinguishable from one whose
+  # units nobody worked out.
+  unitless <- "unitless"
+
+  # A part of a whole, reported as a percentage once multiplied by 100.
+  fraction <- "fraction"
+
+  # kinfitr reports a standard error as |SE / estimate|, a coefficient of
+  # variation, so whatever a parameter's own units its error is a fraction of
+  # it. The kinpar files name these columns `-se`; the reports carry them as
+  # `.se` until they are written.
+  if (grepl("[.-]se$", column)) {
+    return(fraction)
+  }
 
   known <- list(
     # Measured and fitted radioactivity concentrations
@@ -118,6 +235,12 @@ petfit_tac_units <- function(analysis_folder) {
     VT               = volume_ratio,
     Vnd              = volume_ratio,
     BPp              = volume_ratio,
+    BPnd             = unitless,
+    R1               = unitless,
+    SUVR             = unitless,
+
+    # The blood volume of the tissue over its total volume.
+    vB               = fraction,
 
     # SUV outcomes
     SUV              = suv,
@@ -166,10 +289,12 @@ bids_column_units <- function(descriptions, radioactivity_units = "kBq/mL",
 #' @description
 #' The units of the outcome parameters present in a kinpar table, derived from
 #' the units of the TACs the model was fitted to and the minutes it was fitted
-#' in. Parameters which are ratios — `BPnd`, `R1`, `SUVR`, `vB` — are
-#' dimensionless and are given none, as are the standard errors, which every
-#' report expresses as a fraction of the estimate, and the goodness-of-fit
-#' columns.
+#' in. Parameters which are ratios of like quantities — `BPnd`, `R1`, `SUVR` —
+#' say so, as `"unitless"`, and `vB` is a `"fraction"`: the blood volume of the
+#' tissue over its total volume, which is what is reported as a percentage when
+#' multiplied by 100. The standard errors are `"fraction"` too, whatever the
+#' parameter they belong to: kinfitr reports them as `|SE / estimate|`. The
+#' goodness-of-fit columns carry no quantity and are given no entry at all.
 #'
 #' See [petfit_tac_units()] for where the radioactivity units come from. `SUV`
 #' is the conventional g/mL: the dose is standardised to kBq and

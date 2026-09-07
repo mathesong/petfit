@@ -226,7 +226,18 @@ bodyweight_col <- if ("bodyweight" %in% colnames(model_data)) {
 
 suv_info <- suv_denominator(inj_rad_col, bodyweight_col)
 
-str_glue("{suv_info$label}")
+# An assumed body weight changes what the SUV column means for every row, so it
+# is stated as a warning rather than a note.
+if (suv_info$mode == "SUV_bw70") {
+  str_glue("> **Warning: {suv_info$label}** The assumed weight is applied to ",
+           "every measurement, including those whose body weight is known, so ",
+           "that SUV means the same thing across the cohort. SUV is therefore ",
+           "approximate, and not comparable with SUV calculated from measured ",
+           "body weights. SUVR is unaffected: it is a ratio, so the ",
+           "denominator cancels.")
+} else {
+  str_glue("{suv_info$label}")
+}
 ```
 
 ```{r suv-denominator}
@@ -289,6 +300,29 @@ model_data <- model_data %>%
                                        nrow(.x$par) == 1 && is.finite(.x$par$SUVR)),
          par = map(suvr_fit, ~if (!is.null(.x)) .x$par else NULL),
          fitvals = map(suvr_fit, ~if (!is.null(.x)) .x$tacs else NULL))
+
+# suvr() can return without raising a condition and still give a SUVR which is
+# not a number: the ratio is undefined when the reference region integrates to
+# zero over the window, and infinite when it is negligible beside the target.
+# Such a measurement is unsuccessful, so it needs a reason of its own or it is
+# counted below without ever being explained.
+model_data <- model_data %>%
+  mutate(suvr_error = map2_chr(suvr_fit, suvr_error, ~{
+    # An error was already raised, or nothing came back at all: that reason
+    # stands.
+    if (!is.na(.y) || is.null(.x)) return(.y)
+
+    suvr <- if (is.null(.x$par) || nrow(.x$par) != 1) NA_real_ else .x$par$SUVR
+    if (is.finite(suvr)) return(NA_character_)
+
+    if (is.na(suvr)) {
+      paste("SUVR is not a number: both the target and the reference region",
+            "integrate to zero over the window, so the ratio is undefined.")
+    } else {
+      paste("SUVR is infinite: the reference region integrates to zero over",
+            "the window.")
+    }
+  }))
 ```
 
 ```{r estimation-summary, results='asis'}

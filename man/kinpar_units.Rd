@@ -21,10 +21,12 @@ have units.
 \description{
 The units of the outcome parameters present in a kinpar table, derived from
 the units of the TACs the model was fitted to and the minutes it was fitted
-in. Parameters which are ratios — \code{BPnd}, \code{R1}, \code{SUVR}, \code{vB} — are
-dimensionless and are given none, as are the standard errors, which every
-report expresses as a fraction of the estimate, and the goodness-of-fit
-columns.
+in. Parameters which are ratios of like quantities — \code{BPnd}, \code{R1}, \code{SUVR} —
+say so, as \code{"unitless"}, and \code{vB} is a \code{"fraction"}: the blood volume of the
+tissue over its total volume, which is what is reported as a percentage when
+multiplied by 100. The standard errors are \code{"fraction"} too, whatever the
+parameter they belong to: kinfitr reports them as \verb{|SE / estimate|}. The
+goodness-of-fit columns carry no quantity and are given no entry at all.
 
 See \code{\link[=petfit_tac_units]{petfit_tac_units()}} for where the radioactivity units come from. \code{SUV}
 is the conventional g/mL: the dose is standardised to kBq and

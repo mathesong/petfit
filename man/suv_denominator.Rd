@@ -31,9 +31,11 @@ measurement, so that an outcome column means the same thing for every row of
 the cohort.
 
 The result is passed to \code{\link[kinfitr:suvr]{kinfitr::suvr()}}, which does the estimation: a mode
-of \code{"none"} corresponds to leaving its \code{injRad} unset, so that the SUV
-outcomes come back as \code{NA} while the SUVR, in which the dose cancels, is
-unaffected.
+of \code{"none"} corresponds to leaving its \code{injRad} and \code{bodymass} unset, which
+makes its denominator 1, so that the SUV outcomes come back as
+\emph{radioactivity concentrations} rather than as SUVs or as \code{NA}. They are
+meaningless as SUVs, and the callers drop them; do not test for them with
+\code{is.na()}. The SUVR, in which the denominator cancels, is unaffected.
 
 \code{bodymass} is returned in \strong{grams}, not the kilograms it is supplied in.
 SUV is conventionally the tissue concentration over the dose per unit body

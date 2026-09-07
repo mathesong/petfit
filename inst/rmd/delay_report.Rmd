@@ -919,10 +919,20 @@ save_inpshift <- function(inpshift, filename) {
   
   json_filename <- str_replace(filename, pattern = ".tsv", ".json")
   
-  json_output <- list(
-    Description = method_display,
-    ModelName = ModelName,
-    AdditionalModelDetails = str_glue("vB fitted: {config_items$`Fit vB Parameter`}")
+  json_output <- c(
+    list(
+      Description = method_display,
+      ModelName = ModelName,
+      AdditionalModelDetails = str_glue("vB fitted: {config_items$`Fit vB Parameter`}")
+    ),
+    # The models are fitted in minutes, so the estimated shift is in minutes,
+    # even though the TAC and blood files record their times in seconds.
+    bids_column_units(list(
+      blood_timeshift = paste("Estimated timing offset of the blood data",
+                              "relative to the tissue TAC. A positive value",
+                              "means that the blood data are shifted later in",
+                              "time to align them with the TAC.")),
+      time_units = "min")
   )
     
     json_output <- jsonlite::toJSON(json_output, pretty = TRUE, auto_unbox = TRUE)

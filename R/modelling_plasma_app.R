@@ -2117,12 +2117,17 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         
         # Add common parameters for all models
         if (model_type != "none" && !is.null(model_type)) {
-          # TAC subset selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          # TAC subset selection. The default matches the control's own default
+          # of "none": recording "time" for an input that has not rendered yet
+          # claims a window type the user never chose. A window is only recorded
+          # when a type was actually selected, because the reports read the type
+          # and silently ignore a start/end recorded under "none".
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
           
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (!is.null(subset_type) && subset_type != "none" &&
+              (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,

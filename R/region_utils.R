@@ -864,7 +864,11 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
   if (!dir.exists(derivatives_folder)) {
     stop(paste("Derivatives folder not found:", derivatives_folder))
   }
-  
+
+  # Each measurement warns at most once about an assumed dose unit, so start the
+  # run with a clean slate: a second run in the same session should say so again.
+  reset_dose_unit_warnings()
+
   # Parse BIDS study data once at the beginning if BIDS directory is provided
   study_data <- NULL
   if (!is.null(bids_dir)) {
@@ -912,8 +916,14 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     on.exit(future::plan(future::sequential), add = TRUE)
   }
 
-  # Process all file pairs and collect results
-  all_combined_data <- furrr::future_map_dfr(1:nrow(file_groups), function(i) {
+  # Process all file pairs and collect results. Each group returns its data and
+  # whatever it had to assume, rather than warning where it stands: this runs in
+  # furrr workers, which are separate processes with their own copy of the
+  # package, so a warning raised in one is deduplicated against nothing and the
+  # same measurement warns once per segmentation. The parent warns, once, below.
+  group_results <- furrr::future_map(1:nrow(file_groups), function(i) {
+    nothing <- list(data = tibble::tibble(), assumed_dose_units_for = NA_character_)
+
     tacs_file <- file_groups$tacs_filename[i]
     morph_file <- file_groups$morph_filename[i]
     regions_data <- file_groups$regions_data[[i]]
@@ -932,7 +942,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     })
 
     if (nrow(combined_results) == 0) {
-      return(tibble::tibble())
+      return(nothing)
     }
 
     # Calculate segmentation mean TAC (volume-weighted mean of all regions in the segmentation)
@@ -948,6 +958,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
 
     # Extract PET metadata from _tacs.json sidecar file (preferred method)
     pet_metadata <- extract_pet_metadata_from_tacs_json(derivatives_folder, tacs_file)
+    assumed_dose_units_for <- pet_metadata$AssumedDoseUnitsFor %||% NA_character_
 
     # If metadata not found in _tacs.json and BIDS directory available, try legacy method
     if (is.na(pet_metadata$InjectedRadioactivity) && (!is.null(study_data) || !is.null(bids_dir))) {
@@ -965,6 +976,9 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
       if (!is.na(legacy_metadata$InjectedRadioactivity)) {
         pet_metadata$InjectedRadioactivity <- legacy_metadata$InjectedRadioactivity
         pet_metadata$InjectedRadioactivityUnits <- legacy_metadata$InjectedRadioactivityUnits
+        # The dose came from the BIDS metadata, so any assumption about its
+        # units did too.
+        assumed_dose_units_for <- legacy_metadata$AssumedDoseUnitsFor %||% NA_character_
       }
     }
 
@@ -1056,9 +1070,18 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
       dplyr::rename(region = name, volume_mm3 = `volume-mm3`) %>%
       dplyr::select(dplyr::all_of(column_order[column_order %in% colnames(.)]))  # Only select columns that exist
 
-    return(combined_results_with_bids)
+    return(list(data = combined_results_with_bids,
+                assumed_dose_units_for = assumed_dose_units_for))
   }, .options = furrr::furrr_options(seed = TRUE))
-  
+
+  # One warning per measurement, in the process the user is watching.
+  assumed_measurements <- unique(stats::na.omit(
+    purrr::map_chr(group_results, ~.x$assumed_dose_units_for %||% NA_character_)
+  ))
+  purrr::walk(assumed_measurements, warn_assumed_dose_units)
+
+  all_combined_data <- dplyr::bind_rows(purrr::map(group_results, "data"))
+
   if (nrow(all_combined_data) == 0) {
     warning("No regions were successfully combined across all files")
     return(tibble::tibble())
@@ -1405,6 +1428,64 @@ load_participant_data <- function(bids_dir) {
   ))
 }
 
+#' Default units for an unlabelled injected radioactivity
+#'
+#' @description
+#' BIDS recommends MBq for `InjectedRadioactivity`, and it is what most
+#' converters write, so an `InjectedRadioactivity` with no
+#' `InjectedRadioactivityUnits` beside it is read as MBq. This is an assumption
+#' rather than a reading, so it is made in one place, and whoever makes it warns.
+#'
+#' The alternative — discarding an unlabelled dose — would silently drop SUV for
+#' datasets whose converter simply omitted the field. The alternative petfit used
+#' to take was worse still: the value was passed through unconverted and then
+#' labelled kBq, so a dose in MBq was recorded as though it were a thousand times
+#' smaller.
+#'
+#' @return The assumed units, `"MBq"`.
+#' @keywords internal
+assumed_injected_radioactivity_units <- function() "MBq"
+
+# Warned-about measurements, so that a cohort with one region definition file
+# per segmentation does not raise the same warning four times over for every
+# measurement and bury it under R's "There were 50 or more warnings".
+.petfit_dose_unit_warnings <- new.env(parent = emptyenv())
+
+#' Forget which measurements have already warned about assumed dose units
+#'
+#' @description
+#' The warning about an assumed `InjectedRadioactivityUnits` is raised once per
+#' measurement. Region definition calls this at the start of a run so that a
+#' second run in the same session warns again rather than staying silent.
+#'
+#' @return Invisibly `NULL`.
+#' @keywords internal
+reset_dose_unit_warnings <- function() {
+  rm(list = ls(.petfit_dose_unit_warnings), envir = .petfit_dose_unit_warnings)
+  invisible(NULL)
+}
+
+# Warn once per measurement, naming what the assumption was made about, so that
+# it can be traced back rather than appearing as a bare note.
+warn_assumed_dose_units <- function(what) {
+  key <- paste0("m:", what)
+  if (!is.null(.petfit_dose_unit_warnings[[key]])) {
+    return(invisible(FALSE))
+  }
+  assign(key, TRUE, envir = .petfit_dose_unit_warnings)
+
+  warning(
+    "No InjectedRadioactivityUnits found for ", what, ". Assuming ",
+    assumed_injected_radioactivity_units(),
+    ", which is what BIDS recommends and what most converters write. ",
+    "Set InjectedRadioactivityUnits in the metadata if the dose is in other ",
+    "units: SUV will be wrong by whatever factor separates them. SUVR is ",
+    "unaffected, because the dose cancels in the ratio.",
+    call. = FALSE
+  )
+  invisible(TRUE)
+}
+
 #' Extract PET Metadata from TACs JSON Sidecar
 #'
 #' @description Extract InjectedRadioactivity and body_weight from _tacs.json sidecar file
@@ -1423,6 +1504,9 @@ extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relativ
   result <- list(
     InjectedRadioactivity = NA_real_,
     InjectedRadioactivityUnits = NA_character_,
+    # The measurement whose dose units were assumed, for the caller to warn
+    # about once, or NA where nothing was assumed.
+    AssumedDoseUnitsFor = NA_character_,
     bodyweight = NA_real_
   )
 
@@ -1447,6 +1531,21 @@ extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relativ
     # Extract body_weight (if present)
     if ("body_weight" %in% names(json_data)) {
       result$bodyweight <- as.numeric(json_data$body_weight)
+    }
+
+    # An unlabelled dose is assumed to be MBq rather than passed through as
+    # though it were already kBq, which would understate it a thousandfold.
+    if (!is.na(result$InjectedRadioactivity) &&
+        (is.na(result$InjectedRadioactivityUnits) ||
+         !nzchar(result$InjectedRadioactivityUnits))) {
+      # Name the measurement, not the region definition file: the same dose is
+      # read once per segmentation, and it is the measurement that lacks units.
+      # The assumption is reported back rather than warned about here, because
+      # this runs in a furrr worker, where a warning is neither deduplicated
+      # against the other segmentations nor guaranteed to reach the user.
+      result$AssumedDoseUnitsFor <-
+        stringr::str_remove(basename(json_full_path), "_(desc|label|seg|space)-.*$")
+      result$InjectedRadioactivityUnits <- assumed_injected_radioactivity_units()
     }
 
     # Convert InjectedRadioactivity to kBq if units are different
@@ -1565,6 +1664,16 @@ extract_pet_metadata <- function(bids_dir, sub, ses = NA, trc = NA, rec = NA, ta
       NA_character_
     }
     
+    # As in the sidecar path: an unlabelled dose is assumed to be MBq, and the
+    # assumption is reported back for the caller to warn about once.
+    assumed_dose_units_for <- NA_character_
+    if (!is.na(injected_radioactivity) &&
+        (is.na(injected_radioactivity_units) || !nzchar(injected_radioactivity_units))) {
+      assumed_dose_units_for <- paste0("sub-", sub,
+                                       if (!is.na(ses)) paste0("_ses-", ses) else "")
+      injected_radioactivity_units <- assumed_injected_radioactivity_units()
+    }
+
     # Convert to kBq if units are different and radioactivity is not NA
     if (!is.na(injected_radioactivity) && !is.na(injected_radioactivity_units) && injected_radioactivity_units != "kBq") {
       tryCatch({
@@ -1577,7 +1686,8 @@ extract_pet_metadata <- function(bids_dir, sub, ses = NA, trc = NA, rec = NA, ta
     
     return(list(
       InjectedRadioactivity = injected_radioactivity,
-      InjectedRadioactivityUnits = injected_radioactivity_units
+      InjectedRadioactivityUnits = injected_radioactivity_units,
+      AssumedDoseUnitsFor = assumed_dose_units_for
     ))
     
   }, error = function(e) {
