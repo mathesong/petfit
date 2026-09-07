@@ -135,29 +135,18 @@ tacdata <- tibble(
 ```
 
 ```{r tac-unit-conversion}
-# Read TAC units from combined regions JSON metadata
-combined_tacs_json <- file.path(dirname(analysis_folder), "desc-combinedregions_tacs.json")
+# Unit check: make sure that we're in kBq
+tac_units_conversion <- standardise_analysis_tac_units(analysis_folder, tacs_files)
+cat(tac_units_conversion$message, "\n")
 
-if (file.exists(combined_tacs_json)) {
-  tryCatch({
-    json_metadata <- jsonlite::fromJSON(combined_tacs_json)
-    if ("radioactivity" %in% names(json_metadata) && "Units" %in% names(json_metadata$radioactivity)) {
-      original_tac_units_full <- json_metadata$radioactivity$Units
-      # Extract just radioactivity units (before "/mL")
-      original_tac_units <- kinfitr::get_units_radioactivity(original_tac_units_full)$rad
-      cat("TAC units from combined regions JSON:", original_tac_units, "\n")
-      
-      # Apply unit conversion to standardize to kBq
-      tacdata <- tacdata %>%
-        mutate(TAC = kinfitr::unit_convert(TAC, from_units = original_tac_units, to_units = "kBq"))
-    } else {
-      cat("No radioactivity units found in JSON metadata, assuming already in kBq\n")
-    }
-  }, error = function(e) {
-    cat("Error reading JSON metadata, assuming TAC values already in kBq:", e$message, "\n")
-  })
-} else {
-  cat("Combined TACs JSON not found, assuming TAC values already in kBq\n")
+if (tac_units_conversion$converted) {
+  # The copy already loaded above, so that this report's own plots are in kBq
+  # like everything downstream.
+  tacdata <- tacdata %>%
+    mutate(across(any_of(c("TAC", "seg_meanTAC")),
+                  ~kinfitr::unit_convert(.x,
+                                         from_units = tac_units_conversion$from_units,
+                                         to_units = "kBq")))
 }
 ```
  
@@ -234,7 +223,15 @@ if( sum(is.na(tacdata$InjectedRadioactivity)) == 0 &&
   do_suv70 <- TRUE
   do_tac <- FALSE
   
-  str_glue("SUV is approximated based on the InjectedRadioactivity dose, but assuming a bodyweight of 70kg for all individuals because this information is not available for all participants.")
+  # An assumed body weight changes what the SUV axis means for every
+  # measurement, so it is stated as a warning rather than a note.
+  str_glue("> **Warning: SUV is approximated based on the InjectedRadioactivity ",
+           "dose, but assuming a bodyweight of 70kg for all individuals because ",
+           "this information is not available for all participants.** The assumed ",
+           "weight is applied to every measurement, including those whose ",
+           "bodyweight is known, so that SUV means the same thing across the ",
+           "cohort. These SUVs are therefore approximate, and not comparable with ",
+           "SUV calculated from measured bodyweights.")
   
 }
 
@@ -251,17 +248,20 @@ if( sum(is.na(tacdata$InjectedRadioactivity)) > 0 ) {
 ```
 
 ```{r, eval=do_suv, echo=do_suv}
+# Body weight in grams, not the kilograms it is recorded in: SUV is the tissue
+# concentration over the dose per gram of body mass, which for a TAC in kBq/mL
+# and a dose in kBq gives the conventional g/mL.
 tacdata <- tacdata %>% 
-  mutate(SUV = TAC / (InjectedRadioactivity/bodyweight))
+  mutate(SUV = TAC / (InjectedRadioactivity/(bodyweight*1000)))
 
-y_axis_title <- "SUV"
+y_axis_title <- "SUV (g/mL)"
 ```
 
 ```{r, eval=do_suv70, echo=do_suv70}
 tacdata <- tacdata %>% 
-  mutate(SUV = TAC / (InjectedRadioactivity/70))
+  mutate(SUV = TAC / (InjectedRadioactivity/(70*1000)))
 
-y_axis_title <- "SUV (assuming a bodyweight of 70kg)"
+y_axis_title <- "SUV (g/mL, assuming a bodyweight of 70kg)"
 ```
 
 ```{r, eval=do_tac, echo=do_tac}

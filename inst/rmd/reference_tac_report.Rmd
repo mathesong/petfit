@@ -57,8 +57,141 @@ if (cores > 1) {
 
 theme_set(theme_light())
 
+# ---------------------------------------------------------------------------
+# Reference TAC spline fitting helpers
+#
+# kinfitr::spline_tac() takes the basis dimension as `k`, following mgcv, where
+# k = -1 means "choose the dimension automatically". The configured
+# ReferenceTAC$spline_df is that k. Anything negative or missing is therefore a
+# request for the automatic choice, not a degenerate basis.
+# ---------------------------------------------------------------------------
+
+# A basis of 0 or 1 dimensions cannot describe anything but a level, and a
+# steady-state reference TAC can fail spline basis construction outright. In
+# both cases fall back to the measured reference TAC itself, unsmoothed: this is
+# the "raw" fitting method the app already offers, so the measurement is still
+# modelled with a real reference input, only without the smoothing. 
+raw_reference_tac_fit <- function(t_tac, tac, reason = "") {
+  structure(
+    list(
+      tacs = tibble(
+        Time = t_tac,
+        TAC = tac,
+        TAC_fitted = tac
+      ),
+      # No curve was fitted, so there is no fitted time at which it starts to
+      # rise. NA says that; a number here would be invented.
+      par = tibble(t0 = NA_real_),
+      fit_message = reason,
+      petfit_raw_fallback = TRUE
+    ),
+    class = c("petfit_raw_reference_tac_fit", "list")
+  )
+}
+
+fit_reference_spline_tac <- function(t_tac, tac, weights = NULL, spline_df = NULL) {
+  spline_df <- suppressWarnings(as.numeric(spline_df %||% NA_real_))
+
+  # Negative or missing: let kinfitr pick the basis dimension itself.
+  auto_df <- is.na(spline_df) || spline_df < 0
+
+  if (!auto_df && spline_df < 2) {
+    return(raw_reference_tac_fit(
+      t_tac = t_tac,
+      tac = tac,
+      reason = str_glue("Spline degrees of freedom ({spline_df}) is below 2, ",
+                        "which cannot form a spline basis; using the raw ",
+                        "(unsmoothed) reference TAC.")
+    ))
+  }
+
+  spline_args <- list(
+    t_tac = t_tac,
+    tac = tac,
+    weights = weights
+  )
+
+  if (!auto_df) {
+    spline_args$k <- spline_df
+  }
+
+  tryCatch(
+    do.call(kinfitr::spline_tac, spline_args),
+    error = function(e) {
+      raw_reference_tac_fit(
+        t_tac = t_tac,
+        tac = tac,
+        reason = str_glue("Spline fit failed ({conditionMessage(e)}); using the ",
+                          "raw (unsmoothed) reference TAC.")
+      )
+    }
+  )
+}
+
+# spline_tac() returns its fitted values on its own internal time grid, which
+# tidyinput_ref() may have extended with a frame at time zero. Joining that grid
+# back onto the PET frames by equality silently drops rows, and plotting it
+# directly draws a curve starting at zero for a delayed-start acquisition.
+# Interpolate back onto the original frame midpoints instead.
+reference_spline_predictions <- function(ref_fit, ref_tacs) {
+  if (!all(c("Time", "TAC_fitted") %in% colnames(ref_fit$tacs))) {
+    stop("Spline fit output does not contain Time and TAC_fitted columns.")
+  }
+
+  original_time <- ref_tacs$frame_mid / 60
+  fit_time <- ref_fit$tacs$Time
+
+  if (!(min(fit_time, na.rm = TRUE) <= min(original_time, na.rm = TRUE) &&
+        max(fit_time, na.rm = TRUE) >= max(original_time, na.rm = TRUE))) {
+    shifted_fit_time <- fit_time + min(original_time, na.rm = TRUE) - min(fit_time, na.rm = TRUE)
+
+    if (min(shifted_fit_time, na.rm = TRUE) <= min(original_time, na.rm = TRUE) &&
+        max(shifted_fit_time, na.rm = TRUE) >= max(original_time, na.rm = TRUE)) {
+      fit_time <- shifted_fit_time
+    }
+  }
+
+  fitted_tac <- approx(
+    x = fit_time,
+    y = ref_fit$tacs$TAC_fitted,
+    xout = original_time,
+    rule = 2,
+    ties = "ordered"
+  )$y
+
+  ref_tacs %>%
+    transmute(
+      frame_start,
+      frame_mid,
+      RefTAC = RefTAC,
+      RefTAC_fitted = fitted_tac
+    )
+}
+
+plot_reference_spline_fit <- function(ref_fit, ref_tacs,
+                                      units = tac_units$radioactivity) {
+  plot_data <- reference_spline_predictions(ref_fit, ref_tacs) %>%
+    mutate(
+      plot_time = frame_mid / 60,
+      plot_start = frame_start / 60
+    )
+
+  ggplot(plot_data, aes(x = plot_time, y = RefTAC)) +
+    geom_point(colour = "black") +
+    geom_line(aes(y = RefTAC_fitted), colour = "black") +
+    coord_cartesian(xlim = range(plot_data$plot_start, plot_data$plot_time, na.rm = TRUE)) +
+    # A TAC is a concentration, and the units are the analysis's own rather than
+    # an assumed kBq.
+    labs(x = "Time (min)", y = paste0("Radioactivity (", units, ")"))
+}
+
+
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder
+# The units of the TACs everything downstream is derived from, recorded by
+# the region definition step. Read rather than assumed, so that the sidecars
+# written below cannot claim units the data does not have.
+tac_units <- petfit_tac_units(analysis_folder)
 bids_dir <- params$bids_dir
 
 # Load configuration from standard location
@@ -450,13 +583,19 @@ ref_tac_preddata <- ref_tac_data %>%
                                            "run", "pet", "tac_filename")))) %>%
   nest(.key = "ref_tacs") %>%
   ungroup() %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
+  mutate(ref_tacs_json = map(1:n(), ~c(list(
     Description = "Raw Reference TAC (no fitting applied).",
     ModelName = "Raw",
     FittingMethod = "raw",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. No fitting performed."),
-    RefTAC = "Original reference TAC (unmodified)"
-  )))
+    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. No fitting performed.")),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Original reference TAC (unmodified)"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 
@@ -564,15 +703,21 @@ ref_tac_preddata <- ref_tac_fitdata %>%
                                  RefTAC = RefTAC_fitted,
                                  RefTAC_weights = ref_weights))) %>%
   select(-ref_preds) %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
+  mutate(ref_tacs_json = map(1:n(), ~c(list(
     Description = "Feng+1TC Reference TAC Model fitted values.",
     ModelName = "Feng+1TC",
     FittingMethod = "feng1tc",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}"),
-    RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
-    RefTAC_original = "Original measured reference TAC",
-    RefTAC_weights = "Weights used for reference TAC fitting"
-  )))
+    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}")),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
+      RefTAC_original = "Original measured reference TAC",
+      RefTAC_weights = "Weights used for reference TAC fitting"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 
@@ -641,10 +786,18 @@ walk2(ref_tac_fitdata$ref_fit,
 
 
 ```{r, eval=use_spline, echo=use_spline, results='asis'}
-spline_df <- config$ReferenceTAC$spline_df %||% 5
+# Report what will actually be used: an unset or negative spline_df is a request
+# for kinfitr to choose the basis dimension itself, not a request for 5.
+spline_df_display <- suppressWarnings(as.numeric(config$ReferenceTAC$spline_df %||% NA_real_))
+spline_df_display <- if (is.na(spline_df_display) || spline_df_display < 0) {
+  "automatically selected"
+} else {
+  as.character(spline_df_display)
+}
+
 str_glue("## Spline Model Fitting
 
-Fitting reference TAC using smooth spline with **{spline_df}** degrees of freedom.")
+Fitting reference TAC using smooth spline with **{spline_df_display}** degrees of freedom.")
 ```
 
 ```{r spline-fitting, eval=use_spline, echo=use_spline, report_warnings=TRUE}
@@ -658,17 +811,27 @@ ref_tac_fitdata <- ref_tac_data %>%
   ungroup()
 
 ref_tac_fitdata <- ref_tac_fitdata %>%
-  mutate(ref_fit = future_map(ref_tacs, ~spline_tac(t_tac   = .x$frame_mid/60,
-                                              tac     = .x$RefTAC,
-                                              weights = .x$ref_weights),
+  mutate(ref_fit = future_map(ref_tacs, ~fit_reference_spline_tac(t_tac     = .x$frame_mid/60,
+                                                                  tac       = .x$RefTAC,
+                                                                  weights   = .x$ref_weights,
+                                                                  spline_df = spline_df),
                               .options = furrr_options(seed = TRUE)))
 
+ref_tac_fitdata <- ref_tac_fitdata %>%
+  mutate(fit_message = map_chr(ref_fit, ~.x$fit_message %||% ""))
+
+# Surface any measurement which fell back to the raw reference TAC, rather than
+# letting it pass silently as though it had been splined.
+spline_fit_messages <- ref_tac_fitdata %>%
+  filter(fit_message != "") %>%
+  select(any_of(c("sub", "ses", "trc", "rec", "task", "run", "pet")), fit_message)
+
+if (nrow(spline_fit_messages) > 0) {
+  print(kable(spline_fit_messages, caption = "Spline fitting fallbacks"))
+}
+
 ref_tac_preddata <- ref_tac_fitdata %>%
-  mutate(ref_preds = map(ref_fit, ~.x$tacs %>%
-                          rename(frame_mid = Time,
-                                 RefTAC = TAC,
-                                 RefTAC_fitted = TAC_fitted) %>%
-                           mutate(frame_mid = frame_mid*60))) %>%
+  mutate(ref_preds = map2(ref_fit, ref_tacs, reference_spline_predictions)) %>%
   select(-ref_fit) %>%
   mutate(ref_tacs = map2(ref_tacs, ref_preds, inner_join)) %>%
   mutate(ref_tacs = map(ref_tacs, ~.x %>%
@@ -677,19 +840,39 @@ ref_tac_preddata <- ref_tac_fitdata %>%
                                  RefTAC = RefTAC_fitted,
                                  RefTAC_weights = ref_weights))) %>%
   select(-ref_preds) %>%
-  mutate(ref_tacs_json = map(1:n(), ~list(
-    Description = "Spline Reference TAC Model fitted values.",
-    ModelName = "Spline",
-    FittingMethod = "spline",
-    AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}. Degrees of freedom: {spline_df}"),
-    RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
-    RefTAC_original = "Original measured reference TAC",
-    RefTAC_weights = "Weights used for reference TAC fitting"
-  )))
+  # The sidecar is written per measurement, so a measurement which fell back
+  # says so in its own sidecar instead of claiming a spline it did not get.
+  mutate(ref_tacs_json = map(fit_message, ~c(list(
+    Description = if (.x == "") {
+      "Spline Reference TAC Model fitted values."
+    } else {
+      "Raw Reference TAC (spline fitting fell back to the unsmoothed data)."
+    },
+    ModelName = if (.x == "") "Spline" else "Raw",
+    FittingMethod = if (.x == "") "spline" else "raw",
+    # paste0 rather than glue for the fallback message: it carries the
+    # optimiser's own error text, which may contain braces.
+    AdditionalModelDetails = paste0(
+      str_glue("Reference region: {ref_region_name}. ",
+               "Weighting: {weights_method_display}. ",
+               "Degrees of freedom: {spline_df}"),
+      if (.x == "") "" else paste0(". ", .x))),
+    bids_column_units(list(
+      frame_start = "Frame start time",
+      frame_end = "Frame end time",
+      frame_dur = "Frame duration",
+      frame_mid = "Frame midpoint time",
+      RefTAC = "Modelled reference TAC (fitted values for use in modelling)",
+      RefTAC_original = "Original measured reference TAC",
+      RefTAC_weights = "Weights used for reference TAC fitting"),
+      radioactivity_units = tac_units$radioactivity,
+      time_units = tac_units$time))))
 ```
 
 ```{r spline-saving, eval=use_spline, echo=use_spline}
-# Extract t0 from spline fits
+# Extract t0 from spline fits. A measurement which fell back to the raw TAC has
+# no fitted t0, and carries its fallback message through so that its sidecar
+# describes what it actually got.
 spline_pars_save <- ref_tac_fitdata %>%
   mutate(t0 = map_dbl(ref_fit, ~.x$par$t0)) %>%
   select(-ref_tacs, -ref_fit)
@@ -712,21 +895,40 @@ walk2(spline_kinpar_save$kinpar,
       spline_kinpar_save$filename,
       ~write_tsv(.x, .y))
 
-# Save JSON sidecar for parameters (reactive to method settings)
-spline_json_output <- list(
-  Description = "Spline Reference TAC Model fitting parameters.",
-  ModelName = "Spline",
-  FittingMethod = "spline",
-  AdditionalModelDetails = str_glue("Reference region: {ref_region_name}. Weighting: {weights_method_display}. Degrees of freedom: {spline_df}"),
-  t0 = "Time point at which curve begins to rise (minutes)"
-)
+# Save JSON sidecar for parameters, per measurement: one that falls back to the
+# raw TAC has no fitted t0 to describe, and should not be labelled a spline.
+spline_json_output <- function(fit_message) {
+  fell_back <- fit_message != ""
 
-spline_json_output <- jsonlite::toJSON(spline_json_output, pretty = TRUE, auto_unbox = TRUE)
+  out <- list(
+    Description = if (fell_back) {
+      "Raw Reference TAC (spline fitting fell back to the unsmoothed data)."
+    } else {
+      "Spline Reference TAC Model fitting parameters."
+    },
+    ModelName = if (fell_back) "Raw" else "Spline",
+    FittingMethod = if (fell_back) "raw" else "spline",
+    # paste0 rather than glue for the fallback message: it carries the
+    # optimiser's own error text, which may contain braces.
+    AdditionalModelDetails = paste0(
+      str_glue("Reference region: {ref_region_name}. ",
+               "Weighting: {weights_method_display}. ",
+               "Degrees of freedom: {spline_df}"),
+      if (fell_back) paste0(". ", fit_message) else ""),
+    t0 = if (fell_back) {
+      "Not estimated: no curve was fitted, so t0 is NA."
+    } else {
+      "Time point at which curve begins to rise (minutes)"
+    }
+  )
+
+  jsonlite::toJSON(out, pretty = TRUE, auto_unbox = TRUE)
+}
 
 # Write JSON for each PET
-walk(spline_kinpar_save$filename, ~{
+walk2(spline_kinpar_save$filename, spline_kinpar_save$fit_message, ~{
   json_filename <- str_replace(.x, ".tsv", ".json")
-  writeLines(spline_json_output, json_filename)
+  writeLines(spline_json_output(.y), json_filename)
 })
 ```
 
@@ -736,9 +938,10 @@ str_glue("### Spline Reference Model Plots")
 ```
 
 ```{r spline-plotting, eval=use_spline, echo=use_spline}
-walk2(ref_tac_fitdata$ref_fit,
-      ref_tac_fitdata$pet, 
-      ~print(plot(.x) + labs(title = .y)))
+pwalk(list(ref_tac_fitdata$ref_fit,
+           ref_tac_fitdata$ref_tacs,
+           ref_tac_fitdata$pet),
+      ~print(plot_reference_spline_fit(..1, ..2) + labs(title = ..3)))
 ```
 
 
@@ -794,6 +997,35 @@ target_tac_files %>%
                                    "desc-targetregions_tacs.tsv")
     write_tsv(.x,
               file = paste0(analysis_folder, "/", target_filename))
+  })
+```
+
+```{r save-target-tacs-json}
+target_tacs_json <- c(
+  list(
+    Description = str_glue("Target region TACs for model fitting: the combined ",
+                           "regions excluding the reference region."),
+    AdditionalModelDetails = str_glue("Reference region excluded: {ref_region_name}")),
+  bids_column_units(list(
+    region = "Brain region name (combined from constituent regions)",
+    frame_start = "Frame start time",
+    frame_end = "Frame end time",
+    frame_dur = "Frame duration",
+    frame_mid = "Frame midpoint time",
+    TAC = "Time activity curve value (volume-weighted average over the region)"),
+    radioactivity_units = tac_units$radioactivity,
+    time_units = tac_units$time))
+
+target_tac_files %>%
+  group_by(filename) %>%
+  group_walk(~{
+    target_filename <- str_replace(.y$filename,
+                                   "desc-combinedregions_tacs.tsv",
+                                   "desc-targetregions_tacs.json")
+    write_json(target_tacs_json,
+               path = paste0(analysis_folder, "/", target_filename),
+               pretty = TRUE,
+               auto_unbox = TRUE)
   })
 ```
 

@@ -19,7 +19,7 @@ It provides three apps for interactive usage:
 
 - **Region Definition** — combines regional TACs from BIDS PET preprocessing derivatives.
 - **Modelling with Plasma Input** — invasive models requiring a blood input function (1TCM, 2TCM, 2TCM_irr, Logan, MA1, Patlak).
-- **Modelling with Reference Tissue** — non-invasive models using a reference region (SRTM, SRTM2, refLogan, MRTM1, MRTM2, refPatlak).
+- **Modelling with Reference Tissue** — non-invasive models using a reference region (SRTM, SRTM2, SUV/SUVR, refLogan, MRTM1, MRTM2, refPatlak).
 
 ## Installation
 

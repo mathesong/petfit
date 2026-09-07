@@ -654,6 +654,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -720,6 +721,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -847,6 +858,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -913,6 +925,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter2", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button2 == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -1045,6 +1067,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                      "SRTM (Non-linear)" = "SRTM",
                                                      "SRTM2 (Non-linear)" = "SRTM2",
                                                      "Nested SRTM (Non-linear, shared k2prime)" = "nestedSRTM",
+                                                     "SUV / SUVR (AUC ratio)" = "SUVR",
                                                      "refLogan (Linear)" = "refLogan",
                                                      "MRTM1 (Linear)" = "MRTM1",
                                                      "MRTM2 (Linear)" = "MRTM2"
@@ -1111,6 +1134,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               h4("Multiple Starting Points"),
                               p("Fit model multiple times with different starting parameters to avoid local minima."),
                               numericInput("nested_multstart_iter3", "Number of Iterations", value = 1, min = 1, max = 50, step = 1)
+                            ),
+
+                            # SUVR explanation panel. The window itself is set in the
+                            # shared "TAC Subset Selection" panel below, so no inputs
+                            # are defined here: duplicating subset_type/start_point/
+                            # end_point would put two controls with the same ID in the DOM.
+                            conditionalPanel(
+                              condition = "input.button3 == 'SUVR'",
+                              h4("Time Window"),
+                              p("SUVR is the target-to-reference AUC ratio over the interval given under \"TAC Subset Selection\" below; leave the selection method as \"None\" to integrate the whole TAC, as for static data. SUV is reported alongside it when the injected radioactivity is available for every measurement. A time window includes whole frames whose midpoint falls inside it.")
                             ),
 
                              # refLogan selection panel
@@ -1313,11 +1346,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                uiOutput("fit_status"),
                                plotOutput("fit_plot", width = "100%", height = "520px"),
                                br(),
-                               fluidRow(
-                                 column(6, h5("Parameter Estimates"), tableOutput("fit_par_table")),
-                                 column(6, h5("Standard Errors (fraction of estimate)"),
-                                        tableOutput("fit_se_table"))
-                               )
+                               uiOutput("fit_tables")
                              )
                     )
         )
@@ -1640,9 +1669,11 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             }
           }
           
-          # Restore common parameters for all model types
+          # Restore common parameters for all model types. subset_type is a
+          # selectInput, so this must be updateSelectInput: updateRadioButtons
+          # silently does nothing.
           if (!is.null(model_config$subset)) {
-            updateRadioButtons(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "time")
+            updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
             updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
             updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
           }
@@ -2098,11 +2129,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           )
 
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
 
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (!is.null(subset_type) && subset_type != "none" &&
+              (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2147,11 +2179,12 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           }
 
           # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
 
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (!is.null(subset_type) && subset_type != "none" &&
+              (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2198,12 +2231,16 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         
         # Add common parameters for all models
         if (model_type != "none" && !is.null(model_type)) {
-          # TAC subset selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "time"
+          # TAC subset selection. The default matches the control's own default
+          # of "none": recording "time" for an input that has not rendered yet
+          # claims a window type the user never chose. A window is only recorded
+          # when a type was actually selected, because the reports read the type
+          # and silently ignore a start/end recorded under "none".
+          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
           start_point <- input[[paste0("start_point", suffix)]]
           end_point <- input[[paste0("end_point", suffix)]]
           
-          if (!is.null(start_point) || !is.null(end_point)) {
+          if (subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
             model_params$subset = list(
               type = subset_type,
               start = start_point,
@@ -2869,16 +2906,58 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         return(tags$p("Select PET, Region and Model, then click Fit Model.",
                       style = "color:#666;"))
       }
+      if (identical(res$type, "SUVR")) {
+        # SUVR integrates rather than fits, so there is no standard error to
+        # show. Say so, instead of leaving an unexplained empty panel.
+        return(tagList(
+          tags$p(tags$strong("SUV / SUVR"), " \u2014 ", res$pet, " : ", res$region),
+          tags$p(res$fit$suv_label %||% "",
+                 " Shaded frames are those integrated; SUVR is the ratio of the two shaded areas.",
+                 " Being a ratio of integrals rather than a fit, it has no standard errors.",
+                 style = "color:#666; font-size: 12px;")
+        ))
+      }
       tags$p(tags$strong(paste0(res$type, " fit")), " \u2014 ", res$pet, " : ", res$region)
     })
 
     output$fit_plot <- renderPlot({
       res <- fit_result()
       req(res)
-      plot(res$fit, roiname = res$region) +
-        ggplot2::labs(title = paste0(res$pet, " : ", res$region, "  (", res$type, ")")) +
-        ggplot2::theme_light()
+      if (identical(res$type, "SUVR")) {
+        # The same plot the report shows: both TACs, with the integrated frames
+        # shaded, so the two areas whose ratio is the SUVR are visible.
+        kinfitr::plot_suvrfit(res$fit, roiname = res$region,
+                              refname = res$fit$refname %||% "Reference") +
+          ggplot2::labs(
+            title = paste0(res$pet, " : ", res$region, "  (", res$type, ")"),
+            subtitle = paste0("SUVR = ", signif(res$par$SUVR, 4),
+                              " | window ", signif(res$fit$window_start, 4), "-",
+                              signif(res$fit$window_end, 4), " min (",
+                              res$par$n_frames, " frames)"),
+            x = "Time (min)", y = "Radioactivity") +
+          ggplot2::theme_light()
+      } else {
+        plot(res$fit, roiname = res$region) +
+          ggplot2::labs(title = paste0(res$pet, " : ", res$region, "  (", res$type, ")")) +
+          ggplot2::theme_light()
+      }
     }, res = 96)
+
+    # SUVR has no standard errors, so its estimates take the full width rather
+    # than leaving an empty second column.
+    output$fit_tables <- renderUI({
+      res <- fit_result()
+      req(res)
+      if (is.null(res$par.se)) {
+        fluidRow(column(12, h5("Parameter Estimates"), tableOutput("fit_par_table")))
+      } else {
+        fluidRow(
+          column(6, h5("Parameter Estimates"), tableOutput("fit_par_table")),
+          column(6, h5("Standard Errors (fraction of estimate)"),
+                 tableOutput("fit_se_table"))
+        )
+      }
+    })
 
     output$fit_par_table <- renderTable({
       res <- fit_result()

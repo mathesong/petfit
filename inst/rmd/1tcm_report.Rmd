@@ -57,6 +57,10 @@ if (cores > 1) {
 
 # Use parameters (from params or debugging section above)
 analysis_folder <- params$analysis_folder
+# The units of the TACs everything downstream is derived from, recorded by
+# the region definition step. Read rather than assumed, so that the sidecars
+# written below cannot claim units the data does not have.
+tac_units <- petfit_tac_units(analysis_folder)
 model_number <- params$model_number
 bids_dir <- params$bids_dir
 blood_dir <- params$blood_dir
@@ -348,7 +352,10 @@ if( nrow(delay_data)==0 ) {
 } else{
   
   delay_data <- delay_data %>% 
-    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+    # These are full paths, so the attributes are read from the basename: a
+    # directory above the analysis folder can hold key-value pairs of its own
+    # (a "rec-test" folder, say) which would otherwise be read as entities.
+    mutate(attributes = map(filename, ~kinfitr::bids_filename_attributes(basename(.x)))) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
@@ -413,14 +420,17 @@ if( nrow(vB_data)==0 ) {
 } else{
   
   vB_data <- vB_data %>% 
-    mutate(attributes = map(filename, kinfitr::bids_filename_attributes)) %>%
+    # These are full paths, so the attributes are read from the basename: a
+    # directory above the analysis folder can hold key-value pairs of its own
+    # (a "rec-test" folder, say) which would otherwise be read as entities.
+    mutate(attributes = map(filename, ~kinfitr::bids_filename_attributes(basename(.x)))) %>%
     unnest(attributes) %>% 
     filter(!is.na(sub)) %>% 
     mutate(pet = str_remove(basename(filename), "_model.*.*")) %>%
     mutate(pet = str_remove(basename(pet), "_desc.*")) %>%
     mutate(pet = str_remove(pet, "_kinpar.*")) %>% 
     mutate(vB_kp = map(filename, read_tsv)) %>% 
-    select(-filename, -measurement, -desc) %>% 
+    select(-filename, -measurement, -desc, -any_of("model")) %>% 
     group_by(pet)
   
   # Calculation
@@ -819,11 +829,12 @@ walk2(savepar_pet$kinpars, savepar_pet$filename, ~write_tsv(.x, .y))
 ```{r}
 savepar_pet <- savepar_pet %>% 
   group_by(pet) %>%
-  mutate(jsondat = map(kinpars, ~list(
+  mutate(jsondat = map(kinpars, ~c(list(
       Description = "One tissue compartmental model fit using nonlinear least squares estimation.",
       ModelName = "1TCM",
-      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")))) %>% 
-  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
+      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")),
+      kinpar_units(names(.x), tac_units$radioactivity)))) %>%
+  mutate(jsondat = map_chr(jsondat, ~jsonlite::toJSON(.x, pretty = TRUE, auto_unbox = TRUE))) %>% 
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
   
 walk2(savepar_pet$jsondat, 
@@ -888,16 +899,19 @@ walk2(savefits_pet$fitvals, savefits_pet$filename, ~write_tsv(.x, .y))
 ```{r}
 savefits_pet <- savefits_pet %>% 
   group_by(pet) %>%
-  mutate(jsondat = map(fitvals, ~list(
+  mutate(jsondat = map(fitvals, ~c(list(
       Description = "One tissue compartment model fitted values.",
       ModelName = "1TCM",
-      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}"),
-      frame_mid = "The frame middle time in minutes",
-      TAC = paste("TAC radioactivity data in kBq to which the model was fitted.",
+      AdditionalModelDetails = str_glue("vB source: {config_items$`vB Parameter Source`}. Blood delay source: {delay_source}")),
+      bids_column_units(list(
+        frame_mid = "The frame middle time",
+        TAC = paste("TAC radioactivity data to which the model was fitted.",
                   "If there is a vB, this is after removal of blood radioactivity."),
-      TAC_fitted = "Model fitted values.",
-      weights = "Model weights"))) %>% 
-  mutate(jsondat = jsonlite::toJSON(jsondat, pretty = TRUE, auto_unbox = TRUE)) %>% 
+        TAC_fitted = "Model fitted values.",
+        weights = "Model weights"),
+        radioactivity_units = tac_units$radioactivity,
+        time_units = "min")))) %>% 
+  mutate(jsondat = map_chr(jsondat, ~jsonlite::toJSON(.x, pretty = TRUE, auto_unbox = TRUE))) %>% 
   mutate(filename_json = str_replace(filename, ".tsv", ".json"))
   
 walk2(savefits_pet$jsondat, 

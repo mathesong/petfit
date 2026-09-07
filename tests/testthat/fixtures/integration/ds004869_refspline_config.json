@@ -1,0 +1,47 @@
+{
+  "modelling_configuration_type": "reference tissue",
+  "Subsetting": {
+    "sub": "01;02",
+    "ses": "",
+    "trc": "",
+    "rec": "",
+    "task": "",
+    "run": "",
+    "Regions": "Frontal;Temporal;Cerebellum"
+  },
+  "Weights": {
+    "region_type": "mean_combined",
+    "region": "",
+    "external_tacs": "",
+    "radioisotope": "C11",
+    "halflife": "",
+    "method": "2",
+    "formula": "sqrt(frame_dur * tac_uncor)",
+    "minweight": 0.25
+  },
+  "ReferenceTAC": {
+    "region": "Cerebellum",
+    "method": "spline",
+    "fitting_method": "spline",
+    "spline_df": 5,
+    "noise_approximation": false,
+    "weights_method": "same_as_target",
+    "custom_formula": ""
+  },
+  "Models": {
+    "Model1": {
+      "type": "SUVR",
+      "subset": {
+        "type": "time",
+        "start": 20,
+        "end": 60
+      }
+    },
+    "Model2": {
+      "type": "No Model"
+    },
+    "Model3": {
+      "type": "No Model"
+    }
+  }
+}

@@ -97,7 +97,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     stop("Model ", model_number, " is type 'nestedSRTM'. Nested models fit all regions of ",
          "a measurement jointly and are not supported in the single-TAC sandbox.")
   }
-  ref_types <- c("SRTM", "SRTM2", "refLogan", "MRTM1", "MRTM2")
+  ref_types <- c("SRTM", "SRTM2", "SUVR", "refLogan", "MRTM1", "MRTM2")
   if (!type %in% ref_types) {
     stop("Model ", model_number, " is type '", type, "', which is not a reference-tissue model.")
   }
@@ -106,12 +106,22 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
   pet_dir <- dirname(tac_file)
 
   use_model_weights <- isTRUE(model_config$use_model_weights)
-  # mrtm1/mrtm2/srtm/srtm2 always use weights; refLogan only if requested.
-  need_weights <- type != "refLogan" || use_model_weights
+  # mrtm1/mrtm2/srtm/srtm2 always use weights; refLogan only if requested, and
+  # SUVR is a ratio of integrals rather than a fit, so it needs none.
+  need_weights <- (type != "refLogan" && type != "SUVR") || use_model_weights
   region_data <- .load_region_tac(tac_file, region, pet_dir, join_weights = need_weights)
 
   reftac <- .load_reftac(pet_dir, region_data)
   subset <- .subset_bounds(model_config$subset)
+
+  # Return before touching region_data$weights: SUVR joins none, so reading the
+  # column would warn about an uninitialised column.
+  if (type == "SUVR") {
+    return(.suvr_result(model_config, region_data, reftac, subset,
+                        model_number, pet, region,
+                        refname = config$ReferenceTAC$region))
+  }
+
   weights <- region_data$weights
 
   k2prime <- if (type %in% c("MRTM2", "refLogan", "SRTM2")) {
@@ -531,6 +541,54 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
 }
 
 # Assemble the return value, prettifying parameter names like the reports do.
+# SUVR is not fitted, so it does not produce standard errors. The dose and body
+# weight travel in the TAC file itself, written there by the region definition
+# step; when they are absent the denominator is 1, so the SUV outcomes are
+# radioactivity concentrations and are dropped, and the SUVR is unaffected.
+.suvr_result <- function(model_config, region_data, reftac, subset,
+                          model_number, pet, region, refname = NULL) {
+  inj_rad <- if ("InjectedRadioactivity" %in% names(region_data)) {
+    unique(region_data$InjectedRadioactivity)[1]
+  } else NA_real_
+  bodyweight <- if ("bodyweight" %in% names(region_data)) {
+    unique(region_data$bodyweight)[1]
+  } else NA_real_
+
+  # One measurement only, so the cohort-wide rule reduces to this measurement.
+  denom <- suv_denominator(inj_rad, bodyweight)
+
+  fit <- kinfitr::suvr(
+    t_tac = region_data$frame_mid,
+    reftac = reftac,
+    roitac = region_data$TAC,
+    dur = region_data$frame_dur,
+    injRad = if (denom$mode == "none") 1 else inj_rad,
+    bodymass = if (denom$mode == "none") 1 else denom$bodymass[1],
+    frameStartEnd = subset$frameStartEnd,
+    timeStartEnd = subset$timeStartEnd
+  )
+
+  fit$suv_mode <- denom$mode
+  fit$suv_label <- denom$label
+  fit$refname <- refname %||% "Reference"
+  # kinfitr reports which frames it integrated; the frame edges are ours.
+  fit$window_start <- min(region_data$frame_start[fit$tacs$Included])
+  fit$window_end <- max(region_data$frame_end[fit$tacs$Included])
+
+  # Without a dose the SUV outcomes are radioactivity concentrations rather than
+  # SUV, so drop them here as the report drops the columns, leaving the SUVR and
+  # the window. SUV_denominator is then 1 and says nothing.
+  par <- fit$par
+  if (denom$mode == "none") {
+    par <- par[, setdiff(names(par), c("SUV", "SUV_ref", "SUV_AUC",
+                                       "SUV_ref_AUC", "SUV_denominator")),
+               drop = FALSE]
+  }
+
+  list(fit = fit, par = par, par.se = NULL, type = "SUVR",
+       model_number = model_number, pet = pet, region = region)
+}
+
 .fit_result <- function(fit, type, model_number, pet, region) {
   if (length(fit) <= 1 || !is.list(fit)) {
     stop("Model fitting failed for ", pet, " / ", region, ".")
