@@ -157,6 +157,10 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 #'   file is copied into the petfit output folder, replacing any regions file already there. Only
 #'   used for "regiondef"; ignored for the modelling apps.
 #' @param cores Integer number of cores for parallel processing (default: 1)
+#' @param merge_runs Whether the runs of each measurement are consecutive scans of a single
+#'   injection, and should be pooled into one measurement with no `run` entity (`TRUE`, the
+#'   default), or separate injections which must stay apart (`FALSE`). Only used for
+#'   "regiondef"; ignored for the modelling apps, which read what region definition decided.
 #' @param ancillary_analysis_folder Character string name of a sibling analysis folder to inherit
 #'   delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.
 #' @param save_logs Whether to write each report's rendering log to
@@ -193,7 +197,8 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
                         save_logs = FALSE,
                         ancillary_analysis_folder = NULL,
                         config_file = NULL,
-                        regions_file = NULL) {
+                        regions_file = NULL,
+                        merge_runs = TRUE) {
 
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
 
@@ -203,7 +208,8 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
       derivatives_dir = derivatives_dir,
       petfit_output_foldername = petfit_output_foldername,
       regions_file = regions_file,
-      cores = cores
+      cores = cores,
+      merge_runs = merge_runs
     )
   } else {
     petfit_modelling_auto(
@@ -233,9 +239,12 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
 #'   already there, and is then used exactly as if it had been found by the usual search.
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
+#' @param merge_runs Whether the runs of each measurement are consecutive scans of a single
+#'   injection, and should be pooled into one measurement with no `run` entity (`TRUE`, the
+#'   default), or separate injections which must stay apart (`FALSE`). See [merge_tacs_runs()].
 #' @return List with execution result and messages
 #' @export
-petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L, regions_file = NULL) {
+petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L, regions_file = NULL, merge_runs = TRUE) {
 
   result <- list(
     success = FALSE,
@@ -375,6 +384,13 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   tacs_error <- NULL
   tryCatch({
     result$messages <- c(result$messages, "Generating combined TACs...")
+    result$messages <- c(result$messages,
+                         if (isTRUE(merge_runs)) {
+                           paste("Run merging is on: each measurement's runs are pooled into one",
+                                 "measurement with no run entity")
+                         } else {
+                           "Run merging is off: each run is kept as a separate measurement"
+                         })
 
     output_folder <- petfit_base_dir
     if (!dir.exists(output_folder)) {
@@ -388,7 +404,8 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
       output_folder,
       bids_dir,
       participant_data,
-      cores = cores
+      cores = cores,
+      merge_runs = merge_runs
     )
 
     # Generate summary

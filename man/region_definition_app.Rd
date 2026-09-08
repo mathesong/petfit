@@ -9,7 +9,8 @@ region_definition_app(
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
   cores = 1L,
-  regions_file = NULL
+  regions_file = NULL,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -25,6 +26,12 @@ default) fits sequentially.}
 \item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to start from
 (optional). The file is copied into the config write directory, replacing any regions file
 already there, and the app then opens with its regions loaded.}
+
+\item{merge_runs}{Initial state of the "Merge runs" option (default: \code{TRUE}).
+When ticked, the runs of each measurement are treated as consecutive scans
+of a single injection and pooled into one measurement with no \code{run} entity.
+Untick it for datasets where each run is its own injection. The user can
+change it in the app; this only sets what the box starts as.}
 }
 \description{
 Launch a separate Shiny app for defining brain regions

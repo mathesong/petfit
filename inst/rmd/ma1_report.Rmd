@@ -300,30 +300,27 @@ if (length(blood_files) == 0) {
   stop("No _blood.tsv files found in bids_dir")
 }
 
-# Generate blood data from raw BIDS data
-raw_data <- kinfitr::bids_parse_study(bids_dir) %>% 
-  select(any_of(names(tac_data)), blooddata)
-
-tac_data_files <- tac_data %>% 
-  filter(!duplicated(filename)) %>% 
-   select(any_of(names(raw_data)), filename)
-
-save_data <- inner_join(raw_data, tac_data_files) %>% 
-  mutate(filename = str_remove(filename, "_desc.*")) %>% 
-  mutate(filename = str_remove(filename, "_weights.*")) %>% 
-  mutate(filename = str_remove(filename, "_tacs.*")) %>% 
-  mutate(filename = paste0(filename, "_inputfunction.tsv")) %>% 
-  mutate(filename = paste0(analysis_folder, "/", filename))
-
-walk2(save_data$blooddata, save_data$filename, blooddata2inputfunction_tsv)
+# One input function per measurement, by linear interpolation of the measured
+# curves. A measurement whose runs were merged in the region definition step
+# carries no run entity, so it matches every run of its acquisition and their
+# blood data is pooled into a single curve here.
+inputfunction_result <- create_analysis_inputfunctions(bids_dir, tac_data, analysis_folder)
+cat(paste0(inputfunction_result$messages, collapse = "\n"), "\n")
 
 # Load the created inputfunction files
-blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>% 
+blood_data <- kinfitr::bloodstream_import_inputfunctions(analysis_folder) %>%
   select(-measurement, -desc)
 ```
 
 ```{r blood-loading-error, eval=(!use_blood_dir && !use_analysis_folder && !use_bids_raw)}
 stop("No blood data available - provide blood_dir or ensure blood data exists in analysis folder or BIDS directory")
+```
+
+```{r check-blood-runs, echo=FALSE}
+# The TACs and the input functions have to agree about runs. Where they do not,
+# the join below would pair a measurement spanning both runs with the blood
+# curve of only one of them, without saying so.
+check_blood_run_alignment(tac_data, blood_data)
 ```
 
 ## Loading Delay Information

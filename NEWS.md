@@ -1,5 +1,61 @@
 # petfit 0.2.3
 
+## Merging the runs of a single injection
+
+* **A measurement's runs are now merged into one measurement by default**, for
+  tracers scanned in two blocks from one injection (`run-01`/`run-02`,
+  `run-early`/`run-late`). Untick **Merge runs of the same measurement** in the
+  region definition app, or pass `--no-merge-runs` (`petfit-docker`),
+  `--no_merge_runs` (container) or `merge_runs = FALSE` (R), where each run is a
+  separate injection.
+
+* **Merged measurements carry no `run` in their outputs**:
+  `sub-01_ses-test_run-01` becomes `sub-01_ses-test`. Where anything is merged
+  `run` is dropped from every measurement, so identity is consistent across the
+  cohort; where nothing is merged the data is left untouched.
+
+* Runs are placed on one clock by the difference between their `TimeZero` times,
+  the same rule bloodstream applies to their blood samples. `TimeZero` comes
+  from the raw `_pet.json`, so it needs a `bids_dir`; without one the times are
+  taken as already shared. Frames which still overlap between runs are an error
+  rather than a silent pooling.
+
+* **Blood is pooled to match.** A merged measurement built from raw BIDS
+  `_blood.tsv` files gets one `_inputfunction.tsv` spanning its runs, with the
+  unsampled gap between them interpolated. Pre-made input functions must already
+  be merged: a mismatch between TACs and blood over runs is now an error in
+  either direction.
+
+* Runs disagreeing about the injected radioactivity, the body weight or a
+  region's volume are merged with a warning, using the earliest run's value.
+
+* The app offers the option only when some measurement actually has more than one
+  run. `desc-combinedregions_tacs.json` records `MergedRuns` -- what happened,
+  not what was asked for. Subsetting by `run` is impossible once merged, and the
+  error says why.
+
+* New arguments are appended after the existing ones, so positional callers keep
+  working.
+
+## Other changes
+
+* **The default upper bound on BPnd is now 25**, up from 5 in the reference
+  tissue app and 15 in the report and interactive-sandbox fallbacks.
+
+## Fixes
+
+* **A pipeline folder holding TACs but no morph files no longer breaks the whole
+  derivatives folder.** It failed with `object 'seg' not found`, leaving the
+  region definition app with no TACs files at all; such a folder now falls back
+  to equal weighting, as intended.
+
+* **Deprecation warnings from ggplot2 and plotly are gone**: `guides(colour =
+  "none")`, and plot dimensions on the `ggplotly()` call rather than in
+  `layout()`.
+
+* Errors from dplyr and purrr pipelines now report their cause rather than the
+  line that was running (`petfit_error_detail()`).
+
 ## External config and regions files
 
 * **The CLI can now be pointed at a config or regions file which lives outside

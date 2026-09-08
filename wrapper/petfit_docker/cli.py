@@ -118,6 +118,18 @@ def _parser() -> argparse.ArgumentParser:
             "modelling apps"
         ),
     )
+    wrapper.add_argument(
+        "--no-merge-runs",
+        dest="merge_runs",
+        action="store_false",
+        default=True,
+        help=(
+            "keep each run as a separate measurement. By default a measurement's runs are "
+            "treated as consecutive scans of one injection and merged into a single "
+            "measurement with no run entity. Ignored by the modelling apps, which read what "
+            "regiondef decided"
+        ),
+    )
     wrapper.add_argument("-w", "--work-dir", action=PathAction, help="working directory to mount in the container")
     wrapper.add_argument("--petfit-output-foldername", default="petfit", help="petfit output folder within derivatives")
     wrapper.add_argument(
@@ -319,6 +331,10 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
         command.extend(["--config_file", CONFIG_MOUNT])
     if regions_file:
         command.extend(["--regions_file", REGIONS_MOUNT])
+    # Run merging belongs to the regiondef step; passing it to a modelling app
+    # would imply it could be changed there, which it cannot.
+    if opts.app == "regiondef" and not opts.merge_runs:
+        command.append("--no_merge_runs")
     if opts.ancillary_analysis_folder:
         command.extend(["--ancillary_analysis_folder", opts.ancillary_analysis_folder])
 

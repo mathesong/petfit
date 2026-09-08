@@ -307,6 +307,36 @@ Each of the two belongs to one app: `--config-file` is ignored by `regiondef`,
 and `--regions-file` is ignored by the modelling apps, with a note on the
 console.
 
+**Merging runs:**
+
+Region definition pools a measurement's runs into a single measurement by
+default, for the common case where `run-01` and `run-02` are two scanning
+occasions from one injection. Pass `--no-merge-runs` (wrapper) or
+`--no_merge_runs` (container) for datasets where each run is a separate
+injection:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef \
+  --automatic \
+  --no-merge-runs
+```
+
+```bash
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  mathesong/petfit:latest \
+  --func regiondef \
+  --mode automatic \
+  --no_merge_runs
+```
+
+The option belongs to `regiondef` alone -- merging is decided there and is then a
+property of the combined TACs -- so it is ignored by the modelling apps, with a
+note on the console. See
+[Merging runs](../usage/region-definition.md#merging-runs).
+
 **Nothing is replaced until the external file has been checked.** A config is
 rejected unless it is valid JSON, carries the `Subsetting` and `Models`
 sections, and declares the `modelling_configuration_type` matching the app it
@@ -335,6 +365,7 @@ exactly as it found it.
 | `--petfit_output_foldername` | Name of petfit output folder within derivatives (default: `petfit`) |
 | `--config_file` | External modelling config JSON, copied into the analysis folder (modelling apps only) |
 | `--regions_file` | External `petfit_regions.tsv`, copied into the petfit output folder (`regiondef` only) |
+| `--no_merge_runs` | Keep each run as a separate measurement instead of pooling a measurement's runs into one (`regiondef` only). Runs are merged by default |
 | `--cores` | Number of cores for parallel processing (default: `1`) |
 
 ## Mount points

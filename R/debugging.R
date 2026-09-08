@@ -1,3 +1,40 @@
+#' Full Detail of an Error, Including Its Causes
+#'
+#' @description Render an error's message together with every cause beneath it.
+#'
+#'   dplyr and purrr report where a failure happened and put *what* failed in a
+#'   chained parent condition. Printing only `conditionMessage(e)` therefore
+#'   yields "In argument: `mappings = purrr::map(path, create_tacs_morph_mapping)`"
+#'   and nothing about the cause, which is unactionable: it names the line that
+#'   was running, not the problem. This walks the chain so the message a user
+#'   sees ends at the actual cause.
+#'
+#' @param e A condition.
+#' @return A single character string: the message, then each cause beneath it.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' tryCatch(some_dplyr_pipeline(), error = function(e) cat(petfit_error_detail(e)))
+#' }
+petfit_error_detail <- function(e) {
+
+  messages <- character(0)
+  seen <- 0L
+
+  while (!is.null(e) && seen < 10L) {
+    messages <- c(messages, conditionMessage(e))
+    e <- e$parent
+    seen <- seen + 1L
+  }
+
+  # The chain repeats itself often -- dplyr restates its argument context at
+  # each level -- and repeating it back adds nothing.
+  messages <- messages[!duplicated(messages)]
+
+  paste(messages, collapse = "\n")
+}
+
 #' Minify Directory for Debugging
 #'
 #' Creates a lightweight copy of a directory by replacing files larger than 1MB

@@ -195,6 +195,26 @@ way `--bids_dir` and `--derivatives_dir` are used above.
 The console reports each copy, and says explicitly when a file already in that
 folder was replaced.
 
+## Merging runs
+
+Region definition pools a measurement's runs into one measurement by default,
+for the common case where `run-01` and `run-02` are two scanning occasions from
+a single injection. Pass `--no_merge_runs` for datasets where each run is a
+separate injection:
+
+```bash
+apptainer run \
+  -B /scratch/project/derivatives:/data/derivatives_dir:rw \
+  petfit_latest.sif \
+  --func regiondef \
+  --mode automatic \
+  --no_merge_runs
+```
+
+The option belongs to `regiondef` alone -- merging is decided there and is then a
+property of the combined TACs -- and is ignored by the modelling apps. See
+[Merging runs](../usage/region-definition.md#merging-runs).
+
 ## Troubleshooting
 
 ### Directory not found

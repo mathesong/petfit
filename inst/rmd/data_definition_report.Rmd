@@ -293,15 +293,13 @@ regplots <- tacdata %>%
         labs(title = .x,
              x = "Time (min)",
              y = y_axis_title) +
-        guides(colour=FALSE) +
+        guides(colour = "none") +
         theme_minimal()
       
-      ggplotly(p, tooltip = "text") %>%
+      ggplotly(p, tooltip = "text", width = 800, height = 500) %>%
   highlight(on = "plotly_hover", off = "plotly_doubleclick", 
            opacityDim = 0.2) %>%
   layout(
-    width = 800,
-    height = 500,
     hovermode = "closest",
     updatemenus = list(
       list(
@@ -363,15 +361,13 @@ petplots <- tacdata %>%
         labs(title = .x,
              x = "Time (min)",
              y = y_axis_title) +
-        guides(colour=FALSE) +
+        guides(colour = "none") +
         theme_minimal()
       
-      ggplotly(p, tooltip = "text") %>%
+      ggplotly(p, tooltip = "text", width = 800, height = 500) %>%
   highlight(on = "plotly_hover", off = "plotly_doubleclick", 
            opacityDim = 0.2) %>%
   layout(
-    width = 800,
-    height = 500,
     hovermode = "closest",
     updatemenus = list(
       list(

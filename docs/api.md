@@ -20,7 +20,8 @@ petfit_interactive(
   regions_file = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  merge_runs = TRUE
 )
 ```
 
@@ -39,6 +40,7 @@ petfit_interactive(
 | `cores` | Number of cores for parallel processing (default: `1L`) |
 | `save_logs` | Whether to save processing logs (default: `FALSE`) |
 | `ancillary_analysis_folder` | Name of a sibling analysis subfolder to inherit delay or k2prime estimates from. Must be a folder name (e.g. `"Ancillary_Analysis"`), not a full path |
+| `merge_runs` | Initial state of the `regiondef` app's **Merge runs** option (default: `TRUE`). When ticked, a measurement's runs are treated as consecutive scans of one injection and pooled into a single measurement with no `run` entity. Ignored by the modelling apps, which read what region definition decided. See [Merging runs](usage/region-definition.md#merging-runs) |
 
 ## Automatic pipelines
 
@@ -59,11 +61,14 @@ petfit_auto(
   regions_file = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  merge_runs = TRUE
 )
 ```
 
 Dispatches to `petfit_regiondef_auto()` or `petfit_modelling_auto()` based on `app`.
+`merge_runs` is used only for `"regiondef"`; the modelling pipelines read what
+region definition decided.
 
 ### `petfit_regiondef_auto()`
 
@@ -75,9 +80,13 @@ petfit_regiondef_auto(
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
   regions_file = NULL,
-  cores = 1L
+  cores = 1L,
+  merge_runs = TRUE
 )
 ```
+
+Set `merge_runs = FALSE` for datasets where each run is a separate injection.
+See [Merging runs](usage/region-definition.md#merging-runs).
 
 ### `petfit_modelling_auto()`
 
@@ -121,4 +130,5 @@ When running PETFit in Docker or Apptainer, the container accepts these flags:
 | `--petfit_output_foldername` | Name of petfit output folder within derivatives (default: `petfit`) |
 | `--config_file` | Path inside the container to an external modelling config JSON, copied into the analysis folder (modelling apps; ignored by `regiondef`) |
 | `--regions_file` | Path inside the container to an external `petfit_regions.tsv`, copied into the petfit output folder (`regiondef`; ignored by the modelling apps) |
+| `--no_merge_runs` | Keep each run as a separate measurement instead of pooling a measurement's runs into one (`regiondef`; ignored by the modelling apps). Runs are merged by default |
 | `--cores` | Number of cores for parallel processing (default: `1`) |

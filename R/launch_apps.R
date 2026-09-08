@@ -21,6 +21,10 @@
 #'   default) fits sequentially.
 #' @param save_logs Whether to write each report's rendering log to
 #'   `reports/logs/<step>_report.log` in addition to the console.
+#' @param merge_runs Initial state of the regiondef app's "Merge runs" option (default: `TRUE`).
+#'   When ticked, the runs of each measurement are treated as consecutive scans of a single
+#'   injection and pooled into one measurement with no `run` entity. Ignored by the modelling
+#'   apps, which read what region definition decided.
 #'
 #' @details
 #' This function provides a unified interface to launch petfit interactive applications built on kinfitr:
@@ -29,7 +33,7 @@
 #' - "modelling_ref": Reference Tissue Modelling App for non-invasive models and ratios (SRTM, nestedSRTM, SRTM2, SUVR, refLogan, MRTM1, MRTM2)
 #'
 #' Parameter usage:
-#' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file
+#' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file, merge_runs
 #' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
 #' - modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
 #'
@@ -56,7 +60,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
                                cores = 1L,
                                save_logs = FALSE,
                                ancillary_analysis_folder = NULL,
-                               regions_file = NULL) {
+                               regions_file = NULL,
+                               merge_runs = TRUE) {
 
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
@@ -93,6 +98,7 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
   }
   if (app == "regiondef") {
     cat("  petfit output folder:", petfit_output_foldername, "\n")
+    cat("  Merge runs:", if (isTRUE(merge_runs)) "yes" else "no", "\n")
     if (!is.null(regions_file)) {
       cat("  Regions file:", regions_file, "\n")
     }
@@ -115,7 +121,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
         derivatives_dir = derivatives_dir,
         petfit_output_foldername = petfit_output_foldername,
         regions_file = regions_file,
-        cores = cores
+        cores = cores,
+        merge_runs = merge_runs
       )
     },
     modelling_plasma = {

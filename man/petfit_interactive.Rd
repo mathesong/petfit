@@ -15,7 +15,8 @@ petfit_interactive(
   cores = 1L,
   save_logs = FALSE,
   ancillary_analysis_folder = NULL,
-  regions_file = NULL
+  regions_file = NULL,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -48,6 +49,11 @@ delay or k2prime estimates from (optional, for modelling apps). Must be a subfol
 \item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to start from
 (optional, for the regiondef app). It is copied into the config write directory, replacing
 any regions file already there. Ignored by the modelling apps.}
+
+\item{merge_runs}{Initial state of the regiondef app's "Merge runs" option (default: \code{TRUE}).
+When ticked, the runs of each measurement are treated as consecutive scans of a single
+injection and pooled into one measurement with no \code{run} entity. Ignored by the modelling
+apps, which read what region definition decided.}
 }
 \description{
 Launch a specified petfit interactive Shiny application
@@ -62,7 +68,7 @@ This function provides a unified interface to launch petfit interactive applicat
 
 Parameter usage:
 \itemize{
-\item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file
+\item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file, merge_runs
 \item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
 \item modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
 }

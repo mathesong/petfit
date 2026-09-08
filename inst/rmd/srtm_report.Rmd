@@ -272,7 +272,7 @@ k2_upper <- model_config$k2$upper %||% 1
 
 bp_start <- model_config$BPnd$start %||% 1.5
 bp_lower <- model_config$BPnd$lower %||% 0
-bp_upper <- model_config$BPnd$upper %||% 15
+bp_upper <- model_config$BPnd$upper %||% 25
 
 multstart_iter <- model_config$multstart_iter %||% 1
 

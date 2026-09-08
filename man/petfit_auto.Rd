@@ -16,7 +16,8 @@ petfit_auto(
   save_logs = FALSE,
   ancillary_analysis_folder = NULL,
   config_file = NULL,
-  regions_file = NULL
+  regions_file = NULL,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -51,6 +52,11 @@ the modelling apps; ignored for "regiondef".}
 \item{regions_file}{Character string path to an external \code{petfit_regions.tsv} (optional). The
 file is copied into the petfit output folder, replacing any regions file already there. Only
 used for "regiondef"; ignored for the modelling apps.}
+
+\item{merge_runs}{Whether the runs of each measurement are consecutive scans of a single
+injection, and should be pooled into one measurement with no \code{run} entity (\code{TRUE}, the
+default), or separate injections which must stay apart (\code{FALSE}). Only used for
+"regiondef"; ignored for the modelling apps, which read what region definition decided.}
 }
 \value{
 List with execution result and messages

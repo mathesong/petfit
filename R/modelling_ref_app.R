@@ -698,7 +698,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("BPnd.start", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("BPnd.lower", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("BPnd.upper", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
@@ -720,7 +720,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_BPnd.start", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("nested_BPnd.lower", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("nested_BPnd.upper", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_k2prime.start", "k2prime.start", value = 0.1, min = 0, step = .001)),
@@ -902,7 +902,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("BPnd.start2", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("BPnd.lower2", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("BPnd.upper2", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
@@ -924,7 +924,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_BPnd.start2", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("nested_BPnd.lower2", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("nested_BPnd.upper2", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper2", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_k2prime.start2", "k2prime.start", value = 0.1, min = 0, step = .001)),
@@ -1111,7 +1111,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("BPnd.start3", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("BPnd.lower3", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("BPnd.upper3", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
 
                               # Multiple Starting Points
@@ -1133,7 +1133,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_BPnd.start3", "BPnd.start", value = 0.1, min = 0, step = .001)),
                                 column(3, offset = 0, numericInput("nested_BPnd.lower3", "BPnd.lower", value = 0.0001, min = 0, step = .001)),
-                                column(3, offset = 0, numericInput("nested_BPnd.upper3", "BPnd.upper", value = 5, min = 0, step = .5)),
+                                column(3, offset = 0, numericInput("nested_BPnd.upper3", "BPnd.upper", value = 25, min = 0, step = .5)),
                               ),
                               fluidRow(
                                 column(3, offset = 0, numericInput("nested_k2prime.start3", "k2prime.start", value = 0.1, min = 0, step = .001)),
@@ -1448,99 +1448,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_type <- model_config$type
           
           # Restore parameters based on model type
-          if (!is.null(model_type) && model_type == "1TCM") {
-            if (!is.null(model_config$K1)) {
-              updateNumericInput(session, paste0("K1.start", suffix), value = model_config$K1$start %||% 0.1)
-              updateNumericInput(session, paste0("K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
-              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 0.5)
-            }
-            if (!is.null(model_config$k2)) {
-              updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
-              updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
-            }
-            if (!is.null(model_config$vB)) {
-              updateNumericInput(session, paste0("vB.start", suffix), value = model_config$vB$start %||% 0.05)
-              updateNumericInput(session, paste0("vB.lower", suffix), value = model_config$vB$lower %||% 0.01)
-              updateNumericInput(session, paste0("vB.upper", suffix), value = model_config$vB$upper %||% 0.1)
-              
-              # Handle vB parameter restoration based on model number (suffix)
-              if (suffix == "") {
-                # Model 1 uses old checkbox system
-                updateCheckboxInput(session, paste0("vB.fit", suffix), value = model_config$vB$fit %||% TRUE)
-              } else {
-                # Models 2 and 3 use new inheritance system
-                if (!is.null(model_config$vB_source)) {
-                  updateSelectInput(session, paste0("vB_source", suffix), selected = model_config$vB_source %||% "fit")
-                } else if (!is.null(model_config$vB$fit)) {
-                  # Backward compatibility: convert old fit boolean to new vB_source
-                  vB_source_value <- if (model_config$vB$fit) "fit" else "set"
-                  updateSelectInput(session, paste0("vB_source", suffix), selected = vB_source_value)
-                }
-              }
-            }
-          } else if (!is.null(model_type) && model_type == "2TCM") {
-            # Similar parameter restoration for 2TCM (K1, k2, k3, k4, vB)
-            if (!is.null(model_config$K1)) {
-              updateNumericInput(session, paste0("K1.start", suffix), value = model_config$K1$start %||% 0.1)
-              updateNumericInput(session, paste0("K1.lower", suffix), value = model_config$K1$lower %||% 0.0001)
-              updateNumericInput(session, paste0("K1.upper", suffix), value = model_config$K1$upper %||% 0.5)
-            }
-            if (!is.null(model_config$k2)) {
-              updateNumericInput(session, paste0("k2.start", suffix), value = model_config$k2$start %||% 0.1)
-              updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
-            }
-            if (!is.null(model_config$k3)) {
-              updateNumericInput(session, paste0("k3.start", suffix), value = model_config$k3$start %||% 0.1)
-              updateNumericInput(session, paste0("k3.lower", suffix), value = model_config$k3$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k3.upper", suffix), value = model_config$k3$upper %||% 0.5)
-            }
-            if (!is.null(model_config$k4)) {
-              updateNumericInput(session, paste0("k4.start", suffix), value = model_config$k4$start %||% 0.1)
-              updateNumericInput(session, paste0("k4.lower", suffix), value = model_config$k4$lower %||% 0.0001)
-              updateNumericInput(session, paste0("k4.upper", suffix), value = model_config$k4$upper %||% 0.5)
-            }
-            if (!is.null(model_config$vB)) {
-              updateNumericInput(session, paste0("vB.start", suffix), value = model_config$vB$start %||% 0.05)
-              updateNumericInput(session, paste0("vB.lower", suffix), value = model_config$vB$lower %||% 0.01)
-              updateNumericInput(session, paste0("vB.upper", suffix), value = model_config$vB$upper %||% 0.1)
-              
-              # Handle vB parameter restoration based on model number (suffix)
-              if (suffix == "") {
-                # Model 1 uses old checkbox system
-                updateCheckboxInput(session, paste0("vB.fit", suffix), value = model_config$vB$fit %||% TRUE)
-              } else {
-                # Models 2 and 3 use new inheritance system
-                if (!is.null(model_config$vB_source)) {
-                  updateSelectInput(session, paste0("vB_source", suffix), selected = model_config$vB_source %||% "fit")
-                } else if (!is.null(model_config$vB$fit)) {
-                  # Backward compatibility: convert old fit boolean to new vB_source
-                  vB_source_value <- if (model_config$vB$fit) "fit" else "set"
-                  updateSelectInput(session, paste0("vB_source", suffix), selected = vB_source_value)
-                }
-              }
-            }
-          } else if (!is.null(model_type) && (model_type == "Logan" || model_type == "MA1")) {
-            if (!is.null(model_config$tstar)) {
-              updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
-            }
-            if (!is.null(model_config$tstar_type)) {
-              updateRadioButtons(session, paste0("tstar_type", suffix), selected = model_config$tstar_type %||% "frame")
-            }
-            if (!is.null(model_config$vB_source)) {
-              updateSelectInput(session, paste0("vB_source", suffix), selected = model_config$vB_source %||% "set")
-            }
-            if (!is.null(model_config$vB_value)) {
-              updateNumericInput(session, paste0("vB_value", suffix), value = model_config$vB_value %||% 0.05)
-            }
-            # TAC Subset Selection restoration
-            if (!is.null(model_config$subset)) {
-              updateSelectInput(session, paste0("subset_type", suffix), selected = model_config$subset$type %||% "none")
-              updateNumericInput(session, paste0("start_point", suffix), value = model_config$subset$start)
-              updateNumericInput(session, paste0("end_point", suffix), value = model_config$subset$end)
-            }
-          } else if (!is.null(model_type) && model_type == "refLogan") {
+          if (!is.null(model_type) && model_type == "refLogan") {
             if (!is.null(model_config$tstar)) {
               updateNumericInput(session, paste0("tstar", suffix), value = model_config$tstar %||% 10)
             }
@@ -1578,15 +1486,10 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
               updateNumericInput(session, paste0("k2.lower", suffix), value = model_config$k2$lower %||% 0.0001)
               updateNumericInput(session, paste0("k2.upper", suffix), value = model_config$k2$upper %||% 0.5)
             }
-            # Support both new BPnd configs and old k2a configs (backward compatibility)
             if (!is.null(model_config$BPnd)) {
               updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
               updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
-            } else if (!is.null(model_config$k2a)) {
-              updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$k2a$start %||% 0.1)
-              updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$k2a$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$k2a$upper %||% 5)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 25)
             }
             # TAC Subset Selection restoration
             if (!is.null(model_config$subset)) {
@@ -1604,7 +1507,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             if (!is.null(model_config$BPnd)) {
               updateNumericInput(session, paste0("nested_BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
               updateNumericInput(session, paste0("nested_BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
-              updateNumericInput(session, paste0("nested_BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
+              updateNumericInput(session, paste0("nested_BPnd.upper", suffix), value = model_config$BPnd$upper %||% 25)
             }
             if (!is.null(model_config$k2prime)) {
               updateNumericInput(session, paste0("nested_k2prime.start", suffix), value = model_config$k2prime$start %||% 0.1)
@@ -1626,7 +1529,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
             if (!is.null(model_config$BPnd)) {
               updateNumericInput(session, paste0("BPnd.start", suffix), value = model_config$BPnd$start %||% 0.1)
               updateNumericInput(session, paste0("BPnd.lower", suffix), value = model_config$BPnd$lower %||% 0.0001)
-              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 5)
+              updateNumericInput(session, paste0("BPnd.upper", suffix), value = model_config$BPnd$upper %||% 25)
             }
             if (!is.null(model_config$k2prime_source)) {
               k2prime_src <- model_config$k2prime_source %||% "set"
@@ -2015,98 +1918,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         }
         
         # Capture parameters based on model type
-        if (model_type == "1TCM") {
-          model_params$K1 = list(
-            start = input[[paste0("K1.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("K1.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("K1.upper", suffix)]] %||% 0.5
-          )
-          model_params$k2 = list(
-            start = input[[paste0("k2.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
-          )
-          
-          # Handle vB parameter based on model number (suffix)
-          if (suffix == "") {
-            # Model 1 uses old checkbox system
-            model_params$vB = list(
-              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
-              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
-              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1,
-              fit = input[[paste0("vB.fit", suffix)]] %||% TRUE
-            )
-          } else {
-            # Models 2 and 3 use new inheritance system
-            model_params$vB = list(
-              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
-              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
-              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1
-            )
-            model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
-          }
-          
-        } else if (model_type == "2TCM") {
-          model_params$K1 = list(
-            start = input[[paste0("K1.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("K1.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("K1.upper", suffix)]] %||% 0.5
-          )
-          model_params$k2 = list(
-            start = input[[paste0("k2.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("k2.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k2.upper", suffix)]] %||% 0.5
-          )
-          model_params$k3 = list(
-            start = input[[paste0("k3.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("k3.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k3.upper", suffix)]] %||% 0.5
-          )
-          model_params$k4 = list(
-            start = input[[paste0("k4.start", suffix)]] %||% 0.1,
-            lower = input[[paste0("k4.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("k4.upper", suffix)]] %||% 0.5
-          )
-          
-          # Handle vB parameter based on model number (suffix)
-          if (suffix == "") {
-            # Model 1 uses old checkbox system
-            model_params$vB = list(
-              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
-              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
-              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1,
-              fit = input[[paste0("vB.fit", suffix)]] %||% TRUE
-            )
-          } else {
-            # Models 2 and 3 use new inheritance system
-            model_params$vB = list(
-              start = input[[paste0("vB.start", suffix)]] %||% 0.05,
-              lower = input[[paste0("vB.lower", suffix)]] %||% 0.01,
-              upper = input[[paste0("vB.upper", suffix)]] %||% 0.1
-            )
-            model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "fit"
-          }
-        } else if (model_type == "Logan" || model_type == "MA1") {
-          model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
-          model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
-          model_params$vB_source = input[[paste0("vB_source", suffix)]] %||% "set"
-          if (input[[paste0("vB_source", suffix)]] == "set" || is.null(input[[paste0("vB_source", suffix)]])) {
-            model_params$vB_value = input[[paste0("vB_value", suffix)]] %||% 0.05
-          }
-          
-          # TAC Subset Selection
-          subset_type <- input[[paste0("subset_type", suffix)]] %||% "none"
-          start_point <- input[[paste0("start_point", suffix)]]
-          end_point <- input[[paste0("end_point", suffix)]]
-
-          if (!is.null(subset_type) && subset_type != "none" && (!is.null(start_point) || !is.null(end_point))) {
-            model_params$subset = list(
-              type = subset_type,
-              start = start_point,
-              end = end_point
-            )
-          }
-        } else if (model_type == "refLogan") {
+        if (model_type == "refLogan") {
           model_params$tstar = input[[paste0("tstar", suffix)]] %||% 10
           model_params$tstar_type = input[[paste0("tstar_type", suffix)]] %||% "frame"
           model_params$k2prime_source = input[[paste0("k2prime_source", suffix)]] %||% "set"
@@ -2142,7 +1954,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_params$BPnd = list(
             start = input[[paste0("BPnd.start", suffix)]] %||% 0.1,
             lower = input[[paste0("BPnd.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("BPnd.upper", suffix)]] %||% 5
+            upper = input[[paste0("BPnd.upper", suffix)]] %||% 25
           )
 
           # TAC Subset Selection
@@ -2167,7 +1979,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_params$BPnd = list(
             start = input[[paste0("nested_BPnd.start", suffix)]] %||% 0.1,
             lower = input[[paste0("nested_BPnd.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("nested_BPnd.upper", suffix)]] %||% 5
+            upper = input[[paste0("nested_BPnd.upper", suffix)]] %||% 25
           )
           # k2prime is estimated (shared across regions), so it takes limits
           # rather than a set value
@@ -2186,7 +1998,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
           model_params$BPnd = list(
             start = input[[paste0("BPnd.start", suffix)]] %||% 0.1,
             lower = input[[paste0("BPnd.lower", suffix)]] %||% 0.0001,
-            upper = input[[paste0("BPnd.upper", suffix)]] %||% 5
+            upper = input[[paste0("BPnd.upper", suffix)]] %||% 25
           )
 
           # k2prime parameter

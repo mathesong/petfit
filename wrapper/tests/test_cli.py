@@ -513,5 +513,53 @@ class ExternalFileTests(unittest.TestCase):
             self.assertIn("--config-file is not a file", str(caught.exception))
 
 
+class RunMergingTests(unittest.TestCase):
+    """--no-merge-runs reaches the regiondef step, and only that step."""
+
+    @staticmethod
+    def _dataset(root):
+        bids = root / "bids"
+        derivatives = root / "derivatives"
+        bids.mkdir()
+        return bids, derivatives
+
+    def _command(self, app, extra):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    app,
+                    "--automatic",
+                    "--no-tty",
+                    "--dry-run",
+                ]
+                + extra
+            )
+            return build_docker_command(opts)
+
+    def test_runs_are_merged_by_default(self):
+        command = self._command("regiondef", [])
+
+        self.assertTrue(_parser().parse_args([]).merge_runs)
+        self.assertNotIn("--no_merge_runs", command)
+
+    def test_no_merge_runs_is_passed_to_regiondef(self):
+        command = self._command("regiondef", ["--no-merge-runs"])
+
+        self.assertIn("--no_merge_runs", command)
+
+    def test_no_merge_runs_is_ignored_for_modelling(self):
+        # Run merging is decided in region definition and is then a property of
+        # the combined TACs; passing it here would suggest otherwise.
+        command = self._command("modelling_plasma", ["--no-merge-runs"])
+
+        self.assertNotIn("--no_merge_runs", command)
+
+
 if __name__ == "__main__":
     unittest.main()

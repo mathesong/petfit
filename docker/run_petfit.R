@@ -29,7 +29,9 @@ option_list <- list(
   make_option(c("--config_file"), type="character", default=NULL,
               help="Path inside container to an external modelling config JSON. Copied into the analysis folder, replacing any config already there. Ignored for --func regiondef [optional]"),
   make_option(c("--regions_file"), type="character", default=NULL,
-              help="Path inside container to an external petfit_regions.tsv. Copied into the petfit output folder, replacing any regions file already there. Ignored for the modelling apps [optional]")
+              help="Path inside container to an external petfit_regions.tsv. Copied into the petfit output folder, replacing any regions file already there. Ignored for the modelling apps [optional]"),
+  make_option(c("--no_merge_runs"), action="store_false", dest="merge_runs", default=TRUE,
+              help="Keep each run as a separate measurement. By default the runs of a measurement are treated as consecutive scans of one injection and merged into a single measurement with no run entity. Only used for --func regiondef [default: runs are merged]")
 )
 
 # Parse arguments
@@ -72,6 +74,15 @@ if (opt$func != "regiondef" && !is.null(opt$regions_file)) {
   opt$regions_file <- NULL
 }
 
+# Run merging is decided once, in region definition, and is then a property of
+# the combined TACs the modelling apps read. Saying it again here would suggest
+# it could be changed at modelling time, which it cannot.
+if (opt$func != "regiondef" && !isTRUE(opt$merge_runs)) {
+  cat("Note: --no_merge_runs argument ignored for the modelling apps;",
+      "run merging is decided by the regiondef step\n")
+  opt$merge_runs <- TRUE
+}
+
 if (!is.null(opt$config_file) && !file.exists(opt$config_file)) {
   stop("--config_file not found inside the container: ", opt$config_file, call.=FALSE)
 }
@@ -96,6 +107,9 @@ if (!is.null(opt$config_file)) {
 }
 if (!is.null(opt$regions_file)) {
   cat("External regions file:", opt$regions_file, "\n")
+}
+if (opt$func == "regiondef") {
+  cat("Merge runs:", if (isTRUE(opt$merge_runs)) "yes" else "no", "\n")
 }
 cat("\n")
 
@@ -251,7 +265,8 @@ if (opt$mode == "interactive") {
       derivatives_dir = dirs$derivatives_dir,
       petfit_output_foldername = opt$petfit_output_foldername,
       regions_file = opt$regions_file,
-      cores = opt$cores
+      cores = opt$cores,
+      merge_runs = opt$merge_runs
     )
   } else if (opt$func == "modelling_plasma") {
     modelling_plasma_app(
@@ -291,7 +306,8 @@ if (opt$mode == "interactive") {
         derivatives_dir = dirs$derivatives_dir,
         petfit_output_foldername = opt$petfit_output_foldername,
         regions_file = opt$regions_file,
-        cores = opt$cores
+        cores = opt$cores,
+        merge_runs = opt$merge_runs
       )
 
       # Print all messages
