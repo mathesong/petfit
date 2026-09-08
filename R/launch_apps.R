@@ -8,7 +8,12 @@
 #' @param blood_dir Character string path to the blood data directory (default: NULL, for modelling_plasma app)
 #' @param petfit_output_foldername Character string name for the petfit output folder within derivatives (default: "petfit")
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis", for modelling apps)
-#' @param config_file Character string path to existing config file (optional, for modelling apps)
+#' @param config_file Character string path to an external config file to start from (optional,
+#'   for modelling apps). It is copied into the analysis folder, replacing any config already
+#'   there, and the app opens with its settings loaded. Ignored by the regiondef app.
+#' @param regions_file Character string path to an external `petfit_regions.tsv` to start from
+#'   (optional, for the regiondef app). It is copied into the config write directory, replacing
+#'   any regions file already there. Ignored by the modelling apps.
 #' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
 #'   delay or k2prime estimates from (optional, for modelling apps). Must be a subfolder name
 #'   (e.g., "Ancillary_Analysis"), not a full path.
@@ -24,7 +29,7 @@
 #' - "modelling_ref": Reference Tissue Modelling App for non-invasive models and ratios (SRTM, nestedSRTM, SRTM2, SUVR, refLogan, MRTM1, MRTM2)
 #'
 #' Parameter usage:
-#' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername
+#' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file
 #' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
 #' - modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
 #'
@@ -50,7 +55,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
                                config_file = NULL,
                                cores = 1L,
                                save_logs = FALSE,
-                               ancillary_analysis_folder = NULL) {
+                               ancillary_analysis_folder = NULL,
+                               regions_file = NULL) {
 
   # Validate app parameter
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
@@ -87,6 +93,9 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
   }
   if (app == "regiondef") {
     cat("  petfit output folder:", petfit_output_foldername, "\n")
+    if (!is.null(regions_file)) {
+      cat("  Regions file:", regions_file, "\n")
+    }
   } else {
     cat("  Analysis folder:", analysis_foldername, "\n")
     if (!is.null(config_file)) {
@@ -105,6 +114,7 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
         bids_dir = bids_dir,
         derivatives_dir = derivatives_dir,
         petfit_output_foldername = petfit_output_foldername,
+        regions_file = regions_file,
         cores = cores
       )
     },

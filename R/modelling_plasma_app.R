@@ -6,7 +6,10 @@
 #' @param derivatives_dir Character string path to the derivatives folder (default: bids_dir/derivatives)
 #' @param blood_dir Character string path to the blood data directory (default: NULL)
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
-#' @param config_file Character string path to existing config file (optional)
+#' @param config_file Character string path to an external config file to start from
+#'   (optional). The file is copied into the analysis folder as
+#'   `desc-petfitoptions_config.json`, replacing any config already there, and the app
+#'   then opens with its settings loaded.
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
 #' @param save_logs Whether to write each report's rendering log to
@@ -146,6 +149,20 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     cat("Created output directory:", output_dir, "\n")
+  }
+
+  # An externally supplied config is copied into the analysis folder before the
+  # app starts, so that the app loads it on startup exactly as it would load a
+  # config saved by a previous session.
+  if (!is.null(config_file)) {
+    check_external_config(config_file, expected_type = expected_config_type)
+    config_install <- install_external_file(
+      config_file,
+      file.path(output_dir, "desc-petfitoptions_config.json"),
+      label = "config file"
+    )
+    cat(config_install$messages, sep = "\n")
+    cat("\n")
   }
   
   # Validate and scan ancillary analysis folder if provided

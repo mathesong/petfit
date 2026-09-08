@@ -169,6 +169,32 @@ Apptainer uses `--bind` (or `-B`) instead of Docker's `-v`:
 --bind /blood:/data/blood_dir
 ```
 
+## External config and regions files
+
+A config file or `petfit_regions.tsv` kept outside the dataset can be pointed at
+directly. Bind the file itself and name it with `--config_file` (modelling apps)
+or `--regions_file` (`regiondef`). PETFit copies it into the analysis folder, or
+the petfit output folder, before running, so the settings which produced the
+outputs sit beside them:
+
+```bash
+apptainer run \
+  -B /scratch/project/derivatives:/data/derivatives_dir:rw \
+  -B /home/user/configs/petfit_config.json:/data/config.json:ro \
+  petfit_latest.sif \
+  --func modelling_ref \
+  --mode automatic \
+  --analysis_foldername Shared_Settings \
+  --config_file /data/config.json
+```
+
+Because Apptainer auto-mounts your home directory, a config already under `$HOME`
+needs no bind at all -- pass its host path straight to `--config_file`, the same
+way `--bids_dir` and `--derivatives_dir` are used above.
+
+The console reports each copy, and says explicitly when a file already in that
+folder was replaced.
+
 ## Troubleshooting
 
 ### Directory not found

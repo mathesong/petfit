@@ -17,6 +17,7 @@ petfit_interactive(
   petfit_output_foldername = "petfit",
   analysis_foldername = "Primary_Analysis",
   config_file = NULL,
+  regions_file = NULL,
   cores = 1L,
   save_logs = FALSE,
   ancillary_analysis_folder = NULL
@@ -33,7 +34,8 @@ petfit_interactive(
 | `blood_dir` | Path to blood data directory (for `modelling_plasma`) |
 | `petfit_output_foldername` | Name of the petfit output folder within derivatives (default: `"petfit"`) |
 | `analysis_foldername` | Name of the analysis subfolder (default: `"Primary_Analysis"`) |
-| `config_file` | Path to an existing configuration file (for modelling apps) |
+| `config_file` | Path to an external configuration file to start from (modelling apps). It is copied into the analysis folder, replacing any config already there, and the app opens with its settings loaded. Ignored by `regiondef` |
+| `regions_file` | Path to an external `petfit_regions.tsv` to start from (`regiondef`). It is copied into the config write directory, replacing any regions file already there. Ignored by the modelling apps |
 | `cores` | Number of cores for parallel processing (default: `1L`) |
 | `save_logs` | Whether to save processing logs (default: `FALSE`) |
 | `ancillary_analysis_folder` | Name of a sibling analysis subfolder to inherit delay or k2prime estimates from. Must be a folder name (e.g. `"Ancillary_Analysis"`), not a full path |
@@ -53,6 +55,8 @@ petfit_auto(
   petfit_output_foldername = "petfit",
   analysis_foldername = "Primary_Analysis",
   step = NULL,
+  config_file = NULL,
+  regions_file = NULL,
   cores = 1L,
   save_logs = FALSE,
   ancillary_analysis_folder = NULL
@@ -70,6 +74,7 @@ petfit_regiondef_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
+  regions_file = NULL,
   cores = 1L
 )
 ```
@@ -86,6 +91,7 @@ petfit_modelling_auto(
   analysis_foldername = "Primary_Analysis",
   blood_dir = NULL,
   step = NULL,
+  config_file = NULL,
   pipeline_type = NULL,
   cores = 1L,
   save_logs = FALSE,
@@ -96,6 +102,7 @@ petfit_modelling_auto(
 | Argument | Description |
 |----------|-------------|
 | `step` | Run a specific step: `"datadef"`, `"weights"`, `"delay"`, `"reference_tac"`, `"model1"`, `"model2"`, `"model3"`. If `NULL`, runs all steps |
+| `config_file` | Path to an external config file. It is copied into the analysis folder as `desc-petfitoptions_config.json`, replacing any config already there, and the analysis folder is created if it does not yet exist |
 | `pipeline_type` | Explicit pipeline type: `"plasma"` or `"reference"`. If `NULL`, auto-detected from the configuration file |
 | `ancillary_analysis_folder` | Name of a sibling analysis subfolder to inherit delay or k2prime estimates from |
 
@@ -112,4 +119,6 @@ When running PETFit in Docker or Apptainer, the container accepts these flags:
 | `--step` | Specific step for automatic mode (see `petfit_modelling_auto()` above) |
 | `--analysis_foldername` | Analysis subfolder name (default: `Primary_Analysis`) |
 | `--petfit_output_foldername` | Name of petfit output folder within derivatives (default: `petfit`) |
+| `--config_file` | Path inside the container to an external modelling config JSON, copied into the analysis folder (modelling apps; ignored by `regiondef`) |
+| `--regions_file` | Path inside the container to an external `petfit_regions.tsv`, copied into the petfit output folder (`regiondef`; ignored by the modelling apps) |
 | `--cores` | Number of cores for parallel processing (default: `1`) |

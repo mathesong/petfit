@@ -25,7 +25,11 @@ option_list <- list(
   make_option(c("--derivatives_dir"), type="character", default=NULL,
               help="Explicit derivatives directory path inside container (optional; useful with Apptainer home auto-mounts)"),
   make_option(c("--blood_dir"), type="character", default=NULL,
-              help="Explicit blood directory path inside container (optional; useful with Apptainer home auto-mounts)")
+              help="Explicit blood directory path inside container (optional; useful with Apptainer home auto-mounts)"),
+  make_option(c("--config_file"), type="character", default=NULL,
+              help="Path inside container to an external modelling config JSON. Copied into the analysis folder, replacing any config already there. Ignored for --func regiondef [optional]"),
+  make_option(c("--regions_file"), type="character", default=NULL,
+              help="Path inside container to an external petfit_regions.tsv. Copied into the petfit output folder, replacing any regions file already there. Ignored for the modelling apps [optional]")
 )
 
 # Parse arguments
@@ -57,6 +61,25 @@ if (opt$mode == "interactive" && !is.null(opt$step)) {
   opt$step <- NULL
 }
 
+# Each external file belongs to one app; ignore the one that does not apply
+if (opt$func == "regiondef" && !is.null(opt$config_file)) {
+  cat("Note: --config_file argument ignored for the regiondef app\n")
+  opt$config_file <- NULL
+}
+
+if (opt$func != "regiondef" && !is.null(opt$regions_file)) {
+  cat("Note: --regions_file argument ignored for the modelling apps\n")
+  opt$regions_file <- NULL
+}
+
+if (!is.null(opt$config_file) && !file.exists(opt$config_file)) {
+  stop("--config_file not found inside the container: ", opt$config_file, call.=FALSE)
+}
+
+if (!is.null(opt$regions_file) && !file.exists(opt$regions_file)) {
+  stop("--regions_file not found inside the container: ", opt$regions_file, call.=FALSE)
+}
+
 cat("=== petfit Docker Container ===\n")
 cat("Function:", opt$func, "\n")
 cat("Mode:", opt$mode, "\n")
@@ -67,6 +90,12 @@ cat("petfit output folder:", opt$petfit_output_foldername, "\n")
 cat("Analysis folder:", opt$analysis_foldername, "\n")
 if (!is.null(opt$ancillary_analysis_folder)) {
   cat("Ancillary analysis folder:", opt$ancillary_analysis_folder, "\n")
+}
+if (!is.null(opt$config_file)) {
+  cat("External config file:", opt$config_file, "\n")
+}
+if (!is.null(opt$regions_file)) {
+  cat("External regions file:", opt$regions_file, "\n")
 }
 cat("\n")
 
@@ -221,6 +250,7 @@ if (opt$mode == "interactive") {
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
       petfit_output_foldername = opt$petfit_output_foldername,
+      regions_file = opt$regions_file,
       cores = opt$cores
     )
   } else if (opt$func == "modelling_plasma") {
@@ -229,6 +259,7 @@ if (opt$mode == "interactive") {
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
       analysis_foldername = opt$analysis_foldername,
+      config_file = opt$config_file,
       cores = opt$cores,
       ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
@@ -238,6 +269,7 @@ if (opt$mode == "interactive") {
       derivatives_dir = dirs$derivatives_dir,
       blood_dir = dirs$blood_dir,
       analysis_foldername = opt$analysis_foldername,
+      config_file = opt$config_file,
       cores = opt$cores,
       ancillary_analysis_folder = opt$ancillary_analysis_folder
     )
@@ -258,6 +290,7 @@ if (opt$mode == "interactive") {
         bids_dir = dirs$bids_dir,
         derivatives_dir = dirs$derivatives_dir,
         petfit_output_foldername = opt$petfit_output_foldername,
+        regions_file = opt$regions_file,
         cores = opt$cores
       )
 
@@ -287,8 +320,9 @@ if (opt$mode == "interactive") {
 
     cat("Analysis folder:", analysis_folder, "\n")
 
-    # Check if analysis folder exists
-    if (!dir.exists(analysis_folder)) {
+    # Check if analysis folder exists. An external config creates it, so it is
+    # only required to already exist when no external config was supplied.
+    if (!dir.exists(analysis_folder) && is.null(opt$config_file)) {
       cat("Error: Analysis folder does not exist:", analysis_folder, "\n")
       quit(status = 2)
     }
@@ -302,6 +336,7 @@ if (opt$mode == "interactive") {
         petfit_output_foldername = opt$petfit_output_foldername,
         blood_dir = dirs$blood_dir,
         step = opt$step,
+        config_file = opt$config_file,
         pipeline_type = if (opt$func == "modelling_plasma") "plasma" else "reference",
         cores = opt$cores,
         ancillary_analysis_folder = opt$ancillary_analysis_folder

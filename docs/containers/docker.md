@@ -239,6 +239,91 @@ docker run --rm \
   --analysis_foldername Baseline_only
 ```
 
+**External config file:**
+
+A config file which lives outside the dataset -- one shared between studies, or
+kept under version control -- can be supplied directly. PETFit copies it into
+the analysis folder as `desc-petfitoptions_config.json` and then runs exactly as
+it would with a config created interactively, so the settings which produced the
+outputs always sit beside them. The analysis folder is created if it does not
+exist yet, which means an external config can start a fresh analysis:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app modelling_ref \
+  --automatic \
+  --analysis-foldername Shared_Settings \
+  --config-file /path/to/your/petfit_config.json
+```
+
+```bash
+docker run --rm \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/petfit_config.json:/data/config.json:ro \
+  mathesong/petfit:latest \
+  --func modelling_ref \
+  --mode automatic \
+  --analysis_foldername Shared_Settings \
+  --config_file /data/config.json
+```
+
+The console reports the copy, and says so explicitly when a config already in
+that folder was replaced:
+
+```
+=== External config file ===
+  Source:      /path/to/your/petfit_config.json
+  Copied to:   /path/to/your/derivatives/petfit/Shared_Settings/desc-petfitoptions_config.json
+  NOTE: this REPLACED the config file already in that folder.
+```
+
+The same option works in interactive mode, where the app opens with the external
+config's settings already loaded.
+
+**External regions file:**
+
+The region definition app takes an external `petfit_regions.tsv` the same way,
+copied into the petfit output folder:
+
+```bash
+petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
+  --app regiondef \
+  --automatic \
+  --regions-file /path/to/your/petfit_regions.tsv
+```
+
+```bash
+docker run --rm \
+  -v /path/to/your/bids:/data/bids_dir:ro \
+  -v /path/to/your/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/your/petfit_regions.tsv:/data/petfit_regions.tsv:ro \
+  mathesong/petfit:latest \
+  --func regiondef \
+  --mode automatic \
+  --regions_file /data/petfit_regions.tsv
+```
+
+Each of the two belongs to one app: `--config-file` is ignored by `regiondef`,
+and `--regions-file` is ignored by the modelling apps, with a note on the
+console.
+
+**Nothing is replaced until the external file has been checked.** A config is
+rejected unless it is valid JSON, carries the `Subsetting` and `Models`
+sections, and declares the `modelling_configuration_type` matching the app it
+was given to -- so a reference tissue config handed to `modelling_plasma` is
+refused rather than replacing the analysis config and then having plasma steps
+run against it. A regions file is rejected unless it has all of `RegionName`,
+`folder`, `description` and `ConstituentRegion`, defines at least one region,
+and names at least one folder which exists in the derivatives directory. In
+every case the file already in place is left untouched.
+
+**A run which fails before doing any work puts the previous file back.** If the
+run is abandoned during setup -- an absent ancillary folder, an undeterminable
+pipeline type, a regions file which produces no TACs -- the config or regions
+file that was replaced is restored, and the console says so. Where there was no
+file to replace, the copy is removed again, so a failed run leaves the folder
+exactly as it found it.
+
 ## Command-line options
 
 | Option | Description |
@@ -248,6 +333,8 @@ docker run --rm \
 | `--step` | Specific step for automatic mode: `datadef`, `weights`, `delay`, `reference_tac`, `model1`, `model2`, `model3` |
 | `--analysis_foldername` | Analysis subfolder name (default: `Primary_Analysis`) |
 | `--petfit_output_foldername` | Name of petfit output folder within derivatives (default: `petfit`) |
+| `--config_file` | External modelling config JSON, copied into the analysis folder (modelling apps only) |
+| `--regions_file` | External `petfit_regions.tsv`, copied into the petfit output folder (`regiondef` only) |
 | `--cores` | Number of cores for parallel processing (default: `1`) |
 
 ## Mount points
@@ -257,6 +344,8 @@ docker run --rm \
 | `/data/bids_dir` | Read-only | Your BIDS dataset |
 | `/data/derivatives_dir` | Read-write | Derivatives directory (PETFit writes outputs here) |
 | `/data/blood_dir` | Read-only | Blood data for plasma input models |
+| `/data/config.json` | Read-only | External modelling config file (single-file mount) |
+| `/data/petfit_regions.tsv` | Read-only | External regions file (single-file mount) |
 
 You can mount directories flexibly:
 

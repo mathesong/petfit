@@ -339,5 +339,179 @@ class DockerCommandTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), "Do you have permission to run docker?")
 
 
+class ExternalFileTests(unittest.TestCase):
+    """--config-file and --regions-file mount a single host file into the image."""
+
+    @staticmethod
+    def _dataset(root):
+        bids = root / "bids"
+        derivatives = root / "derivatives"
+        bids.mkdir()
+        return bids, derivatives
+
+    def test_config_file_is_mounted_and_passed_to_modelling(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            config = root / "shared_config.json"
+            config.write_text("{}")
+
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    "modelling_ref",
+                    "--config-file",
+                    str(config),
+                    "--automatic",
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            command = build_docker_command(opts)
+
+            self.assertIn(f"{abs_path(config)}:/data/config.json:ro", command)
+            flag_index = command.index("--config_file")
+            self.assertEqual(command[flag_index + 1], "/data/config.json")
+            self.assertNotIn("--regions_file", command)
+
+    def test_regions_file_is_mounted_and_passed_to_regiondef(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            regions = root / "petfit_regions.tsv"
+            regions.write_text("RegionName\tfolder\tdescription\tConstituentRegion\n")
+
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    "regiondef",
+                    "--regions-file",
+                    str(regions),
+                    "--automatic",
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            command = build_docker_command(opts)
+
+            self.assertIn(f"{abs_path(regions)}:/data/petfit_regions.tsv:ro", command)
+            flag_index = command.index("--regions_file")
+            self.assertEqual(command[flag_index + 1], "/data/petfit_regions.tsv")
+            self.assertNotIn("--config_file", command)
+
+    def test_file_for_the_other_app_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            config = root / "shared_config.json"
+            config.write_text("{}")
+            regions = root / "petfit_regions.tsv"
+            regions.write_text("RegionName\n")
+
+            regiondef = build_docker_command(
+                _parser().parse_args(
+                    [
+                        str(bids),
+                        str(derivatives),
+                        "participant",
+                        "--app",
+                        "regiondef",
+                        "--config-file",
+                        str(config),
+                        "--regions-file",
+                        str(regions),
+                        "--no-tty",
+                        "--dry-run",
+                    ]
+                )
+            )
+
+            self.assertNotIn("--config_file", regiondef)
+            self.assertIn("--regions_file", regiondef)
+            self.assertNotIn(f"{abs_path(config)}:/data/config.json:ro", regiondef)
+
+            modelling = build_docker_command(
+                _parser().parse_args(
+                    [
+                        str(bids),
+                        str(derivatives),
+                        "participant",
+                        "--app",
+                        "modelling_plasma",
+                        "--config-file",
+                        str(config),
+                        "--regions-file",
+                        str(regions),
+                        "--no-tty",
+                        "--dry-run",
+                    ]
+                )
+            )
+
+            self.assertIn("--config_file", modelling)
+            self.assertNotIn("--regions_file", modelling)
+            self.assertNotIn(f"{abs_path(regions)}:/data/petfit_regions.tsv:ro", modelling)
+
+    def test_missing_external_file_exits_before_docker_creates_a_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            missing = root / "typo_config.json"
+
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    "modelling_plasma",
+                    "--config-file",
+                    str(missing),
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            with self.assertRaises(SystemExit) as caught:
+                build_docker_command(opts)
+
+            self.assertIn("--config-file does not exist", str(caught.exception))
+            self.assertFalse(missing.exists())
+
+    def test_directory_passed_as_external_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bids, derivatives = self._dataset(root)
+            not_a_file = root / "configs"
+            not_a_file.mkdir()
+
+            opts = _parser().parse_args(
+                [
+                    str(bids),
+                    str(derivatives),
+                    "participant",
+                    "--app",
+                    "modelling_plasma",
+                    "--config-file",
+                    str(not_a_file),
+                    "--no-tty",
+                    "--dry-run",
+                ]
+            )
+
+            with self.assertRaises(SystemExit) as caught:
+                build_docker_command(opts)
+
+            self.assertIn("--config-file is not a file", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,9 @@ petfit_auto(
   step = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  config_file = NULL,
+  regions_file = NULL
 )
 }
 \arguments{
@@ -41,6 +43,14 @@ or "modelling_ref" (required)}
 
 \item{ancillary_analysis_folder}{Character string name of a sibling analysis folder to inherit
 delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.}
+
+\item{config_file}{Character string path to an external modelling config file (optional). The
+file is copied into the analysis folder, replacing any config already there. Only used for
+the modelling apps; ignored for "regiondef".}
+
+\item{regions_file}{Character string path to an external \code{petfit_regions.tsv} (optional). The
+file is copied into the petfit output folder, replacing any regions file already there. Only
+used for "regiondef"; ignored for the modelling apps.}
 }
 \value{
 List with execution result and messages

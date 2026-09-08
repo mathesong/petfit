@@ -8,7 +8,8 @@ petfit_regiondef_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
-  cores = 1L
+  cores = 1L,
+  regions_file = NULL
 )
 }
 \arguments{
@@ -20,6 +21,10 @@ petfit_regiondef_auto(
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}
+
+\item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to use for this
+run (optional). The file is copied into the petfit output folder, replacing any regions file
+already there, and is then used exactly as if it had been found by the usual search.}
 }
 \value{
 List with execution result and messages

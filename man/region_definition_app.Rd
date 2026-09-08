@@ -8,7 +8,8 @@ region_definition_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
-  cores = 1L
+  cores = 1L,
+  regions_file = NULL
 )
 }
 \arguments{
@@ -20,6 +21,10 @@ region_definition_app(
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}
+
+\item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to start from
+(optional). The file is copied into the config write directory, replacing any regions file
+already there, and the app then opens with its regions loaded.}
 }
 \description{
 Launch a separate Shiny app for defining brain regions

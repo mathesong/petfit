@@ -17,6 +17,8 @@ DEFAULT_PORT = 3838
 APPS = ("regiondef", "modelling_plasma", "modelling_ref")
 MODES = ("automatic", "interactive")
 STEPS = ("datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+CONFIG_MOUNT = "/data/config.json"
+REGIONS_MOUNT = "/data/petfit_regions.tsv"
 MISSING_IMAGE = "Image '{}' is missing\nWould you like to download? [Y/n] "
 
 
@@ -98,6 +100,24 @@ def _parser() -> argparse.ArgumentParser:
     )
     wrapper.add_argument("--step", choices=STEPS, help="single automatic modelling step to run")
     wrapper.add_argument("--blood-dir", action=PathAction, help="blood data directory for plasma input models")
+    wrapper.add_argument(
+        "--config-file",
+        action=PathAction,
+        help=(
+            "external modelling config JSON to use for this run. It is copied into the "
+            "analysis folder, replacing any config already there, so the config which drove "
+            "the run is stored beside its outputs. Ignored by --app regiondef"
+        ),
+    )
+    wrapper.add_argument(
+        "--regions-file",
+        action=PathAction,
+        help=(
+            "external petfit_regions.tsv to use for this run. It is copied into the petfit "
+            "output folder, replacing any regions file already there. Ignored by the "
+            "modelling apps"
+        ),
+    )
     wrapper.add_argument("-w", "--work-dir", action=PathAction, help="working directory to mount in the container")
     wrapper.add_argument("--petfit-output-foldername", default="petfit", help="petfit output folder within derivatives")
     wrapper.add_argument(
@@ -184,6 +204,25 @@ def _mount_argument(host_path: str, container_path: str, mode: str) -> str:
     return f"{host_path}:{container_path}:{mode}"
 
 
+def _external_file(path: Optional[str], option: str) -> Optional[str]:
+    """Resolve an external file, refusing anything Docker would mishandle.
+
+    Docker silently creates a directory at the source of a bind mount when the
+    path does not exist, so a typo would otherwise surface much later as a
+    confusing error inside the container.
+    """
+
+    if path is None:
+        return None
+
+    resolved = Path(path).expanduser().absolute()
+    if not resolved.exists():
+        raise SystemExit(f"{option} does not exist: {resolved}")
+    if not resolved.is_file():
+        raise SystemExit(f"{option} is not a file: {resolved}")
+    return str(resolved)
+
+
 def build_docker_command(opts: argparse.Namespace) -> List[str]:
     """Build the Docker command corresponding to parsed options."""
 
@@ -203,6 +242,10 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
     )
     blood_dir = _absolute_path(opts.blood_dir) if opts.blood_dir else None
     work_dir = _absolute_path(opts.work_dir, create=True) if opts.work_dir else None
+
+    # Each external file belongs to one app; the other is simply ignored
+    config_file = _external_file(opts.config_file, "--config-file") if opts.app != "regiondef" else None
+    regions_file = _external_file(opts.regions_file, "--regions-file") if opts.app == "regiondef" else None
 
     if not opts.shell:
         missing = []
@@ -241,6 +284,10 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
         command.extend(["-v", _mount_argument(blood_dir, "/data/blood_dir", "ro")])
     if work_dir:
         command.extend(["-v", _mount_argument(work_dir, "/data/work_dir", "rw")])
+    if config_file:
+        command.extend(["-v", _mount_argument(config_file, CONFIG_MOUNT, "ro")])
+    if regions_file:
+        command.extend(["-v", _mount_argument(regions_file, REGIONS_MOUNT, "ro")])
 
     patch_dir = _absolute_path(opts.patch) if opts.patch else None
     if patch_dir:
@@ -268,6 +315,10 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
 
     if opts.step:
         command.extend(["--step", opts.step])
+    if config_file:
+        command.extend(["--config_file", CONFIG_MOUNT])
+    if regions_file:
+        command.extend(["--regions_file", REGIONS_MOUNT])
     if opts.ancillary_analysis_folder:
         command.extend(["--ancillary_analysis_folder", opts.ancillary_analysis_folder])
 

@@ -3,7 +3,7 @@ From: rocker/shiny-verse:latest
 
 %labels
     Author mathesong
-    Version 0.2.2
+    Version 0.2.3
     Description petfit PET imaging analysis application
     
 %arguments

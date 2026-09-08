@@ -5,13 +5,16 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param regions_file Character string path to an external `petfit_regions.tsv` to start from
+#'   (optional). The file is copied into the config write directory, replacing any regions file
+#'   already there, and the app then opens with its regions loaded.
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
 #' @details Config files (petfit_regions.tsv) are saved to:
 #'   - bids_dir/code/petfit if bids_dir provided
 #'   - derivatives_dir/petfit_output_foldername if no bids_dir
 #' @export
-region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
+region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L, regions_file = NULL) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -28,8 +31,9 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   }
   
   # Set directories for reading and writing config files
-  # Always write to derivatives/petfit (base petfit folder, same as combined_regions)
-  write_config_dir <- file.path(derivatives_dir, "petfit")
+  # Always write to the petfit output folder (same as combined_regions, and the
+  # same place petfit_regiondef_auto() reads from)
+  write_config_dir <- file.path(derivatives_dir, petfit_output_foldername)
   
   # For reading: check derivatives/petfit first, then BIDS code directory
   read_config_dirs <- c(write_config_dir)
@@ -80,7 +84,18 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   # Initialize petfit_regions.tsv file with read/write logic
   # Always write to write_config_dir
   write_regions_file <- file.path(write_config_dir, "petfit_regions.tsv")
-  
+
+  # An externally supplied regions file is copied into the write directory
+  # before the search below, so the app opens with its regions loaded and the
+  # file which drove this session is stored alongside the outputs.
+  if (!is.null(regions_file)) {
+    check_external_regions_file(regions_file, derivatives_dir = derivatives_dir)
+    regions_install <- install_external_file(regions_file, write_regions_file,
+                                             label = "regions file")
+    cat(regions_install$messages, sep = "\n")
+    cat("\n")
+  }
+
   # Find existing regions file by checking read directories in order
   existing_write_regions_file <- NULL
   for (dir in read_config_dirs) {

@@ -1,3 +1,57 @@
+# petfit 0.2.3
+
+## External config and regions files
+
+* **The CLI can now be pointed at a config or regions file which lives outside
+  the dataset.** `petfit-docker` gains `--config-file` (modelling apps) and
+  `--regions-file` (`regiondef`), the container entry point gains the matching
+  `--config_file` and `--regions_file`, and the R functions gain `config_file`
+  (`petfit_modelling_auto()`) and `regions_file` (`petfit_regiondef_auto()`,
+  `region_definition_app()`); `petfit_auto()` and `petfit_interactive()` pass
+  both through. A shared config can now drive a run without first being copied
+  into place by hand.
+
+* **The external file is copied into the folder petfit reads it from**, rather
+  than being read where it sits: a config becomes the analysis folder's
+  `desc-petfitoptions_config.json`, a regions file becomes the petfit output
+  folder's `petfit_regions.tsv`. The derivative therefore stays
+  self-contained -- the config which drove a run is always stored beside that
+  run's outputs -- and everything downstream is unchanged. Supplying a config
+  creates the analysis folder if it does not yet exist, so an external config
+  can start a fresh analysis.
+
+* **Nothing is replaced until the external file has been checked.** A config
+  must be valid JSON, carry `Subsetting` and `Models`, and declare the
+  `modelling_configuration_type` of the pipeline it was given to — an explicit
+  pipeline type otherwise takes priority over the config's own declaration, so a
+  reference tissue config handed to the plasma app would replace the analysis
+  config and then have plasma steps run against it. A regions file must define
+  at least one region and name at least one folder present in the derivatives
+  directory, since a header-only or non-matching file would replace a working
+  regions definition and only then fail.
+
+* **A run abandoned before doing any work puts the previous file back**, and
+  removes the copy where there was nothing to replace, so the folder is left as
+  it was found.
+
+* **The new arguments are appended after the existing ones**, so positional
+  callers of the functions above keep working.
+
+* **Fixed: the region definition app ignored `petfit_output_foldername`.** It
+  wrote `petfit_regions.tsv` to `derivatives/petfit` however the argument was
+  set, while its combined TACs — and `petfit_regiondef_auto()` — used the folder
+  actually requested. A custom folder split the regions file from everything
+  else, and could overwrite an unrelated default one.
+
+* **Fixed: region definition swallowed its own errors.** The mapping and
+  combined TACs steps recorded failures inside a `tryCatch()` handler, where
+  both the message and the early return were discarded.
+
+* **Fixed: `config_file` was present but did nothing.** `petfit_interactive()` 
+  already accepted a `config_file` argument, but it was only
+  checked for existence and printed; the apps still read and wrote the config in
+  the analysis folder. It now does what its name says.
+
 # petfit 0.2.2
 
 ## Injected radioactivity

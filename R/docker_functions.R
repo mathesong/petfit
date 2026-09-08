@@ -150,6 +150,12 @@ validate_blood_requirements <- function(config, step = NULL, blood_dir = NULL) {
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis", for modelling apps)
 #' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights",
 #'   "delay", "reference_tac", "model1", "model2", "model3"). Only used for modelling apps.
+#' @param config_file Character string path to an external modelling config file (optional). The
+#'   file is copied into the analysis folder, replacing any config already there. Only used for
+#'   the modelling apps; ignored for "regiondef".
+#' @param regions_file Character string path to an external `petfit_regions.tsv` (optional). The
+#'   file is copied into the petfit output folder, replacing any regions file already there. Only
+#'   used for "regiondef"; ignored for the modelling apps.
 #' @param cores Integer number of cores for parallel processing (default: 1)
 #' @param ancillary_analysis_folder Character string name of a sibling analysis folder to inherit
 #'   delay or k2prime estimates from (optional, for modelling apps). Must be a folder name, not a full path.
@@ -185,7 +191,9 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
                         step = NULL,
                         cores = 1L,
                         save_logs = FALSE,
-                        ancillary_analysis_folder = NULL) {
+                        ancillary_analysis_folder = NULL,
+                        config_file = NULL,
+                        regions_file = NULL) {
 
   app <- match.arg(app, choices = c("regiondef", "modelling_plasma", "modelling_ref"))
 
@@ -194,6 +202,7 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
       bids_dir = bids_dir,
       derivatives_dir = derivatives_dir,
       petfit_output_foldername = petfit_output_foldername,
+      regions_file = regions_file,
       cores = cores
     )
   } else {
@@ -204,6 +213,7 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
       analysis_foldername = analysis_foldername,
       blood_dir = blood_dir,
       step = step,
+      config_file = config_file,
       cores = cores,
       save_logs = save_logs,
       ancillary_analysis_folder = ancillary_analysis_folder
@@ -218,11 +228,14 @@ petfit_auto <- function(app = c("regiondef", "modelling_plasma", "modelling_ref"
 #' @param bids_dir Character string path to BIDS directory (optional if derivatives_dir provided)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param regions_file Character string path to an external `petfit_regions.tsv` to use for this
+#'   run (optional). The file is copied into the petfit output folder, replacing any regions file
+#'   already there, and is then used exactly as if it had been found by the usual search.
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
 #' @return List with execution result and messages
 #' @export
-petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
+petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L, regions_file = NULL) {
 
   result <- list(
     success = FALSE,
@@ -258,6 +271,43 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
 
   # Determine where to find petfit_regions.tsv (check multiple locations)
   petfit_base_dir <- file.path(derivatives_dir, petfit_output_foldername)
+
+  # An externally supplied regions file is copied into the petfit output folder
+  # first, so that the search below finds it and the file which drove this run
+  # is stored alongside its outputs.
+  regions_install <- NULL
+  if (!is.null(regions_file)) {
+    install_error <- NULL
+    regions_install <- tryCatch({
+      check_external_regions_file(regions_file, derivatives_dir = derivatives_dir)
+      install_external_file(
+        regions_file,
+        file.path(petfit_base_dir, "petfit_regions.tsv"),
+        label = "regions file"
+      )
+    }, error = function(e) {
+      install_error <<- conditionMessage(e)
+      NULL
+    })
+
+    result$messages <- c(result$messages, regions_install$messages)
+
+    if (!is.null(install_error)) {
+      result$messages <- c(result$messages, install_error)
+      return(result)
+    }
+  }
+
+  # Region definition regenerates everything downstream from the regions file,
+  # so a failed run should not cost the user the regions file it replaced.
+  abandon_run <- function(result) {
+    if (!is.null(regions_install)) {
+      result$messages <- c(result$messages,
+                           restore_external_file(regions_install, "regions file"))
+    }
+    result
+  }
+
   config_locations <- c(
     file.path(petfit_base_dir, "petfit_regions.tsv")
   )
@@ -302,6 +352,7 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   }
 
   # Create petfit_regions_files.tsv mapping
+  mapping_error <- NULL
   tryCatch({
     result$messages <- c(result$messages, "Creating tacs-morph mapping...")
 
@@ -312,11 +363,16 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     result$messages <- c(result$messages, paste("Created mapping file:", petfit_regions_files_path))
 
   }, error = function(e) {
-    result$messages <- c(result$messages, paste("Error creating mapping:", e$message))
-    return(result)
+    mapping_error <<- conditionMessage(e)
   })
 
+  if (!is.null(mapping_error)) {
+    result$messages <- c(result$messages, paste("Error creating mapping:", mapping_error))
+    return(abandon_run(result))
+  }
+
   # Generate combined TACs
+  tacs_error <- NULL
   tryCatch({
     result$messages <- c(result$messages, "Generating combined TACs...")
 
@@ -353,9 +409,13 @@ petfit_regiondef_auto <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     result$success <- TRUE
 
   }, error = function(e) {
-    result$messages <- c(result$messages, paste("Error generating combined TACs:", e$message))
-    return(result)
+    tacs_error <<- conditionMessage(e)
   })
+
+  if (!is.null(tacs_error)) {
+    result$messages <- c(result$messages, paste("Error generating combined TACs:", tacs_error))
+    return(abandon_run(result))
+  }
 
   return(result)
 }
@@ -416,6 +476,10 @@ determine_pipeline_type <- function(config, pipeline_type = NULL) {
 #' @param analysis_foldername Character string name for analysis folder (default: "Primary_Analysis")
 #' @param blood_dir Character string path to blood data directory (optional, for invasive models)
 #' @param step Character string specifying which step to run (NULL = all steps, or "datadef", "weights", "delay", "reference_tac", "model1", "model2", "model3")
+#' @param config_file Character string path to an external config file to use for this run
+#'   (optional). The file is copied into the analysis folder as
+#'   `desc-petfitoptions_config.json`, replacing any config already there, and the analysis folder
+#'   is created if it does not yet exist.
 #' @param pipeline_type Character string specifying pipeline type: "plasma" or "reference" (optional, auto-detected from config if not provided)
 #' @param ancillary_analysis_folder Character string name of a sibling analysis subfolder to inherit
 #'   delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.
@@ -434,7 +498,8 @@ petfit_modelling_auto <- function(bids_dir = NULL,
                                    pipeline_type = NULL,
                                    cores = 1L,
                                    save_logs = FALSE,
-                                   ancillary_analysis_folder = NULL) {
+                                   ancillary_analysis_folder = NULL,
+                                   config_file = NULL) {
 
   result <- list(
     success = FALSE,
@@ -480,19 +545,55 @@ petfit_modelling_auto <- function(bids_dir = NULL,
   # Determine analysis folder path
   petfit_base_dir <- file.path(derivatives_dir, petfit_output_foldername)
   analysis_folder <- file.path(petfit_base_dir, analysis_foldername)
+  config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
+
+  # An externally supplied config is copied into the analysis folder, so that
+  # the config which drove this run is stored alongside its outputs. This also
+  # creates the analysis folder, so an external config can start a new analysis.
+  #
+  # The config is fully checked first, including against `pipeline_type`: that
+  # argument takes priority over the config's own declaration when the steps are
+  # chosen, so an unchecked mismatched config would replace the analysis config
+  # and then have the wrong pipeline run against it. `config_install` is kept so
+  # that a failure before any step has run can put the previous config back.
+  config_install <- NULL
+  if (!is.null(config_file)) {
+    install_error <- NULL
+    config_install <- tryCatch({
+      check_external_config(config_file, expected_type = config_type_for_pipeline(pipeline_type))
+      install_external_file(config_file, config_path, label = "config file")
+    }, error = function(e) {
+      install_error <<- conditionMessage(e)
+      NULL
+    })
+
+    result$messages <- c(result$messages, config_install$messages)
+
+    if (!is.null(install_error)) {
+      result$messages <- c(result$messages, install_error)
+      return(result)
+    }
+  }
+
+  # Nothing has been run yet, so any failure from here to the first step should
+  # leave the analysis folder as it was found.
+  abandon_run <- function(result) {
+    if (!is.null(config_install)) {
+      result$messages <- c(result$messages,
+                           restore_external_file(config_install, "config file"))
+    }
+    result
+  }
 
   if (!dir.exists(analysis_folder)) {
     result$messages <- c(result$messages, paste("Analysis folder does not exist:", analysis_folder))
-    return(result)
+    return(abandon_run(result))
   }
-
-  # Find config file
-  config_path <- file.path(analysis_folder, "desc-petfitoptions_config.json")
 
   if (!file.exists(config_path)) {
     result$messages <- c(result$messages, paste("Config file not found:", config_path))
     result$messages <- c(result$messages, "Please run the modelling app interactively first to create the configuration")
-    return(result)
+    return(abandon_run(result))
   }
 
   result$messages <- c(result$messages, paste("Found config file:", config_path))
@@ -506,7 +607,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
   })
 
   if (is.null(config)) {
-    return(result)
+    return(abandon_run(result))
   }
 
   # Validate and resolve ancillary analysis folder if provided
@@ -524,7 +625,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
     if (!is.null(ancillary_validation_error)) {
       result$messages <- c(result$messages,
                           paste("Ancillary folder error:", ancillary_validation_error))
-      return(result)
+      return(abandon_run(result))
     }
   }
 
@@ -534,7 +635,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
     if (!is.null(delay_model) && delay_model == "ancillary_estimate") {
       result$messages <- c(result$messages,
                           "Config references ancillary delay (ancillary_estimate) but no ancillary_analysis_folder provided")
-      return(result)
+      return(abandon_run(result))
     }
     for (model_num in c("1", "2", "3")) {
       model_key <- paste0("Model", model_num)
@@ -543,7 +644,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
         result$messages <- c(result$messages,
                             paste0("Config references ancillary k2prime (", k2prime_src,
                                    ") for ", model_key, " but no ancillary_analysis_folder provided"))
-        return(result)
+        return(abandon_run(result))
       }
     }
   }
@@ -561,7 +662,7 @@ petfit_modelling_auto <- function(bids_dir = NULL,
     if (is.null(detected_type)) {
       result$messages <- c(result$messages, "Cannot determine pipeline type from config or parameters")
       result$messages <- c(result$messages, "Please specify pipeline_type or ensure config has modelling_configuration_type")
-      return(result)
+      return(abandon_run(result))
     }
 
     result$messages <- c(result$messages, paste("Pipeline type:", detected_type))

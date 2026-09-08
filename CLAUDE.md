@@ -139,6 +139,16 @@ Set unused conditional fields to `""` in JSON; convert to `NULL` in R templates.
 ### BIDS Entity Ordering in `petfit_regions.tsv`
 The `description` column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-gtm`). The `create_bids_key_value_pairs()` function gives `seg`/`label` priority, then sorts remaining keys alphabetically.
 
+### External Config and Regions Files
+- `--config-file` (wrapper) / `--config_file` (container) / `config_file` (R) supplies a modelling config from outside the dataset; `--regions-file` / `--regions_file` / `regions_file` does the same for `petfit_regions.tsv`
+- The file is **copied into the canonical location** (`analysis_folder/desc-petfitoptions_config.json`, `derivatives/petfit/petfit_regions.tsv`) by `install_external_file()` in `R/external_files.R`, not read in place — so everything downstream is unchanged and the derivative stays self-contained
+- Supplying a config creates the analysis folder if absent, so `run_petfit.R`'s "analysis folder must exist" guard is skipped when `--config_file` is given
+- `check_external_config()` / `check_external_regions_file()` validate before copying, so a bad file never clobbers a good one. The config check enforces `modelling_configuration_type` against `config_type_for_pipeline(pipeline_type)` — necessary because `determine_pipeline_type()` gives the explicit `pipeline_type` priority over the config's own declaration, and `run_petfit.R` always passes it from `--func`. The regions check requires ≥1 row and ≥1 `folder` present in `derivatives_dir`
+- `install_external_file()` returns `list(messages, destination, backup)`; a failure before any step runs calls `restore_external_file()` via each pipeline's local `abandon_run()`, which puts the replaced file back (or deletes the copy when there was nothing to replace)
+- The file belonging to the other app is ignored with a console note (never an error)
+- New arguments are appended **after** all existing ones in the exported signatures, so positional callers keep working; `tests/testthat/test-external_files.R` pins the pre-existing argument order
+- The Docker wrapper bind-mounts the single file at `/data/config.json` or `/data/petfit_regions.tsv`, and rejects a missing path itself — Docker would otherwise create a *directory* there
+
 ### Config File Gotchas
 - When `FitDelay.model` is `"Set to zero..."`, delay step is skipped but model reports independently load blood data from raw BIDS `_blood.tsv` files (via `determine_blood_source()`) and default `inpshift` to 0
 - Reference region must be included in `Subsetting.Regions` (e.g., if `ReferenceTAC.region` is `"Cerebellum"`, subsetting must include it)
