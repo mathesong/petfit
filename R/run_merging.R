@@ -33,10 +33,13 @@ merged_measurement_entities <- function(data) {
 #
 # This is deliberately the same rule bloodstream applies to blood sample times
 # when it merges runs, so that a study which merges in one tool merges in the
-# other. (Worth lifting into kinfitr eventually, rather than being stated
-# twice.) TimeZero comes from the raw `_pet.json`, so it is available when
-# `bids_dir` is given; a derivatives-only run usually has no TimeZero at all,
-# and falls back to taking the times as already shared.
+# other. The duplication between the two repos is intended, and not a candidate
+# for kinfitr: kinfitr does none of the merging, so the rule would have no
+# caller there. Keep the two in step by hand.
+#
+# TimeZero comes from the raw `_pet.json`, so it is available when `bids_dir`
+# is given; a derivatives-only run usually has no TimeZero at all, and falls
+# back to taking the times as already shared.
 
 # Seconds since midnight for a BIDS TimeZero, or NA when the field carries no
 # clock time. A dataset which sets TimeZero to "0" is timing from its own scan
@@ -66,6 +69,37 @@ petfit_clocktime_seconds <- function(x) {
   }
 
   hours * 3600 + minutes * 60 + seconds
+}
+
+# Longer than one injection is followed for. Two scanning blocks of a single
+# injection follow each other within hours -- the tracer has decayed away
+# otherwise -- so a merged measurement spanning longer than this did not come
+# from one injection, whatever its labels claim.
+max_plausible_run_gap <- 6 * 3600
+
+# The order in which a measurement's runs were collected, from their labels.
+#
+# Radix order alone is wrong: BIDS run indices need not be zero-padded, and as
+# strings "10" sorts before "2". Getting this wrong is not cosmetic --
+# run_clock_offsets() unwraps midnight in this order, so a mis-ordered pair an
+# hour apart is read as nearly a day apart, and the frame times are shifted by
+# 23 hours with the overlap check none the wiser.
+#
+# Numeric labels are therefore ordered numerically and come first; anything
+# else follows in lexicographic order, which is the only order such labels
+# offer -- and which is not to be trusted. "early" happens to precede "late",
+# but "end" precedes "start", and there will always be another word pair whose
+# alphabetical order lies about collection order. No label rule can fix that,
+# so the result is checked instead: see the gap check in
+# align_measurement_runs(), which catches a mis-ordering without needing a
+# vocabulary.
+run_label_order <- function(runs) {
+
+  runs <- as.character(runs)
+  numeric_value <- suppressWarnings(as.numeric(runs))
+  is_numeric <- !is.na(numeric_value)
+
+  order(!is_numeric, numeric_value, runs, method = "radix")
 }
 
 # The offset to add to each run's frame times, in seconds, so that they all
@@ -191,13 +225,15 @@ align_measurement_runs <- function(combined_data, group_columns) {
 
   if (!"time_zero" %in% colnames(combined_data) || length(frame_columns) == 0) {
     return(list(data = combined_data, messages = messages,
-                aligned_any = FALSE))
+                aligned_labels = character(0)))
   }
 
   combined_data$.run_offset <- 0
 
   aligned_count <- 0L
+  aligned_labels <- character(0)
   assumed <- character(0)
+  implausible <- character(0)
 
   keys <- combined_data %>%
     dplyr::distinct(dplyr::across(dplyr::all_of(group_columns)))
@@ -217,9 +253,9 @@ align_measurement_runs <- function(combined_data, group_columns) {
       next
     }
 
-    # Run-label order, which is collection order for run-01/run-02 and
-    # run-early/run-late, and the order run_clock_offsets() unwraps midnight in.
-    runs <- runs[order(runs, method = "radix")]
+    # Collection order, which is the order run_clock_offsets() unwraps
+    # midnight in. See run_label_order() for why radix alone will not do.
+    runs <- runs[run_label_order(runs)]
 
     time_zeros <- vapply(runs, function(r) {
       values <- unique(stats::na.omit(
@@ -238,15 +274,40 @@ align_measurement_runs <- function(combined_data, group_columns) {
 
     if (any(offsets != 0)) {
       aligned_count <- aligned_count + 1L
+      aligned_labels <- c(aligned_labels, label)
       for (j in seq_along(runs)) {
         rows <- in_group & !is.na(combined_data$run) & combined_data$run == runs[j]
         combined_data$.run_offset[rows] <- offsets[j]
+      }
+
+      # Where the runs have landed, now that they have been shifted. A
+      # mis-ordering pushes them a day apart rather than on top of each other,
+      # so the overlap check downstream sees nothing wrong -- this is what
+      # notices.
+      extents <- lapply(seq_along(runs), function(j) {
+        rows <- in_group & !is.na(combined_data$run) & combined_data$run == runs[j]
+        c(min(combined_data$frame_start[rows], na.rm = TRUE) + offsets[j],
+          max(combined_data$frame_end[rows], na.rm = TRUE) + offsets[j])
+      })
+
+      extents <- extents[order(vapply(extents, `[`, numeric(1), 1))]
+
+      gaps <- vapply(seq_len(length(extents) - 1L), function(j) {
+        extents[[j + 1L]][1] - extents[[j]][2]
+      }, numeric(1))
+
+      if (any(gaps > max_plausible_run_gap)) {
+        implausible <- c(implausible, paste0(
+          label, ": placed ", round(max(gaps) / 3600, 1),
+          " hours apart, combined in the order ",
+          paste(runs, collapse = " + ")))
       }
     } else {
       # Runs sharing a TimeZero are already on one clock; nothing to shift, but
       # the clock was read, so an overlap afterwards is not a missing-metadata
       # problem.
       aligned_count <- aligned_count + 1L
+      aligned_labels <- c(aligned_labels, label)
     }
   }
 
@@ -263,6 +324,21 @@ align_measurement_runs <- function(combined_data, group_columns) {
       "time zero:\n", list_offenders(assumed)))
   }
 
+  # A gap no injection could span means the runs were combined in the wrong
+  # order: their TimeZeros were then read as crossing midnight and one run was
+  # shifted by a day. The runs are ordered from their labels, and no label rule
+  # is reliable, so this is the check that catches it -- for run-start /
+  # run-end, and for whatever the next misleading pair turns out to be.
+  if (length(implausible) > 0) {
+    warning("The runs of ", length(implausible),
+            " measurement(s) have been placed further apart than one ",
+            "injection is followed for:\n", list_offenders(implausible), "\n",
+            "That order was taken from the run labels. If it is not the order ",
+            "they were collected in, their TimeZeros have been read as ",
+            "crossing midnight and one run's frames shifted by a day. Check ",
+            "the run labels.", call. = FALSE)
+  }
+
   for (column in frame_columns) {
     combined_data[[column]] <- combined_data[[column]] + combined_data$.run_offset
   }
@@ -270,7 +346,7 @@ align_measurement_runs <- function(combined_data, group_columns) {
   combined_data$.run_offset <- NULL
 
   list(data = combined_data, messages = messages,
-       aligned_any = aligned_count > 0)
+       aligned_labels = aligned_labels)
 }
 
 #' Merge the Runs of Each Measurement in Combined TACs Data
@@ -297,19 +373,17 @@ align_measurement_runs <- function(combined_data, group_columns) {
 #'   contradict whichever assumption was made, and are an error rather than a
 #'   silent pooling.
 #'
-#'   Where anything is merged, `run` is set to `NA` for **every** measurement in
-#'   the dataset, not only those which actually had more than one run. Identity
-#'   has to mean the same thing across a dataset: if a cohort where most subjects
-#'   have two runs and one has a single `run-01` kept the entity where it
-#'   happened to be unambiguous, that one subject would be identified
-#'   differently from everybody else, and its outputs would be named differently
-#'   from the rest of the analysis.
+#'   `run` is dropped from the measurements which were **actually merged**, and
+#'   from those alone. A measurement with a single run keeps it, whatever the
+#'   rest of the cohort did.
 #'
-#'   Where **nothing** is merged -- no measurement has a second run -- the data is
-#'   returned untouched, `run` included. There is nothing for the identifiers to
-#'   be consistent with, so dropping a `run-01` that every measurement carries
-#'   would only discard what the filenames say, and would rename every output of
-#'   a dataset that merging did not change.
+#'   This is the rule bloodstream uses, so the two tools name the same
+#'   measurement the same way and their outputs join. It is also the rule
+#'   [pet_key()] exists to enforce: a measurement's identity is built from its
+#'   own entities and nothing else. Dropping `run` cohort-wide would make one
+#'   subject's filenames depend on whether *another* subject happened to have
+#'   two runs -- exactly the cohort-dependent naming that orphaned files before
+#'   `pet_key()` replaced [attributes_to_title()].
 #'
 #' @param combined_data Tibble of combined TACs data in long format, carrying
 #'   the BIDS entity columns and one row per region and frame. An optional
@@ -373,6 +447,7 @@ merge_tacs_runs <- function(combined_data) {
   aligned <- align_measurement_runs(combined_data, group_columns)
   combined_data <- aligned$data
   messages <- c(messages, aligned$messages)
+  aligned_labels <- aligned$aligned_labels
 
   measurements <- combined_data %>%
     dplyr::group_by(dplyr::across(dplyr::all_of(group_columns))) %>%
@@ -392,7 +467,15 @@ merge_tacs_runs <- function(combined_data) {
 
     overlap <- describe_run_overlap(rows)
     if (!is.null(overlap)) {
-      overlaps <- c(overlaps, paste0(label, ": ", overlap))
+      # Why this measurement overlaps, and so what to do about it, depends on
+      # whether *it* had a clock to be aligned by -- not on whether some other
+      # measurement in the cohort did.
+      cause <- if (label %in% aligned_labels) {
+        " (aligned by TimeZero, so these are not consecutive scans)"
+      } else {
+        " (no usable TimeZero, so the times were assumed to be shared)"
+      }
+      overlaps <- c(overlaps, paste0(label, ": ", overlap, cause))
     }
 
     for (scalar in intersect(merged_shared_scalars, colnames(rows))) {
@@ -409,7 +492,9 @@ merge_tacs_runs <- function(combined_data) {
       differing <- rows %>%
         dplyr::distinct(region, run, volume_mm3) %>%
         dplyr::group_by(region) %>%
-        dplyr::filter(dplyr::n_distinct(volume_mm3) > 1) %>%
+        # na.omit, as the scalar check above uses: a run which simply has no
+        # volume is not a run which disagrees about it.
+        dplyr::filter(dplyr::n_distinct(stats::na.omit(volume_mm3)) > 1) %>%
         dplyr::ungroup()
 
       if (nrow(differing) > 0) {
@@ -422,29 +507,17 @@ merge_tacs_runs <- function(combined_data) {
   }
 
   if (length(overlaps) > 0) {
-    # What to advise depends on whether a clock was available to align them.
-    # Where none was, the fix is usually to supply one; where one was used and
-    # the frames still overlap, the runs are not consecutive scans at all.
-    remedy <- if (aligned$aligned_any) {
-      paste0("These runs were placed on one clock using their TimeZero times, ",
-             "and still overlap, so they are not consecutive scans of one ",
-             "injection. Switch run merging off to keep them as separate ",
-             "measurements.")
-    } else {
-      paste0("No usable TimeZero was available, so the frame times were taken ",
-             "as already sharing a time zero -- and they do not. Rerun with ",
-             "bids_dir pointing at the raw BIDS directory, whose _pet.json ",
-             "sidecars carry TimeZero, so that the runs can be placed on one ",
-             "clock; or switch run merging off to keep them as separate ",
-             "measurements.")
-    }
-
     stop("Cannot merge runs: the frames of different runs overlap in time for ",
          length(overlaps), " measurement(s).\n",
          list_offenders(overlaps), "\n",
          "Merging treats the runs of one measurement as consecutive scans of a ",
-         "single injection, so that run-02 begins after run-01 ends. ",
-         remedy, call. = FALSE)
+         "single injection, so that run-02 begins after run-01 ends. Where no ",
+         "usable TimeZero was available, rerun with bids_dir pointing at the ",
+         "raw BIDS directory, whose _pet.json sidecars carry it, so the runs ",
+         "can be placed on one clock. Where one was used and the frames still ",
+         "overlap, the runs are not consecutive scans of one injection: switch ",
+         "run merging off to keep them as separate measurements.",
+         call. = FALSE)
   }
 
   # A disagreement about the dose or the body weight does not make the merge
@@ -490,25 +563,43 @@ merge_tacs_runs <- function(combined_data) {
                      by = c(group_columns, "run"),
                      relationship = "many-to-one")
 
+  # The earliest run's value, but not its *absence*: `na_rm` matters, because
+  # first() would otherwise overwrite a dose or a body weight that a later run
+  # does record with the earliest run's NA, losing SUV for the measurement and
+  # saying nothing -- the mismatch check above ignores NAs, so it has nothing
+  # to report either.
   shared_scalars <- intersect(merged_shared_scalars, colnames(merged))
   if (length(shared_scalars) > 0) {
     merged <- merged %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(group_columns))) %>%
       dplyr::mutate(dplyr::across(dplyr::all_of(shared_scalars),
-                                  ~dplyr::first(.x, order_by = run_rank))) %>%
+                                  ~dplyr::first(.x, order_by = run_rank,
+                                                na_rm = TRUE))) %>%
       dplyr::ungroup()
   }
 
   if (all(c("region", "volume_mm3") %in% colnames(merged))) {
     merged <- merged %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(c(group_columns, "region")))) %>%
-      dplyr::mutate(volume_mm3 = dplyr::first(volume_mm3, order_by = run_rank)) %>%
+      dplyr::mutate(volume_mm3 = dplyr::first(volume_mm3, order_by = run_rank,
+                                              na_rm = TRUE)) %>%
       dplyr::ungroup()
   }
 
+  # Only the measurements which actually pooled runs lose the entity. Blanking
+  # it cohort-wide would rename the outputs of a single-run measurement because
+  # of what some other subject's data looked like.
+  merged <- merged %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_columns))) %>%
+    dplyr::mutate(run = if (dplyr::n_distinct(run, na.rm = TRUE) > 1) {
+      NA_character_
+    } else {
+      run
+    }) %>%
+    dplyr::ungroup()
+
   merged <- merged %>%
     dplyr::select(-run_rank, -dplyr::any_of("time_zero")) %>%
-    dplyr::mutate(run = NA_character_) %>%
     dplyr::arrange(dplyr::across(dplyr::all_of(
       c(group_columns, intersect("region", colnames(merged)), "frame_start"))))
 
@@ -520,7 +611,8 @@ merge_tacs_runs <- function(combined_data) {
     paste0("Merged ", n_runs, " runs into ", n_merged,
            " measurement(s), treating each measurement's runs as consecutive ",
            "scans of one injection."),
-    "The run entity has been dropped from all measurement identifiers.")
+    paste0("The run entity has been dropped from those ", n_merged,
+           " measurement(s). Measurements with a single run keep it."))
 
   list(data = merged, merged = TRUE, messages = messages)
 }

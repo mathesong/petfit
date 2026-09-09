@@ -42,17 +42,15 @@ Either way the result is checked: frames which still overlap between runs
 contradict whichever assumption was made, and are an error rather than a
 silent pooling.
 
-Where anything is merged, \code{run} is set to \code{NA} for \strong{every} measurement in
-the dataset, not only those which actually had more than one run. Identity
-has to mean the same thing across a dataset: if a cohort where most subjects
-have two runs and one has a single \code{run-01} kept the entity where it
-happened to be unambiguous, that one subject would be identified
-differently from everybody else, and its outputs would be named differently
-from the rest of the analysis.
+\code{run} is dropped from the measurements which were \strong{actually merged}, and
+from those alone. A measurement with a single run keeps it, whatever the
+rest of the cohort did.
 
-Where \strong{nothing} is merged -- no measurement has a second run -- the data is
-returned untouched, \code{run} included. There is nothing for the identifiers to
-be consistent with, so dropping a \code{run-01} that every measurement carries
-would only discard what the filenames say, and would rename every output of
-a dataset that merging did not change.
+This is the rule bloodstream uses, so the two tools name the same
+measurement the same way and their outputs join. It is also the rule
+\code{\link[=pet_key]{pet_key()}} exists to enforce: a measurement's identity is built from its
+own entities and nothing else. Dropping \code{run} cohort-wide would make one
+subject's filenames depend on whether \emph{another} subject happened to have
+two runs -- exactly the cohort-dependent naming that orphaned files before
+\code{pet_key()} replaced \code{\link[=attributes_to_title]{attributes_to_title()}}.
 }

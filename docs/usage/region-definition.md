@@ -65,13 +65,12 @@ When runs are merged:
   `run` entity is dropped from the outputs**. `sub-01_ses-test_run-01` and
   `sub-01_ses-test_run-02` become `sub-01_ses-test`, and that is the name every
   file downstream is written under.
-- Where anything is merged, `run` is dropped from *every* measurement in the
-  dataset, including any which happen to have only one run, so that identity
-  means the same thing across the whole cohort. Where **nothing** is merged --
-  no measurement has a second run -- the data is left exactly as it is, `run`
-  included: there is nothing for the identifiers to be consistent with, and
-  dropping a `run-01` that every measurement carries would only rename outputs
-  the merge never touched.
+- `run` is dropped from the measurements which were **actually merged**, and
+  from those alone — a measurement with a single run keeps it, whatever the
+  rest of the cohort did. This is the rule `bloodstream` uses, so the two tools
+  name the same measurement the same way, and it keeps each measurement's
+  identity built from its own entities rather than from what other subjects
+  happened to have.
 - The runs are placed on one clock by the difference between their `TimeZero`
   times — the same rule `bloodstream` applies to the blood samples of those
   runs, so a study which merges in one tool merges in the other. Runs sharing a

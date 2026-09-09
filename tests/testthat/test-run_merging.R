@@ -86,11 +86,12 @@ test_that("a dataset with nothing to merge is left exactly as it is", {
   expect_equal(unique(identified$pet), "sub-01_ses-test_run-01")
 })
 
-test_that("run is dropped from a single-run measurement in a merged cohort", {
+test_that("a single-run measurement keeps its run in a merged cohort", {
 
-  # sub-01 has two runs, sub-02 only one. Once sub-01 is merged, sub-02 has to
-  # be identified the same way or its outputs are named differently from every
-  # other measurement in the analysis.
+  # sub-01 has two runs, sub-02 only one. Only sub-01 loses the entity: a
+  # measurement's identity is built from its own entities, so sub-02's outputs
+  # must not be renamed because of what another subject's data looked like.
+  # This is also bloodstream's rule, so the two tools' filenames agree.
   mixed <- dplyr::bind_rows(
     two_run_tacs(),
     two_run_tacs() %>% dplyr::filter(run == "01") %>% dplyr::mutate(sub = "02")
@@ -98,12 +99,13 @@ test_that("run is dropped from a single-run measurement in a merged cohort", {
 
   result <- merge_tacs_runs(mixed)
 
-  expect_true(all(is.na(result$data$run)))
-
   identified <- reconstruct_pet_column(
     result$data, c("sub", "ses", "task", "trc", "rec", "run"))
-  expect_setequal(unique(identified$pet),
-                  c("sub-01_ses-test", "sub-02_ses-test"))
+
+  expect_equal(unique(identified$pet[identified$sub == "01"]),
+               "sub-01_ses-test")
+  expect_equal(unique(identified$pet[identified$sub == "02"]),
+               "sub-02_ses-test_run-01")
 })
 
 test_that("overlapping run frames are an error, not a silent merge", {
@@ -555,4 +557,160 @@ test_that("a missing derivatives folder is not an error", {
 
   expect_false(dataset_has_multiple_runs(file.path(tempdir(), "nowhere")))
   expect_false(dataset_has_multiple_runs(NULL))
+})
+
+# --- Ordering and metadata reconciliation -----------------------------------
+
+test_that("numeric run labels are ordered numerically, not as strings", {
+
+  # BIDS run indices need not be zero-padded, and as strings "10" sorts before
+  # "2". The offsets unwrap midnight in this order, so getting it wrong reads
+  # an hour's gap as nearly a day's and shifts the frames by 23 hours.
+  expect_equal(c("2", "10")[run_label_order(c("2", "10"))], c("2", "10"))
+  expect_equal(c("10", "2")[run_label_order(c("10", "2"))], c("2", "10"))
+  expect_equal(c("01", "02")[run_label_order(c("01", "02"))], c("01", "02"))
+
+  # Labels which are not numbers have only their lexicographic order
+  expect_equal(c("late", "early")[run_label_order(c("late", "early"))],
+               c("early", "late"))
+})
+
+test_that("run-2 and run-10 an hour apart are aligned by one hour", {
+
+  tacs <- dplyr::bind_rows(
+    two_run_tacs() %>% dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = "2", time_zero = "11:00:00"),
+    two_run_tacs() %>% dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = "10", time_zero = "12:00:00")
+  )
+
+  merged <- merge_tacs_runs(tacs)$data
+
+  # 3600 s apart, not 82800: a string sort would have made run-10 the first run
+  # and read run-2's earlier clock time as crossing midnight.
+  expect_equal(sort(unique(merged$frame_start)), c(0, 300, 3600, 3900))
+})
+
+test_that("a value the earliest run lacks is taken from a later run", {
+
+  # first() does not skip NAs of its own accord, so the earliest run's absent
+  # dose would otherwise overwrite the one a later run does record -- losing
+  # SUV for the measurement, and silently, since the mismatch check ignores NAs.
+  tacs <- two_run_tacs()
+  tacs$InjectedRadioactivity[tacs$run == "01"] <- NA_real_
+  tacs$bodyweight[tacs$run == "01"] <- NA_real_
+
+  merged <- merge_tacs_runs(tacs)$data
+
+  expect_equal(unique(merged$InjectedRadioactivity), 700000)
+  expect_equal(unique(merged$bodyweight), 70)
+})
+
+test_that("a volume the earliest run lacks is taken from a later run", {
+
+  tacs <- two_run_tacs()
+  tacs$volume_mm3[tacs$run == "01"] <- NA_real_
+
+  merged <- merge_tacs_runs(tacs)$data
+
+  expect_equal(unique(merged$volume_mm3), 1000)
+})
+
+test_that("a mis-ordering that no label rule can catch is caught by the gap", {
+
+  # "end" precedes "start" alphabetically, so run-start / run-end order wrongly
+  # and their TimeZeros are read as crossing midnight. The frames end up a day
+  # apart rather than on top of each other, so the overlap check sees nothing.
+  # No label rule can fix this -- the result is what gives it away.
+  tacs <- dplyr::bind_rows(
+    two_run_tacs() %>% dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = "start", time_zero = "11:00:00"),
+    two_run_tacs() %>% dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = "end", time_zero = "12:00:00")
+  )
+
+  expect_warning(merge_tacs_runs(tacs),
+                 "further apart than one injection is followed for")
+})
+
+test_that("a plausible gap and a genuine midnight crossing stay silent", {
+
+  two_runs <- function(tz1, tz2) {
+    dplyr::bind_rows(
+      two_run_tacs() %>% dplyr::filter(run == "01") %>%
+        dplyr::mutate(time_zero = tz1),
+      two_run_tacs() %>% dplyr::filter(run == "01") %>%
+        dplyr::mutate(run = "02", time_zero = tz2)
+    )
+  }
+
+  # An hour apart: ordinary two-block acquisition
+  expect_no_warning(merge_tacs_runs(two_runs("11:00:00", "12:00:00")))
+
+  # 23:50 then 00:30 is a 40-minute gap once unwrapped, not a 23-hour one
+  expect_no_warning(merge_tacs_runs(two_runs("23:50:00", "00:30:00")))
+})
+
+test_that("a run merely missing a volume is not a disagreement about it", {
+
+  # n_distinct() counts NA as a value, so an absent volume used to warn that
+  # the runs were segmented differently.
+  tacs <- two_run_tacs()
+  tacs$volume_mm3[tacs$run == "02"] <- NA_real_
+
+  expect_no_warning(merge_tacs_runs(tacs))
+})
+
+test_that("the overlap error names the cause per measurement", {
+
+  # One measurement aligned by TimeZero and still overlapping, another with no
+  # clock at all: each needs its own remedy, not the cohort's.
+  aligned <- two_run_tacs(run2_start = 60) %>%
+    dplyr::mutate(time_zero = "11:00:00")
+  unclocked <- two_run_tacs(run2_start = 0) %>%
+    dplyr::mutate(sub = "02", time_zero = NA_character_)
+
+  err <- tryCatch(merge_tacs_runs(dplyr::bind_rows(aligned, unclocked)),
+                  error = conditionMessage)
+
+  expect_match(err, "sub-01.*aligned by TimeZero")
+  expect_match(err, "sub-02.*no usable TimeZero")
+})
+
+test_that("disjoint runs with misleading labels and no clock stay silent", {
+
+  # run-start sampled first, run-end second, but "end" sorts before "start".
+  # With no TimeZero there is nothing to shift, and the frames are plainly
+  # disjoint -- so neither check should fire. Asking "do these overlap?" in
+  # label order rather than time order would answer -3600 and warn about two
+  # intervals that never touch.
+  tacs <- dplyr::bind_rows(
+    two_run_tacs() %>% dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = "start", time_zero = NA_character_),
+    two_run_tacs() %>% dplyr::filter(run == "02") %>%
+      dplyr::mutate(run = "end", time_zero = NA_character_)
+  )
+
+  expect_no_warning(result <- merge_tacs_runs(tacs))
+  expect_true(result$merged)
+})
+
+test_that("runs placed on top of each other by their TimeZeros are refused", {
+
+  # TimeZeros only 30 s apart, but the runs are an hour long: the clock parsed
+  # fine and still puts them on top of each other, so they are not consecutive
+  # scans of one injection.
+  long_run <- function(run, time_zero) {
+    two_run_tacs() %>%
+      dplyr::filter(run == "01") %>%
+      dplyr::mutate(run = !!run, time_zero = !!time_zero,
+                    frame_end = frame_start + 1800,
+                    frame_dur = 1800,
+                    frame_mid = frame_start + 900)
+  }
+
+  expect_error(
+    merge_tacs_runs(dplyr::bind_rows(long_run("01", "11:00:00"),
+                                     long_run("02", "11:00:30"))),
+    "overlap in time")
 })

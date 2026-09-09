@@ -83,8 +83,25 @@ blooddata_inputfunction_table <- function(blooddata, interp_points = 6000) {
   output_data <- tibble::as_tibble(output_data)
 
   attr(output_data, "measured_range") <- blooddata_measured_range(blooddata)
+  attr(output_data, "available_curves") <- blooddata_available_curves(blooddata)
 
   output_data
+}
+
+# Which curves a run actually measured. bd_create_input() returns all four
+# whatever the data holds, filling an absent one with its default -- a parent
+# fraction of 1, a blood-to-plasma ratio of 1 -- so the table alone cannot say
+# what was measured and what was invented.
+blooddata_available_curves <- function(blooddata) {
+
+  nodes <- list(
+    whole_blood = blooddata$Data$Blood$Discrete,
+    continuous  = blooddata$Data$Blood$Continuous,
+    plasma      = blooddata$Data$Plasma,
+    metabolite  = blooddata$Data$Metabolite
+  )
+
+  names(nodes)[vapply(nodes, function(n) isTRUE(n$Avail), logical(1))]
 }
 
 # The first and last times at which anything was actually sampled, in seconds.
@@ -152,14 +169,44 @@ merge_inputfunction_tables <- function(tables, interp_points = 6000,
         return(table)
       }
       measured <- attr(table, "measured_range")
+      curves <- attr(table, "available_curves")
       table$time <- table$time + offset
       attr(table, "measured_range") <- measured + offset
+      attr(table, "available_curves") <- curves
       table
     })
   }
 
   if (length(tables) == 1) {
     return(tables[[1]])
+  }
+
+  # Every run must carry the same curves. Where one does not, kinfitr has
+  # filled the gap with a default -- a parent fraction of 1 for a run whose
+  # metabolites were never sampled -- and pooling the pieces would present that
+  # default as measurement, inflating the late input function without a word.
+  # Bridging it honestly means fitting a metabolism model across the whole
+  # session, which is modelling rather than the plain interpolation done here.
+  available <- lapply(tables, function(x) attr(x, "available_curves"))
+
+  if (!is.null(available[[1]]) &&
+      length(unique(lapply(available, sort))) > 1) {
+
+    missing <- setdiff(Reduce(union, available), Reduce(intersect, available))
+
+    stop("Cannot merge the input functions for ", label,
+         ": its runs do not carry the same curves (",
+         paste(missing, collapse = ", "), " ",
+         if (length(missing) == 1) "is" else "are",
+         " measured in some runs but not others).\n",
+         "Interpolating across the gap would take kinfitr's default for the ",
+         "missing curve -- a parent fraction of 1, say -- as though it had ",
+         "been measured, and inflate the input function for the runs that ",
+         "lack it. Filling it properly means fitting a model across the whole ",
+         "session, which petfit does not do here: use bloodstream, which fits ",
+         "its blood models across all of a measurement's runs together. ",
+         "Otherwise switch run merging off in the region definition step.",
+         call. = FALSE)
   }
 
   ranges <- lapply(tables, function(x) attr(x, "measured_range"))
@@ -454,23 +501,36 @@ create_analysis_inputfunctions <- function(bids_dir, tac_data, analysis_folder,
       partial <- c(partial, basename(output_path))
     }
 
-    # Runs in label order, which is collection order and the order the clock
-    # offsets are unwrapped in -- the sample times of a run counting from its
-    # own TimeZero carry no order of their own.
-    runs <- runs[order(runs$run, method = "radix"), , drop = FALSE]
-    sampled <- sampled[order(runs$run, method = "radix")]
+    # Collection order, which is the order the clock offsets are unwrapped in:
+    # the sample times of a run counting from its own TimeZero carry no order
+    # of their own. A dataset with no run entity at all -- the common case --
+    # has nothing to order, and `runs$run` would be NULL.
+    if ("run" %in% colnames(runs)) {
+      run_order <- run_label_order(runs$run)
+      runs <- runs[run_order, , drop = FALSE]
+      # `sampled` indexes rows by position, so it has to move with them.
+      sampled <- sampled[run_order]
+    }
 
-    contributing <- runs[sampled, , drop = FALSE]
-
+    # The offsets are computed over *every* run, then subset alongside the
+    # rows -- not computed over the sampled ones alone. A run with no blood of
+    # its own still sets the clock the later runs are placed on, and taking it
+    # out first would leave a lone later run on its own zero while
+    # merge_tacs_runs() had already shifted its frames onto the first run's.
     offsets <- NULL
-    if (nrow(contributing) > 1 && "petinfo" %in% colnames(contributing)) {
+    if (nrow(runs) > 1 && "petinfo" %in% colnames(runs)) {
       offsets <- run_clock_offsets(purrr::map_chr(
-        contributing$petinfo,
+        runs$petinfo,
         ~as.character((.x$TimeZero %||% NA_character_)[1])))
 
       if (is.null(offsets)) {
         unaligned <- c(unaligned, basename(output_path))
       }
+    }
+
+    contributing <- runs[sampled, , drop = FALSE]
+    if (!is.null(offsets)) {
+      offsets <- offsets[sampled]
     }
 
     tables <- purrr::map(contributing$blooddata,
@@ -566,14 +626,41 @@ check_blood_run_alignment <- function(tac_data, blood_data) {
     any(!is.na(blood_data$run))
 
   if (blood_has_run && !tacs_have_run) {
-    stop("The TACs have been merged across runs, but the input functions are ",
-         "still one per run.\n",
-         "A merged measurement spans every one of its runs, so it needs a ",
-         "single input function spanning them too. Either produce run-merged ",
-         "input functions (bloodstream can do this), delete the per-run ones ",
-         "from the analysis folder so that petfit rebuilds them from the raw ",
-         "BIDS blood data, or switch run merging off in the region definition ",
-         "step and rerun the analysis.", call. = FALSE)
+
+    # Whether a `run` entity is merely *present* on the blood side says
+    # nothing on its own. bloodstream keeps `run` in the filename of a
+    # measurement it did not merge, while petfit blanks it across the whole
+    # cohort once anything merges -- so a mixed cohort (one subject with two
+    # runs, another with one) legitimately produces run-less and per-run input
+    # functions side by side. What actually breaks is one TACs measurement
+    # matching more than one blood record, so that is what is checked.
+    entities <- intersect(c("sub", "ses", "task", "trc", "rec"),
+                          intersect(colnames(tac_data), colnames(blood_data)))
+
+    ambiguous <- if (length(entities) == 0) {
+      nrow(blood_data) > 1
+    } else {
+      counts <- blood_data %>%
+        dplyr::group_by(dplyr::across(dplyr::all_of(entities))) %>%
+        dplyr::summarise(records = dplyr::n(), .groups = "drop")
+
+      measurements <- dplyr::distinct(
+        tac_data, dplyr::across(dplyr::all_of(entities)))
+
+      matched <- dplyr::inner_join(measurements, counts, by = entities)
+      any(matched$records > 1)
+    }
+
+    if (ambiguous) {
+      stop("The TACs have been merged across runs, but the input functions are ",
+           "still one per run.\n",
+           "A merged measurement spans every one of its runs, so it needs a ",
+           "single input function spanning them too. Either produce run-merged ",
+           "input functions (bloodstream can do this), delete the per-run ones ",
+           "from the analysis folder so that petfit rebuilds them from the raw ",
+           "BIDS blood data, or switch run merging off in the region definition ",
+           "step and rerun the analysis.", call. = FALSE)
+    }
   }
 
   if (tacs_have_run && !blood_has_run) {

@@ -681,3 +681,110 @@ test_that("a measurement with no raw blood data at all is reported", {
     create_analysis_inputfunctions(bids_dir, only_run2, analysis_folder),
     "No blood samples at all")
 })
+
+test_that("input functions are built for a dataset with no run entity", {
+
+  # The common case, and the one that broke: `runs$run` is NULL where the
+  # dataset has no run entity, so ordering the runs must not be attempted.
+  bids_dir <- withr::local_tempdir()
+  analysis_folder <- withr::local_tempdir()
+
+  pet_dir <- file.path(bids_dir, "sub-01", "ses-test", "pet")
+  dir.create(pet_dir, recursive = TRUE)
+  stem <- "sub-01_ses-test"
+
+  file.create(file.path(pet_dir, paste0(stem, "_pet.nii.gz")))
+  jsonlite::write_json(
+    list(Units = "Bq/mL", TimeZero = "11:00:16", ScanStart = 0,
+         InjectionStart = 0, FrameTimesStart = c(0, 300),
+         FrameDuration = c(300, 300), TracerName = "MC1",
+         TracerRadionuclide = "11C", InjectedRadioactivity = 700000,
+         InjectedRadioactivityUnits = "kBq", ModeOfAdministration = "bolus"),
+    file.path(pet_dir, paste0(stem, "_pet.json")), auto_unbox = TRUE)
+
+  readr::write_tsv(
+    tibble::tibble(time = seq(10, 600, length.out = 8),
+                   plasma_radioactivity = seq(30, 5, length.out = 8),
+                   metabolite_parent_fraction = 0.9,
+                   whole_blood_radioactivity = seq(25, 4, length.out = 8)),
+    file.path(pet_dir, paste0(stem, "_recording-manual_blood.tsv")))
+  jsonlite::write_json(
+    list(PlasmaAvail = TRUE, WholeBloodAvail = TRUE, MetaboliteAvail = TRUE,
+         MetaboliteRecoveryCorrectionApplied = FALSE,
+         DispersionCorrected = FALSE, time = list(Units = "s"),
+         plasma_radioactivity = list(Units = "kBq/mL"),
+         metabolite_parent_fraction = list(Units = "arbitrary"),
+         whole_blood_radioactivity = list(Units = "kBq/mL")),
+    file.path(pet_dir, paste0(stem, "_recording-manual_blood.json")),
+    auto_unbox = TRUE)
+
+  tac_data <- tibble::tibble(
+    filename = "sub-01/ses-test/pet/sub-01_ses-test_desc-combinedregions_tacs.tsv",
+    sub = "01", ses = "test", region = c("Putamen", "Cerebellum"))
+
+  result <- create_analysis_inputfunctions(bids_dir, tac_data, analysis_folder)
+
+  expect_length(result$files, 1)
+  expect_equal(basename(result$files), "sub-01_ses-test_inputfunction.tsv")
+})
+
+test_that("a mixed cohort from bloodstream is not rejected", {
+
+  # bloodstream keeps `run` in the filename of a measurement it did not merge,
+  # while petfit blanks it cohort-wide once anything merges. So run-less and
+  # per-run input functions legitimately sit side by side, and the mere
+  # presence of a run entity is not the thing to check.
+  merged_and_single <- tibble::tibble(
+    sub = c("01", "02"), ses = "test", region = "Striatum")
+  blood <- tibble::tibble(sub = c("01", "02"), ses = "test",
+                          run = c(NA, "01"))
+
+  expect_true(check_blood_run_alignment(merged_and_single, blood))
+})
+
+test_that("one measurement matching several blood records is still an error", {
+
+  expect_error(
+    check_blood_run_alignment(
+      tibble::tibble(sub = "01", ses = "test", region = "Striatum"),
+      tibble::tibble(sub = c("01", "01"), ses = "test", run = c("01", "02"))),
+    "merged across runs")
+})
+
+test_that("runs which do not carry the same curves refuse to merge", {
+
+  # Metabolites sampled in the first block only. bd_create_input() fills the
+  # second run's parent fraction with its default of 1, and pooling the pieces
+  # would present that as measurement -- inflating the late input function.
+  with_metabolite <- run_inputfunction(0, 5100, 100)
+  attr(with_metabolite, "available_curves") <-
+    c("whole_blood", "plasma", "metabolite")
+
+  without_metabolite <- run_inputfunction(5400, 10500, 50)
+  attr(without_metabolite, "available_curves") <- c("whole_blood", "plasma")
+
+  expect_error(
+    merge_inputfunction_tables(list(with_metabolite, without_metabolite),
+                               label = "sub-01_ses-test"),
+    "do not carry the same curves")
+
+  # And it says where the modelling that would fill the gap can be done
+  expect_error(
+    merge_inputfunction_tables(list(with_metabolite, without_metabolite),
+                               label = "sub-01_ses-test"),
+    "bloodstream")
+})
+
+test_that("runs carrying the same curves merge as before", {
+
+  same <- lapply(list(c(0, 5100, 100), c(5400, 10500, 50)), function(x) {
+    table <- run_inputfunction(x[1], x[2], x[3])
+    attr(table, "available_curves") <- c("whole_blood", "plasma", "metabolite")
+    table
+  })
+
+  merged <- merge_inputfunction_tables(same, interp_points = 500)
+
+  expect_equal(nrow(merged), 500)
+  expect_equal(max(merged$time), 10500)
+})

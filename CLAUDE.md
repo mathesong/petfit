@@ -161,23 +161,24 @@ The `description` column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-
   letting `reconstruct_pet_column()` rebuild identifiers without it
 - Frame times are aligned by the **`TimeZero` clock difference**
   (`run_clock_offsets()`), deliberately the same rule bloodstream's
-  `run_time_offsets()` applies to blood samples — worth lifting into kinfitr
-  rather than being stated in both repos. `TimeZero` comes from the raw
-  `_pet.json` via `lookup_pet_time_zero()`, so it needs `bids_dir`; the
-  pipelines' `_tacs.json` sidecars do not carry it, so derivatives-only runs
-  fall back to assuming a shared time zero. The overlap check is a
-  **post-condition** either way, and its advice differs depending on whether a
-  clock was available
+  `run_time_offsets()` applies to blood samples. **The duplication across the
+  two repos is intended** — kinfitr does none of the merging, so the rule would
+  have no caller there; keep petfit and bloodstream in step by hand rather than
+  trying to factor it out. `TimeZero` comes from the raw `_pet.json` via
+  `lookup_pet_time_zero()`, so it needs `bids_dir`; the pipelines' `_tacs.json`
+  sidecars do not carry it, so derivatives-only runs fall back to assuming a
+  shared time zero. The overlap check is a **post-condition** either way, and
+  its advice differs depending on whether a clock was available
 - The `time_zero` column is scaffolding: added by the worker in
   `create_petfit_combined_tacs()` and dropped before the TSV is written (in both
   the merge and no-merge paths)
-- Where anything merges, `run` is set to `NA` for **every** measurement,
-  single-run ones included, so identity does not depend on which runs a
-  measurement happens to have (same reasoning as `pet_key()` vs
-  `attributes_to_title()`). Where **nothing** merges the data is returned
-  untouched — dropping a `run-01` every measurement carries singly would rename
-  every output of a dataset the merge never changed, and the app hides the
-  checkbox in exactly that case, so the user could not see or stop it
+- `run` is blanked **only for the measurements that actually pooled runs** —
+  single-run measurements keep it. This is bloodstream's rule (`if_else(is.na(
+  merged_runs), keep, drop)`), so the two tools name the same measurement the
+  same way and their outputs join. It is also what `pet_key()` requires:
+  blanking cohort-wide would make one subject's filenames depend on another
+  subject having two runs, which is the cohort-dependent naming
+  `attributes_to_title()` was deprecated for
 - **Errors** on frames overlapping between runs (names the measurements);
   **warns** and keeps the earliest run's value when runs disagree on
   `InjectedRadioactivity`, `bodyweight` or a region's `volume_mm3`. "Earliest" is

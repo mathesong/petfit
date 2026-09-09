@@ -10,9 +10,9 @@
   separate injection.
 
 * **Merged measurements carry no `run` in their outputs**:
-  `sub-01_ses-test_run-01` becomes `sub-01_ses-test`. Where anything is merged
-  `run` is dropped from every measurement, so identity is consistent across the
-  cohort; where nothing is merged the data is left untouched.
+  `sub-01_ses-test_run-01` becomes `sub-01_ses-test`. Measurements with a single
+  run keep theirs, which is bloodstream's rule too, so the two tools' filenames
+  agree.
 
 * Runs are placed on one clock by the difference between their `TimeZero` times,
   the same rule bloodstream applies to their blood samples. `TimeZero` comes
