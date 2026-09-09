@@ -197,3 +197,74 @@ test_that("a directory contradicting the filename is an error", {
       "sub-01/ses-test/pet/sub-01_ses-retest_desc-x_tacs.tsv"),
     "disagree on ses")
 })
+
+test_that("a pipeline folder with TACs but no morph files maps to NA volumes", {
+
+  # A whole derivatives folder used to die on this: purrr::map_dfr() over an
+  # empty file list returns a tibble with no columns, so filtering it for `seg`
+  # failed with "object 'seg' not found" before the guard which handles a
+  # morph-less folder was ever reached.
+  pipeline_dir <- withr::local_tempdir()
+  pet_dir <- file.path(pipeline_dir, "sub-01", "ses-01", "pet")
+  dir.create(pet_dir, recursive = TRUE)
+
+  tacs_file <- file.path(pet_dir, "sub-01_ses-01_desc-preproc_seg-gtm_tacs.tsv")
+  file.create(tacs_file)
+
+  mapping <- create_tacs_morph_mapping(pipeline_dir)
+
+  expect_equal(nrow(mapping), 1L)
+  expect_equal(mapping$tacs_path, tacs_file)
+  expect_true(is.na(mapping$morph_path))
+})
+
+test_that("a folder with neither TACs nor morph files maps to nothing", {
+
+  empty_dir <- withr::local_tempdir()
+
+  mapping <- create_tacs_morph_mapping(empty_dir)
+
+  expect_equal(nrow(mapping), 0L)
+  expect_setequal(colnames(mapping), c("tacs_path", "morph_path"))
+})
+
+test_that("one morph-less pipeline folder does not sink the whole TACs list", {
+
+  derivatives_dir <- withr::local_tempdir()
+
+  # One well-formed pipeline folder, and one with TACs but no morph files
+  complete_pet <- file.path(derivatives_dir, "petprep", "sub-01", "ses-01", "pet")
+  complete_anat <- file.path(derivatives_dir, "petprep", "sub-01", "ses-01", "anat")
+  partial_pet <- file.path(derivatives_dir, "petprep_variant", "sub-01", "ses-01", "pet")
+  purrr::walk(c(complete_pet, complete_anat, partial_pet),
+              dir.create, recursive = TRUE, showWarnings = FALSE)
+
+  file.create(file.path(complete_pet, "sub-01_ses-01_desc-preproc_seg-gtm_tacs.tsv"))
+  file.create(file.path(complete_anat, "sub-01_ses-01_desc-preproc_seg-gtm_morph.tsv"))
+  file.create(file.path(partial_pet, "sub-01_ses-01_desc-preproc_seg-gtm_tacs.tsv"))
+
+  tacs_list <- create_tacs_list(derivatives_dir)
+
+  expect_setequal(unique(tacs_list$foldername), c("petprep", "petprep_variant"))
+})
+
+test_that("petfit_error_detail reports the cause, not just where it happened", {
+
+  # dplyr names the argument that failed and chains the actual cause beneath it,
+  # so conditionMessage() alone is unactionable.
+  wrapped <- tryCatch(
+    dplyr::mutate(tibble::tibble(x = 1), y = stop("the actual cause")),
+    error = function(e) e)
+
+  detail <- petfit_error_detail(wrapped)
+
+  expect_match(detail, "the actual cause")
+  expect_true(nchar(detail) > nchar(conditionMessage(wrapped)))
+})
+
+test_that("petfit_error_detail handles a plain error with no cause", {
+
+  plain <- tryCatch(stop("just this"), error = function(e) e)
+
+  expect_equal(petfit_error_detail(plain), "just this")
+})

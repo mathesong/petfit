@@ -107,7 +107,8 @@ Located in `inst/rmd/`. Template selection is dynamic based on model choice:
 
 ### Interactive Plotly Report Patterns
 - Render multiple plots: `htmltools::tagList(plot_list)` (not direct printing)
-- Dimensions: Set in `layout(width = 800, height = 500)` not CSS
+- Dimensions: Set in `ggplotly(p, width = 800, height = 500)`, not in `layout()` (deprecated by plotly) and not in CSS
+- Legends: `guides(colour = "none")`, never `guides(colour = FALSE)` (deprecated in ggplot2 3.3.4)
 - Spacing: `htmltools::div(.x, style="margin: 20px 0 50px 0;")`
 - Cross-filtering: `crosstalk::SharedData$new()` with `highlight(on = "plotly_hover", off = "plotly_doubleclick")`
 
@@ -138,6 +139,78 @@ Set unused conditional fields to `""` in JSON; convert to `NULL` in R templates.
 
 ### BIDS Entity Ordering in `petfit_regions.tsv`
 The `description` column must use `seg-gtm_desc-preproc` (not `desc-preproc_seg-gtm`). The `create_bids_key_value_pairs()` function gives `seg`/`label` priority, then sorts remaining keys alphabetically.
+
+### External Config and Regions Files
+- `--config-file` (wrapper) / `--config_file` (container) / `config_file` (R) supplies a modelling config from outside the dataset; `--regions-file` / `--regions_file` / `regions_file` does the same for `petfit_regions.tsv`
+- The file is **copied into the canonical location** (`analysis_folder/desc-petfitoptions_config.json`, `derivatives/petfit/petfit_regions.tsv`) by `install_external_file()` in `R/external_files.R`, not read in place — so everything downstream is unchanged and the derivative stays self-contained
+- Supplying a config creates the analysis folder if absent, so `run_petfit.R`'s "analysis folder must exist" guard is skipped when `--config_file` is given
+- `check_external_config()` / `check_external_regions_file()` validate before copying, so a bad file never clobbers a good one. The config check enforces `modelling_configuration_type` against `config_type_for_pipeline(pipeline_type)` — necessary because `determine_pipeline_type()` gives the explicit `pipeline_type` priority over the config's own declaration, and `run_petfit.R` always passes it from `--func`. The regions check requires ≥1 row and ≥1 `folder` present in `derivatives_dir`
+- `install_external_file()` returns `list(messages, destination, backup)`; a failure before any step runs calls `restore_external_file()` via each pipeline's local `abandon_run()`, which puts the replaced file back (or deletes the copy when there was nothing to replace)
+- The file belonging to the other app is ignored with a console note (never an error)
+- New arguments are appended **after** all existing ones in the exported signatures, so positional callers keep working; `tests/testthat/test-external_files.R` pins the pre-existing argument order
+- The Docker wrapper bind-mounts the single file at `/data/config.json` or `/data/petfit_regions.tsv`, and rejects a missing path itself — Docker would otherwise create a *directory* there
+
+### Run Merging
+- Set in the **region definition** step, on by default: `merge_runs` on
+  `create_petfit_combined_tacs()`, `petfit_regiondef_auto()`, `petfit_auto()`,
+  `region_definition_app()`, `petfit_interactive()`; `--no_merge_runs`
+  (container) / `--no-merge-runs` (wrapper). The modelling apps have no say --
+  they read what the combined TACs already record
+- `merge_tacs_runs()` in `R/run_merging.R` does the work: the combined TACs are
+  already long format, so merging is largely **setting `run` to `NA`** and
+  letting `reconstruct_pet_column()` rebuild identifiers without it
+- Frame times are aligned by the **`TimeZero` clock difference**
+  (`run_clock_offsets()`), deliberately the same rule bloodstream's
+  `run_time_offsets()` applies to blood samples. **The duplication across the
+  two repos is intended** — kinfitr does none of the merging, so the rule would
+  have no caller there; keep petfit and bloodstream in step by hand rather than
+  trying to factor it out. `TimeZero` comes from the raw `_pet.json` via
+  `lookup_pet_time_zero()`, so it needs `bids_dir`; the pipelines' `_tacs.json`
+  sidecars do not carry it, so derivatives-only runs fall back to assuming a
+  shared time zero. The overlap check is a **post-condition** either way, and
+  its advice differs depending on whether a clock was available
+- The `time_zero` column is scaffolding: added by the worker in
+  `create_petfit_combined_tacs()` and dropped before the TSV is written (in both
+  the merge and no-merge paths)
+- `run` is blanked **only for the measurements that actually pooled runs** —
+  single-run measurements keep it. This is bloodstream's rule (`if_else(is.na(
+  merged_runs), keep, drop)`), so the two tools name the same measurement the
+  same way and their outputs join. It is also what `pet_key()` requires:
+  blanking cohort-wide would make one subject's filenames depend on another
+  subject having two runs, which is the cohort-dependent naming
+  `attributes_to_title()` was deprecated for
+- **Errors** on frames overlapping between runs (names the measurements);
+  **warns** and keeps the earliest run's value when runs disagree on
+  `InjectedRadioactivity`, `bodyweight` or a region's `volume_mm3`. "Earliest" is
+  read from `frame_start`, never the run label
+- `desc-combinedregions_tacs.json` records `MergedRuns` from
+  `merge_tacs_runs()`'s returned `merged` flag — the outcome, not the request —
+  because an empty `run` column otherwise looks identical to a dataset with no
+  runs, and a requested-but-inert merge would be recorded as a real one
+- The raw-BIDS blood merge uses the same offsets, via
+  `merge_inputfunction_tables(offsets = )`, so petfit's fallback is not weaker
+  than bloodstream's
+- Blood: `create_analysis_inputfunctions()` in `R/blood_utils.R` replaces what
+  the `load-from-bids-raw` chunk used to do inline in all 8 plasma/delay
+  templates. It matches on whatever entities the TACs carry, so a merged
+  measurement matches every run and their curves are pooled by
+  `merge_inputfunction_tables()` — interpolate each, clip later runs to their own
+  measured span (`bd_create_input()` always starts at 0, so a later run's table
+  opens with padding), lay end to end, re-interpolate. Runs with no samples are
+  dropped with a warning
+- `check_blood_run_alignment()` is called in every plasma template after blood
+  loading, and guards **both** directions, because the natural join simply drops
+  `run` when only one side has it. Per-run input functions against run-less TACs
+  would model a merged measurement with one run's blood; run-less input
+  functions against per-run TACs (bloodstream defaults `MergeRuns` to TRUE, so
+  this is easy to hit) would model every run against samples from all of them.
+  The second check fires only where a measurement has >1 run — one run plus a
+  run-less input function is the same acquisition
+- Subsetting by `run` is impossible once merged (`run` is all `NA`);
+  `describe_available_values()` says why
+- The app's checkbox is rendered only when `dataset_has_multiple_runs()` is
+  `TRUE`. Its absence is the answer, not a missing one: `isTRUE(input$merge_runs)`
+  is `FALSE`, which is correct — nothing was merged
 
 ### Config File Gotchas
 - When `FitDelay.model` is `"Set to zero..."`, delay step is skipped but model reports independently load blood data from raw BIDS `_blood.tsv` files (via `determine_blood_source()`) and default `inpshift` to 0

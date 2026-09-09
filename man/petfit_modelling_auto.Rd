@@ -14,7 +14,8 @@ petfit_modelling_auto(
   pipeline_type = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  config_file = NULL
 )
 }
 \arguments{
@@ -40,6 +41,11 @@ default) fits sequentially.}
 
 \item{ancillary_analysis_folder}{Character string name of a sibling analysis subfolder to inherit
 delay or k2prime estimates from (optional). Must be a subfolder name, not a full path.}
+
+\item{config_file}{Character string path to an external config file to use for this run
+(optional). The file is copied into the analysis folder as
+\code{desc-petfitoptions_config.json}, replacing any config already there, and the analysis folder
+is created if it does not yet exist.}
 }
 \value{
 List with execution result and messages

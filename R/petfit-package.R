@@ -11,16 +11,19 @@ NULL
 # cannot tell these apart from undefined variables, so they are declared here.
 utils::globalVariables(c(
   ".", ".data", "AIF", "Blood", "ConstituentRegion", "InjectedRadioactivity",
-  "ParentFraction", "Plasma", "RegionName", "TAC", "Time", "bodyweight",
+  "ParentFraction", "Plasma", "RegionName", "TAC", "Time", "blooddata",
+  "bodyweight",
   "desc_from_path", "description", "description_parsed", "descriptions",
-  "filedata", "folder", "foldername", "frame_dur", "frame_end", "frame_mid",
+  "filedata", "filename", "first_frame", "folder", "foldername", "frame_dur",
+  "frame_end", "frame_mid",
   "frame_num", "frame_start", "key_value_pairs", "label", "mappings",
   "match_key", "measurement", "morph_filename", "morph_path", "n_regions",
-  "name", "participant_id", "path", "pet", "plasma_radioactivity", "region",
-  "run", "run_score", "seg", "seg_meanTAC", "segmentation", "ses", "ses_score",
-  "sufficient",
+  "name", "output_path", "participant_id", "path", "pet",
+  "plasma_radioactivity", "region",
+  "run", "run_rank", "run_score", "seg", "seg_meanTAC", "segmentation", "ses",
+  "ses_score", "sufficient",
   "tacs_attrs", "tacs_basename", "tacs_filedescription", "tacs_filename",
-  "tacs_path", "task", "time", "volume-mm3", "volume_mm3",
+  "tacs_path", "task", "time", "time_zero", "volume-mm3", "volume_mm3",
   "whole_blood_radioactivity"
 ))
 

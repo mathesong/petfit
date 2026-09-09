@@ -567,34 +567,43 @@ create_tacs_morph_mapping <- function(pipeline_folder) {
   morph_files <- list.files(pipeline_folder, pattern = "_morph\\.tsv$",
                             full.names = TRUE, recursive = TRUE)
 
-  # Extract attributes from all tacs files
-  tacs_data <- purrr::map_dfr(tacs_files, function(f) {
-    attrs <- extract_bids_attributes_from_filename(f)
-    attrs$tacs_path <- f
-    attrs
-  })
-
-  # Filter tacs files to only those with seg or label
-  tacs_data <- tacs_data %>%
-    dplyr::filter(!is.na(seg) | !is.na(label))
+  # No files of a kind means no attributes to read, and purrr::map_dfr() over an
+  # empty vector returns a tibble with no columns at all -- not one with the
+  # expected columns and no rows. Filtering that for `seg` fails with "object
+  # 'seg' not found", which is what a whole derivatives folder used to die of
+  # because one pipeline folder inside it had TACs but no morph files. The
+  # emptiness has to be answered before the columns are referred to.
+  tacs_data <- if (length(tacs_files) == 0) {
+    tibble::tibble()
+  } else {
+    purrr::map_dfr(tacs_files, function(f) {
+      attrs <- extract_bids_attributes_from_filename(f)
+      attrs$tacs_path <- f
+      attrs
+    }) %>%
+      # Filter tacs files to only those with seg or label
+      dplyr::filter(!is.na(seg) | !is.na(label))
+  }
 
   # If no valid tacs files, return empty
   if (nrow(tacs_data) == 0) {
     return(tibble::tibble(tacs_path = character(0), morph_path = character(0)))
   }
 
-  # Extract attributes from all morph files
-  morph_data <- purrr::map_dfr(morph_files, function(f) {
-    attrs <- extract_bids_attributes_from_filename(f)
-    attrs$morph_path <- f
-    attrs
-  })
+  morph_data <- if (length(morph_files) == 0) {
+    tibble::tibble()
+  } else {
+    purrr::map_dfr(morph_files, function(f) {
+      attrs <- extract_bids_attributes_from_filename(f)
+      attrs$morph_path <- f
+      attrs
+    }) %>%
+      # Filter morph files to only those with seg or label
+      dplyr::filter(!is.na(seg) | !is.na(label))
+  }
 
-  # Filter morph files to only those with seg or label
-  morph_data <- morph_data %>%
-    dplyr::filter(!is.na(seg) | !is.na(label))
-
-  # If no valid morph files, return tacs with NA morph paths
+  # If no valid morph files, return tacs with NA morph paths. Every region is
+  # then combined with equal weighting -- see get_region_volumes_from_morph().
   if (nrow(morph_data) == 0) {
     return(tibble::tibble(
       tacs_path = tacs_data$tacs_path,
@@ -852,9 +861,13 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
 #' @param participant_data Participant data loaded from BIDS directory (optional)
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
+#' @param merge_runs Whether the runs of a measurement are consecutive scans of
+#'   a single injection, and should be pooled into one measurement with no `run`
+#'   entity (`TRUE`, the default), or separate injections which must stay apart
+#'   (`FALSE`). See [merge_tacs_runs()].
 #' @return Tibble with all combined TACs data in long format with BIDS attributes
 #' @export
-create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL, cores = 1L) {
+create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_folder, output_dir, bids_dir = NULL, participant_data = NULL, cores = 1L, merge_runs = TRUE) {
   
   # Validate inputs
   if (!file.exists(petfit_regions_files_path)) {
@@ -983,6 +996,14 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     }
 
     # Add BIDS attributes to each row and ensure they stay as character
+    # TimeZero places this measurement's runs on a common clock. The
+    # derivative sidecar is preferred where a pipeline propagated it; otherwise
+    # it comes from the raw _pet.json, which needs a bids_dir.
+    time_zero <- pet_metadata$TimeZero %||% NA_character_
+    if (is.na(time_zero)) {
+      time_zero <- lookup_pet_time_zero(study_data, bids_attributes)
+    }
+
     combined_results_with_bids <- combined_results %>%
       dplyr::mutate(
         sub = as.character(bids_attributes$sub),
@@ -991,6 +1012,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
         rec = as.character(bids_attributes$rec),
         task = as.character(bids_attributes$task),
         run = as.character(bids_attributes$run),
+        time_zero = as.character(time_zero),
         segmentation = segmentation_value,
         pet = as.character(bids_attributes$pet),
         InjectedRadioactivity = as.numeric(pet_metadata$InjectedRadioactivity),
@@ -1060,7 +1082,7 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     }
 
     # Column order: sub, ses, trc, rec, task, run, segmentation, pet, InjectedRadioactivity, bodyweight, [participant_columns], region, volume_mm3, frame_*, seg_meanTAC, TAC
-    base_columns <- c("sub", "ses", "trc", "rec", "task", "run", "segmentation", "pet", "InjectedRadioactivity", "bodyweight")
+    base_columns <- c("sub", "ses", "trc", "rec", "task", "run", "time_zero", "segmentation", "pet", "InjectedRadioactivity", "bodyweight")
     frame_columns <- c("frame_start", "frame_end", "frame_dur", "frame_mid")
     end_columns <- c("region", "volume_mm3", frame_columns, "seg_meanTAC", "TAC")
 
@@ -1086,6 +1108,25 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
     warning("No regions were successfully combined across all files")
     return(tibble::tibble())
   }
+
+  # Merging happens before the identifiers are built, because that is all a
+  # merge is: the rows of two runs are already pooled in this long-format
+  # table, and dropping `run` from what identifies a measurement is what joins
+  # them into one. The checks live in merge_tacs_runs().
+  runs_merged <- FALSE
+  if (isTRUE(merge_runs)) {
+    merge_result <- merge_tacs_runs(all_combined_data)
+    all_combined_data <- merge_result$data
+    runs_merged <- isTRUE(merge_result$merged)
+    cat(paste0(merge_result$messages, collapse = "\n"), "\n")
+  } else {
+    cat("Run merging is off: each run is kept as a separate measurement.\n")
+  }
+
+  # TimeZero exists only to align runs, and has no place in the output. The
+  # merge drops it; this covers the case where no merge ran.
+  all_combined_data <- dplyr::select(all_combined_data,
+                                     -dplyr::any_of("time_zero"))
 
   # Build each measurement's identifier from its own entities -- all of them,
   # in the BIDS filename order pet_key() uses. Building it from only the
@@ -1119,7 +1160,8 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
         participants_metadata = participant_data$metadata, 
         injected_radioactivity_units = "kBq",  # Always kBq since we standardize to this unit
         original_tac_units = "kBq",  # TAC units are now standardized to kBq
-        output_dir = output_dir
+        output_dir = output_dir,
+        merged_runs = runs_merged
       )
     }
   } else {
@@ -1128,7 +1170,8 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
       participants_metadata = NULL,
       injected_radioactivity_units = "kBq", 
       original_tac_units = "kBq",
-      output_dir = output_dir
+      output_dir = output_dir,
+      merged_runs = runs_merged
     )
   }
   
@@ -1147,6 +1190,60 @@ create_petfit_combined_tacs <- function(petfit_regions_files_path, derivatives_f
   
   return(all_combined_data)
 }
+#' Does This Dataset Have More Than One Run per Measurement?
+#'
+#' @description Report whether any measurement in a derivatives folder is
+#'   represented by more than one run.
+#'
+#'   Used to decide whether the run merging option is worth putting in front of
+#'   a user. The mere presence of a `run` entity is not enough: a dataset
+#'   labelled `run-01` throughout has nothing to merge, so the question is
+#'   whether any one measurement has several runs.
+#'
+#'   Read from the filenames rather than from the TACs themselves, so it costs
+#'   a directory listing and can be answered before the app opens.
+#'
+#' @param derivatives_folder Character string path to the derivatives folder.
+#' @return `TRUE` when at least one measurement has two or more runs.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' dataset_has_multiple_runs("/path/to/derivatives")
+#' }
+dataset_has_multiple_runs <- function(derivatives_folder) {
+
+  if (is.null(derivatives_folder) || !dir.exists(derivatives_folder)) {
+    return(FALSE)
+  }
+
+  tacs_paths <- list.files(derivatives_folder, pattern = "_tacs\\.tsv$",
+                           recursive = TRUE)
+  tacs_paths <- tacs_paths[!stringr::str_detect(
+    tacs_paths, "desc-combinedregions_tacs\\.tsv$")]
+
+  if (length(tacs_paths) == 0) {
+    return(FALSE)
+  }
+
+  runs <- stringr::str_match(basename(tacs_paths), "_run-([a-zA-Z0-9]+)")[, 2]
+
+  if (all(is.na(runs))) {
+    return(FALSE)
+  }
+
+  # Everything but the run entity identifies the measurement. The whole
+  # relative path is used, so the same measurement under two pipelines or two
+  # segmentations counts separately rather than colliding.
+  keys <- stringr::str_remove(tacs_paths, "_run-[a-zA-Z0-9]+")
+
+  distinct_runs <- tapply(runs, keys, function(x) {
+    length(unique(x[!is.na(x)]))
+  })
+
+  any(distinct_runs > 1, na.rm = TRUE)
+}
+
 #' Find Folders Containing TACs Files
 #'
 #' @description Identifies directories that contain *_tacs.tsv files
@@ -1507,7 +1604,11 @@ extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relativ
     # The measurement whose dose units were assumed, for the caller to warn
     # about once, or NA where nothing was assumed.
     AssumedDoseUnitsFor = NA_character_,
-    bodyweight = NA_real_
+    bodyweight = NA_real_,
+    # The clock time the frame times are relative to, for placing the runs of
+    # one measurement on a common clock. Most pipelines do not propagate it
+    # into their _tacs.json, in which case it is read from the raw _pet.json.
+    TimeZero = NA_character_
   )
 
   if (!file.exists(json_full_path)) {
@@ -1531,6 +1632,10 @@ extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relativ
     # Extract body_weight (if present)
     if ("body_weight" %in% names(json_data)) {
       result$bodyweight <- as.numeric(json_data$body_weight)
+    }
+
+    if ("TimeZero" %in% names(json_data)) {
+      result$TimeZero <- as.character(json_data$TimeZero)[1]
     }
 
     # An unlabelled dose is assumed to be MBq rather than passed through as
@@ -1569,6 +1674,68 @@ extract_pet_metadata_from_tacs_json <- function(derivatives_folder, tacs_relativ
   })
 
   return(result)
+}
+
+#' Look Up a Measurement's TimeZero in a Parsed BIDS Study
+#'
+#' @description Read the BIDS `TimeZero` of one acquisition from the raw
+#'   `_pet.json` metadata that [kinfitr::bids_parse_study()] has already
+#'   collected, matching on whichever entities the measurement carries.
+#'
+#'   `TimeZero` is what lets the runs of one measurement be placed on a common
+#'   clock. It lives in the raw sidecars, and the preprocessing pipelines
+#'   generally do not carry it into their `_tacs.json`, so a run given only a
+#'   derivatives directory usually has none -- which is handled by taking the
+#'   frame times as already shared. See [merge_tacs_runs()].
+#'
+#' @param study_data Parsed study, as returned by [kinfitr::bids_parse_study()],
+#'   or `NULL`.
+#' @param attributes One row of BIDS attributes, as returned by
+#'   [extract_bids_attributes_from_filename()].
+#' @return The `TimeZero` string, or `NA_character_` when it cannot be found.
+#' @export
+lookup_pet_time_zero <- function(study_data, attributes) {
+
+  if (is.null(study_data) || nrow(study_data) == 0) {
+    return(NA_character_)
+  }
+
+  matching <- dplyr::ungroup(study_data)
+
+  # Every entity the measurement names and the study carries has to agree. An
+  # entity the filename is silent about is not filtered on, so a study which
+  # records more entities than the derivative filename does still matches.
+  for (entity in c("sub", "ses", "task", "trc", "rec", "run")) {
+
+    wanted <- attributes[[entity]]
+    if (is.null(wanted) || length(wanted) == 0 || is.na(wanted[1]) ||
+        !nzchar(as.character(wanted[1])) ||
+        !entity %in% colnames(matching)) {
+      next
+    }
+
+    matching <- matching[!is.na(matching[[entity]]) &
+                           as.character(matching[[entity]]) ==
+                           as.character(wanted[1]), , drop = FALSE]
+  }
+
+  if (nrow(matching) == 0) {
+    return(NA_character_)
+  }
+
+  pet_info <- matching$petinfo[[1]]
+
+  if (is.null(pet_info) || length(pet_info) == 0 ||
+      !"TimeZero" %in% names(pet_info)) {
+    return(NA_character_)
+  }
+
+  time_zero <- pet_info$TimeZero
+  if (length(time_zero) == 0 || is.na(time_zero[1])) {
+    return(NA_character_)
+  }
+
+  as.character(time_zero[1])
 }
 
 #' Extract PET Metadata from BIDS Directory using kinfitr
@@ -1737,9 +1904,13 @@ detect_original_tac_units <- function(derivatives_folder, tacs_relative_path) {
 #' @param injected_radioactivity_units Units for InjectedRadioactivity (can be NA)
 #' @param original_tac_units Original radioactivity units detected from source TACs files (default "Bq")
 #' @param output_dir Directory to save the JSON file
+#' @param merged_runs Whether the runs of each measurement were **actually**
+#'   pooled into one measurement -- not merely whether merging was asked for.
+#'   Recorded in the sidecar so that a later step can tell whether an empty
+#'   `run` column means "merged" or "no runs in this dataset".
 #' @return Path to created JSON file
 #' @export
-create_combined_tacs_json_description <- function(participants_metadata, injected_radioactivity_units, original_tac_units = "Bq", output_dir) {
+create_combined_tacs_json_description <- function(participants_metadata, injected_radioactivity_units, original_tac_units = "Bq", output_dir, merged_runs = TRUE) {
   
   # Base column descriptions (following kinfitr BIDS pattern, excluding acq as it's deprecated)
   base_descriptions <- list(
@@ -1748,7 +1919,12 @@ create_combined_tacs_json_description <- function(participants_metadata, injecte
     "trc" = list("Description" = "Tracer identifier"),
     "rec" = list("Description" = "Reconstruction identifier"),
     "task" = list("Description" = "Task identifier"),
-    "run" = list("Description" = "Run identifier"),
+    "run" = list("Description" = if (isTRUE(merged_runs)) {
+      paste("Run identifier. Empty because the runs of each measurement were",
+            "merged into a single measurement, so no run identifies it.")
+    } else {
+      "Run identifier"
+    }),
     "segmentation" = list("Description" = "Segmentation identifier from preprocessing pipeline"),
     "pet" = list("Description" = "PET measurement identifier"),
     "bodyweight" = list("Description" = "Body weight of participant for SUV calculation", "Units" = "kg"),
@@ -1789,6 +1965,12 @@ create_combined_tacs_json_description <- function(participants_metadata, injecte
   # between versions, so every later step needs to know whether the file it is
   # reading predates its own expectations.
   combined_descriptions[["GeneratedBy"]] <- list(petfit_generated_by())
+
+  # Whether the runs of each measurement were pooled. Without this, an empty
+  # `run` column is ambiguous: a dataset with no runs at all looks identical to
+  # one whose runs were merged, and the two mean different things for anybody
+  # reading the measurement identifiers.
+  combined_descriptions[["MergedRuns"]] <- isTRUE(merged_runs)
 
   # Write JSON file
   output_file <- file.path(output_dir, "desc-combinedregions_tacs.json")

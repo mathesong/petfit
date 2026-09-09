@@ -5,13 +5,21 @@
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to derivatives directory (default: bids_dir/derivatives if bids_dir provided)
 #' @param petfit_output_foldername Character string name for petfit output folder within derivatives (default: "petfit")
+#' @param regions_file Character string path to an external `petfit_regions.tsv` to start from
+#'   (optional). The file is copied into the config write directory, replacing any regions file
+#'   already there, and the app then opens with its regions loaded.
 #' @param cores Number of cores to use when fitting in parallel. `1` (the
 #'   default) fits sequentially.
+#' @param merge_runs Initial state of the "Merge runs" option (default: `TRUE`).
+#'   When ticked, the runs of each measurement are treated as consecutive scans
+#'   of a single injection and pooled into one measurement with no `run` entity.
+#'   Untick it for datasets where each run is its own injection. The user can
+#'   change it in the app; this only sets what the box starts as.
 #' @details Config files (petfit_regions.tsv) are saved to:
 #'   - bids_dir/code/petfit if bids_dir provided
 #'   - derivatives_dir/petfit_output_foldername if no bids_dir
 #' @export
-region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L) {
+region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfit_output_foldername = "petfit", cores = 1L, regions_file = NULL, merge_runs = TRUE) {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -28,8 +36,9 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   }
   
   # Set directories for reading and writing config files
-  # Always write to derivatives/petfit (base petfit folder, same as combined_regions)
-  write_config_dir <- file.path(derivatives_dir, "petfit")
+  # Always write to the petfit output folder (same as combined_regions, and the
+  # same place petfit_regiondef_auto() reads from)
+  write_config_dir <- file.path(derivatives_dir, petfit_output_foldername)
   
   # For reading: check derivatives/petfit first, then BIDS code directory
   read_config_dirs <- c(write_config_dir)
@@ -80,7 +89,18 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   # Initialize petfit_regions.tsv file with read/write logic
   # Always write to write_config_dir
   write_regions_file <- file.path(write_config_dir, "petfit_regions.tsv")
-  
+
+  # An externally supplied regions file is copied into the write directory
+  # before the search below, so the app opens with its regions loaded and the
+  # file which drove this session is stored alongside the outputs.
+  if (!is.null(regions_file)) {
+    check_external_regions_file(regions_file, derivatives_dir = derivatives_dir)
+    regions_install <- install_external_file(regions_file, write_regions_file,
+                                             label = "regions file")
+    cat(regions_install$messages, sep = "\n")
+    cat("\n")
+  }
+
   # Find existing regions file by checking read directories in order
   existing_write_regions_file <- NULL
   for (dir in read_config_dirs) {
@@ -161,7 +181,8 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
   tacs_list <- tryCatch({
     create_tacs_list(derivatives_dir)
   }, error = function(e) {
-    cat("Warning: Could not create TACs list:", e$message, "\n")
+    cat("Warning: Could not create TACs list:\n",
+        petfit_error_detail(e), "\n", sep = "")
     cat("Creating empty TACs list for now.\n")
     tibble::tibble(
       tacs_filedescription = character(0),
@@ -171,6 +192,20 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
     )
   })
   
+  # Whether any measurement here has more than one run. The option is only
+  # shown when it can do something: a dataset with one run per measurement, or
+  # none at all, has nothing to merge, and an inert control invites the user to
+  # think about a decision that does not exist.
+  has_multiple_runs <- tryCatch(
+    dataset_has_multiple_runs(derivatives_dir),
+    error = function(e) FALSE)
+
+  if (has_multiple_runs) {
+    cat("Measurements in this dataset have more than one run. Their runs will",
+        "be merged into a single measurement unless the Merge runs option is",
+        "unticked.\n")
+  }
+
   # UI for region definition app
   ui <- fluidPage(
     theme = shinythemes::shinytheme("flatly"),
@@ -222,6 +257,16 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
         actionButton("remove_all_regions", "Remove All Regions", 
                     class = "btn-danger", style = "background-color: #8B0000; border-color: #8B0000;"),
         
+        if (has_multiple_runs) {
+          tagList(
+            hr(),
+            h4("Run Handling"),
+            checkboxInput("merge_runs",
+                          "Merge runs of the same measurement",
+                          value = isTRUE(merge_runs))
+          )
+        },
+
         hr(),
         actionButton("generate_tacs", HTML("&#9654; Generate Combined TACs"), 
                     class = "btn-success", style = "font-weight: bold;"),
@@ -1008,7 +1053,11 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
         cat("Processing all regions...\n")
         
         # Use consolidated TACs creation instead of separate files
-        combined_data <- create_petfit_combined_tacs(petfit_regions_files_path, derivatives_folder, combined_output_folder, bids_dir, participant_data, cores = cores)
+        combined_data <- create_petfit_combined_tacs(petfit_regions_files_path, derivatives_folder, combined_output_folder, bids_dir, participant_data, cores = cores,
+                                                    # The checkbox is only rendered when some measurement has
+                                                    # more than one run, so its absence is not a missing answer --
+                                                    # it is the answer: there was nothing to merge.
+                                                    merge_runs = isTRUE(input$merge_runs))
         
         # Show success notification with summary  
         total_rows <- nrow(combined_data)
@@ -1043,9 +1092,10 @@ region_definition_app <- function(bids_dir = NULL, derivatives_dir = NULL, petfi
         # Remove processing notification on error
         removeNotification("processing_tacs")
         
-        error_msg <- paste("Error generating combined TACs:", e$message)
-        showNotification(error_msg, type = "error", duration = 10)
-        cat("Error:", e$message, "\n")
+        error_detail <- petfit_error_detail(e)
+        showNotification(paste("Error generating combined TACs:", error_detail),
+                         type = "error", duration = 10)
+        cat("Error generating combined TACs:\n", error_detail, "\n", sep = "")
       })
     })
   }

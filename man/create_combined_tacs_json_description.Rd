@@ -8,7 +8,8 @@ create_combined_tacs_json_description(
   participants_metadata,
   injected_radioactivity_units,
   original_tac_units = "Bq",
-  output_dir
+  output_dir,
+  merged_runs = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,11 @@ create_combined_tacs_json_description(
 \item{original_tac_units}{Original radioactivity units detected from source TACs files (default "Bq")}
 
 \item{output_dir}{Directory to save the JSON file}
+
+\item{merged_runs}{Whether the runs of each measurement were \strong{actually}
+pooled into one measurement -- not merely whether merging was asked for.
+Recorded in the sidecar so that a later step can tell whether an empty
+\code{run} column means "merged" or "no runs in this dataset".}
 }
 \value{
 Path to created JSON file

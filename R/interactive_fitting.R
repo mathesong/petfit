@@ -520,7 +520,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     k2.upper = .bound(model_config, "k2", "upper", 1),
     bp.start = .bound(model_config, "BPnd", "start", 1.5),
     bp.lower = .bound(model_config, "BPnd", "lower", 0),
-    bp.upper = .bound(model_config, "BPnd", "upper", 15),
+    bp.upper = .bound(model_config, "BPnd", "upper", 25),
     multstart_iter = model_config$multstart_iter %||% 1
   )
 }
@@ -535,7 +535,7 @@ fit_single_measurement_ref <- function(analysis_folder, model_number, pet, regio
     R1.upper = .bound(model_config, "R1", "upper", 10),
     bp.start = .bound(model_config, "BPnd", "start", 1.5),
     bp.lower = .bound(model_config, "BPnd", "lower", 0),
-    bp.upper = .bound(model_config, "BPnd", "upper", 15),
+    bp.upper = .bound(model_config, "BPnd", "upper", 25),
     multstart_iter = model_config$multstart_iter %||% 1
   )
 }

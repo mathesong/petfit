@@ -24,7 +24,10 @@ modelling_ref_app(
 
 \item{analysis_foldername}{Character string name for analysis folder (default: "Primary_Analysis")}
 
-\item{config_file}{Character string path to existing config file (optional)}
+\item{config_file}{Character string path to an external config file to start from
+(optional). The file is copied into the analysis folder as
+\code{desc-petfitoptions_config.json}, replacing any config already there, and the app
+then opens with its settings loaded.}
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}

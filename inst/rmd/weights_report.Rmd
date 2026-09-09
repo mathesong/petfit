@@ -478,12 +478,10 @@ weights_plot <- ggplot(shared_weights, aes(x = frame_mid/60, y = weights,
   theme_minimal() +
   guides(colour = "none")
 
-ggplotly(weights_plot, tooltip = "text") %>%
+ggplotly(weights_plot, tooltip = "text", width = 800, height = 500) %>%
   highlight(on = "plotly_hover", off = "plotly_doubleclick", 
            opacityDim = 0.2) %>%
   layout(
-    width = 800,
-    height = 500,
     hovermode = "closest",
     updatemenus = list(
       list(
@@ -540,12 +538,10 @@ tac_plot <- ggplot(shared_tac, aes(x = frame_mid/60, y = TAC_norm,
   theme_minimal() +
   guides(colour = "none")
 
-ggplotly(tac_plot, tooltip = "text") %>%
+ggplotly(tac_plot, tooltip = "text", width = 800, height = 500) %>%
   highlight(on = "plotly_hover", off = "plotly_doubleclick", 
            opacityDim = 0.2) %>%
   layout(
-    width = 800,
-    height = 500,
     hovermode = "closest",
     showlegend = TRUE,
     legend = list(

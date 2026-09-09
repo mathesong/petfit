@@ -2,7 +2,30 @@
 
 For the full, detailed changelog, see [NEWS.md](https://github.com/mathesong/petfit/blob/main/NEWS.md) in the repository.
 
-## 0.2.1 (current)
+## 0.2.3 (current)
+
+- **Runs of a single injection are merged by default.** Where a measurement was acquired as two scanning occasions from one injection (`run-01` and `run-02`, or `run-early` and `run-late`), its runs are now pooled into one measurement and fitted together, and the `run` entity is dropped from the outputs. Untick **Merge runs of the same measurement** in the region definition app, or pass `--no-merge-runs` / `--no_merge_runs` / `merge_runs = FALSE`, for datasets where each run is its own injection. Blood data is pooled to match when it comes from the raw BIDS `_blood.tsv` files; already-processed input functions must already be merged, and the reports say so rather than pairing a merged measurement with one run's blood curve. Runs are placed on one clock by their `TimeZero` difference, matching `bloodstream`'s rule; without a usable `TimeZero` (a derivatives-only run) the times are taken as already shared, and overlapping frames are an error either way. See [Merging runs](usage/region-definition.md#merging-runs)
+- The default upper bound on BPnd is now 25, up from 5 in the reference tissue app and 15 in the report and sandbox fallbacks
+- Fixed: the reference tissue app read an old config's `k2a` bounds into the `BPnd` fields, carrying a binding-potential ceiling of 0.5 that would peg every fit at the bound. The compatibility branch is removed; such configs now open with the current `BPnd` defaults
+- Removed unreachable model branches from both modelling apps' config save and restore paths — reference tissue models (`refLogan`, `SRTM`, `MRTM1`, `MRTM2`) from the plasma input app and plasma models (`1TCM`, `2TCM`, `Logan`, `MA1`) from the reference tissue app — left over from before the two apps were split
+- Fixed: deprecation warnings from ggplot2 (`guides(colour = FALSE)`) and plotly (plot dimensions in `layout()`) on every data definition and weights report
+- Fixed: a pipeline folder holding TACs files but no morph files failed with `object 'seg' not found` and left the region definition app with no TACs files at all. Such a folder is now mapped to `NA` morph paths and combined with equal weighting
+- Fixed: errors from dplyr and purrr pipelines reported the line that was running rather than the cause. `petfit_error_detail()` walks the condition chain, and the region definition app uses it
+- **External config and regions files:** the CLI can now be pointed at a config file, or a `petfit_regions.tsv`, which lives outside the dataset — `--config-file` and `--regions-file` in the `petfit-docker` wrapper, `--config_file` and `--regions_file` on the container, `config_file` and `regions_file` in the R functions. The file is copied into the folder petfit reads it from, so the settings which produced a run are always stored beside its outputs, and supplying a config creates the analysis folder if it does not yet exist
+- Fixed: the `config_file` argument of `petfit_interactive()` and the modelling apps was accepted and validated but never actually applied
+
+## 0.2.2
+
+- **New `SUVR` outcome, reporting both SUV and SUVR.** A reference-tissue outcome which integrates rather than fits: the target region's area under the TAC over a window, over the reference region's area over the same window. It needs no blood data, and the window is set under **TAC Subset Selection**. Thanks to @mnoergaard (#37)
+- SUVR is always available; SUV is reported only when the injected radioactivity is known, falling back to an assumed 70 kg body weight — applied to every measurement so SUV means the same thing across the cohort, and stated as a warning in the reports
+- **Units in the JSON sidecars:** every output sidecar now states its units in the BIDS data dictionary form, read from `desc-combinedregions_tacs.json` rather than asserted per report. `petfit_tac_units()` is the accessor
+- Fixed: a dose with `InjectedRadioactivity` but no `InjectedRadioactivityUnits` was silently passed through untouched. It is now read as MBq, warning once per measurement
+- **Reference TAC fixes**, all thanks to @mnoergaard (#38, #39): the configured spline degrees of freedom now actually reach the fit; a reference TAC which cannot be splined falls back to the raw TAC and says so; and spline-fitted TACs are plotted and saved on the PET frame timing
+- Fixed: the analysis folder's own path was being read as BIDS entities when inheriting a delay, `vB` or k2prime, so a hyphenated directory could act as a join key and silently drop rows. The inherited file's `model` entity no longer follows it out either
+- `k2a` now appears in the MRTM1 and MRTM2 parameter histograms
+- Fixed: a saved TAC subset window was not restored in the reference tissue app, and a window was recorded even under a selection method of "None"
+
+## 0.2.1
 
 - New **nested models**, which fit all the regions of a PET measurement jointly and share the parameters that belong to the measurement rather than the region: `nested2TCM` (plasma input, sharing V<sub>ND</sub> and/or k4) and `nestedSRTM` (reference tissue, sharing k2prime). See [Nested models](models.md#nested-models)
 - New **nested delay estimation** methods (`nested_1tcm`, `nested_2tcm`), estimating one shared delay per measurement instead of taking the median of independent per-region estimates

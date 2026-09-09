@@ -10,7 +10,8 @@ create_petfit_combined_tacs(
   output_dir,
   bids_dir = NULL,
   participant_data = NULL,
-  cores = 1L
+  cores = 1L,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -26,6 +27,11 @@ create_petfit_combined_tacs(
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}
+
+\item{merge_runs}{Whether the runs of a measurement are consecutive scans of
+a single injection, and should be pooled into one measurement with no \code{run}
+entity (\code{TRUE}, the default), or separate injections which must stay apart
+(\code{FALSE}). See \code{\link[=merge_tacs_runs]{merge_tacs_runs()}}.}
 }
 \value{
 Tibble with all combined TACs data in long format with BIDS attributes

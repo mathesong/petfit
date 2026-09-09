@@ -8,7 +8,9 @@ petfit_regiondef_auto(
   bids_dir = NULL,
   derivatives_dir = NULL,
   petfit_output_foldername = "petfit",
-  cores = 1L
+  cores = 1L,
+  regions_file = NULL,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -20,6 +22,14 @@ petfit_regiondef_auto(
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}
+
+\item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to use for this
+run (optional). The file is copied into the petfit output folder, replacing any regions file
+already there, and is then used exactly as if it had been found by the usual search.}
+
+\item{merge_runs}{Whether the runs of each measurement are consecutive scans of a single
+injection, and should be pooled into one measurement with no \code{run} entity (\code{TRUE}, the
+default), or separate injections which must stay apart (\code{FALSE}). See \code{\link[=merge_tacs_runs]{merge_tacs_runs()}}.}
 }
 \value{
 List with execution result and messages

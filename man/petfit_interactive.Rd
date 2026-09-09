@@ -14,7 +14,9 @@ petfit_interactive(
   config_file = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  regions_file = NULL,
+  merge_runs = TRUE
 )
 }
 \arguments{
@@ -30,7 +32,9 @@ petfit_interactive(
 
 \item{analysis_foldername}{Character string name for analysis folder (default: "Primary_Analysis", for modelling apps)}
 
-\item{config_file}{Character string path to existing config file (optional, for modelling apps)}
+\item{config_file}{Character string path to an external config file to start from (optional,
+for modelling apps). It is copied into the analysis folder, replacing any config already
+there, and the app opens with its settings loaded. Ignored by the regiondef app.}
 
 \item{cores}{Number of cores to use when fitting in parallel. \code{1} (the
 default) fits sequentially.}
@@ -41,6 +45,15 @@ default) fits sequentially.}
 \item{ancillary_analysis_folder}{Character string name of a sibling analysis subfolder to inherit
 delay or k2prime estimates from (optional, for modelling apps). Must be a subfolder name
 (e.g., "Ancillary_Analysis"), not a full path.}
+
+\item{regions_file}{Character string path to an external \code{petfit_regions.tsv} to start from
+(optional, for the regiondef app). It is copied into the config write directory, replacing
+any regions file already there. Ignored by the modelling apps.}
+
+\item{merge_runs}{Initial state of the regiondef app's "Merge runs" option (default: \code{TRUE}).
+When ticked, the runs of each measurement are treated as consecutive scans of a single
+injection and pooled into one measurement with no \code{run} entity. Ignored by the modelling
+apps, which read what region definition decided.}
 }
 \description{
 Launch a specified petfit interactive Shiny application
@@ -55,7 +68,7 @@ This function provides a unified interface to launch petfit interactive applicat
 
 Parameter usage:
 \itemize{
-\item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername
+\item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file, merge_runs
 \item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
 \item modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
 }

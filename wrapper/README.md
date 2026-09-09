@@ -84,6 +84,51 @@ petfit-docker /path/to/bids /path/to/derivatives participant \
   --automatic
 ```
 
+Run modelling from a config file kept outside the dataset:
+
+```bash
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app modelling_ref \
+  --automatic \
+  --analysis-foldername Shared_Settings \
+  --config-file /path/to/petfit_config.json
+```
+
+The wrapper bind-mounts that single file into the container, where PETFit copies
+it into the analysis folder as `desc-petfitoptions_config.json` before running,
+so the settings which produced the outputs sit beside them. The analysis folder
+is created if it does not exist yet, so an external config can start a fresh
+analysis. The console reports the copy, and says so explicitly when it replaced
+a config already in that folder.
+
+The region definition app takes an external `petfit_regions.tsv` the same way:
+
+```bash
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app regiondef \
+  --automatic \
+  --regions-file /path/to/petfit_regions.tsv
+```
+
+Each of the two belongs to one app: `--config-file` is ignored by `regiondef`,
+and `--regions-file` is ignored by the modelling apps.
+
+## Merging runs
+
+Region definition pools a measurement's runs into one measurement by default,
+for the common case where `run-01` and `run-02` are two scanning occasions from
+a single injection. The `run` entity is then absent from the outputs. Pass
+`--no-merge-runs` for datasets where each run is a separate injection:
+
+```bash
+petfit-docker /path/to/bids /path/to/derivatives participant \
+  --app regiondef \
+  --automatic \
+  --no-merge-runs
+```
+
+The option belongs to `regiondef` alone, and is ignored by the modelling apps.
+
 Open a shell in the image:
 
 ```bash

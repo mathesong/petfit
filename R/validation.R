@@ -50,8 +50,18 @@ check_no_commas <- function(values, field = NULL) {
 #' @noRd
 describe_available_values <- function(available, column) {
   if (length(available) == 0) {
+    # An empty `run` column is the ordinary outcome of run merging rather than
+    # a sign of missing data, and subsetting by run is the one thing merging
+    # makes impossible. Say so here, where the user is looking.
+    hint <- if (identical(column, "run")) {
+      paste0(" Runs were either merged in the region definition step, which",
+             " drops the run entity, or the dataset has no runs at all; either",
+             " way there is no run left to subset by.")
+    } else {
+      ""
+    }
     return(paste0("Available: none - no row in the data carries a ",
-                  column, " value."))
+                  column, " value.", hint))
   }
 
   shown <- available[seq_len(min(20L, length(available)))]

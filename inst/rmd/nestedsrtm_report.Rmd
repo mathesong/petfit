@@ -312,7 +312,7 @@ R1_upper <- model_config$R1$upper %||% 10
 
 bp_start <- model_config$BPnd$start %||% 1.5
 bp_lower <- model_config$BPnd$lower %||% 0
-bp_upper <- model_config$BPnd$upper %||% 15
+bp_upper <- model_config$BPnd$upper %||% 25
 
 k2prime_start <- model_config$k2prime$start %||% 0.1
 k2prime_lower <- model_config$k2prime$lower %||% 0.001
