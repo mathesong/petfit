@@ -1,5 +1,15 @@
 # petfit 0.2.3
 
+## Weights
+
+* **Fixed: custom weighting formulas were not properly rescaled between the minimum
+  weight and 1.** The weights and reference TAC reports' custom-formula path
+  carried a copy of the operator-precedence slip fixed in kinfitr 0.9.6's
+  `weights_create()`, which subtracted `min / (1 - min)` from every weight
+  instead of computing `(weight - min) / (1 - min)`. The numbered methods call
+  `weights_create()` itself, so they are corrected by kinfitr 0.9.6. In a test
+  dataset, this led to no more than a 1 percent change in weights.
+
 ## Merging the runs of a single injection
 
 * **A measurement's runs are now merged into one measurement by default**, for

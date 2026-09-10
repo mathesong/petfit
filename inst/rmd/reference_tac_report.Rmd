@@ -495,7 +495,7 @@ ref_weights_final <- ref_weights_output %>%
       minweights <- rep(minweight, length(calcweights))
       if (any(calcweights < minweights)) {
         min_calcweight <- min(calcweights[frame_dur != 0], na.rm = TRUE)
-        calcweights <- calcweights - min_calcweight / (1 - min_calcweight)
+        calcweights <- (calcweights - min_calcweight) / (1 - min_calcweight)
         calcweights <- minweights + calcweights * (1 - minweights)
       }
 
