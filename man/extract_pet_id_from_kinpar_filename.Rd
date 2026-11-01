@@ -14,5 +14,5 @@ Character string PET ID
 }
 \description{
 Extract the PET measurement identifier from a kinpar filename.
-The PET ID is the portion before any \emph{model} or _desc- prefix.
+The PET ID is the portion before any _model- or _desc- entity.
 }

@@ -84,6 +84,17 @@
 
 ## Fixes
 
+* **Fixed: k2prime inherited from an ancillary analysis was 0.1 for every
+  measurement.** The PET ID was read from the kinpar filename by removing
+  `_model_`, but those files are named `_model-<type>_`, so no measurement ever
+  matched, and each fell back to k2prime = 0.1 with only a warning. Results from
+  SRTM2, refLogan and MRTM2 models using an `ancillary_model*` k2prime source
+  were affected, and should be rerun.
+
+* **A measurement with no k2prime in the ancillary analysis is now an error.**
+  This also applies when the ancillary folder is unavailable. Before, these
+  measurements were fitted with k2prime = 0.1.
+
 * **A pipeline folder holding TACs but no morph files no longer breaks the whole
   derivatives folder.** It failed with `object 'seg' not found`, leaving the
   region definition app with no TACs files at all; such a folder now falls back

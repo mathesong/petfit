@@ -364,7 +364,7 @@ test_that("read_ancillary_k2prime works with synthetic kinpar files in integrati
     )
     readr::write_tsv(
       kinpar_data,
-      file.path(pet_dir, paste0(pet_id, "_model_MRTM1_desc-model1_kinpar.tsv"))
+      file.path(pet_dir, paste0(pet_id, "_model-MRTM1_desc-model1_kinpar.tsv"))
     )
   }
 
@@ -420,7 +420,7 @@ test_that("petfit_modelling_auto validates ancillary k2prime and passes path thr
   )
   readr::write_tsv(
     kinpar_data,
-    file.path(pet_dir, "sub-01_ses-01_model_MRTM1_desc-model1_kinpar.tsv")
+    file.path(pet_dir, "sub-01_ses-01_model-MRTM1_desc-model1_kinpar.tsv")
   )
 
   # Validate the ancillary folder can be scanned
@@ -487,7 +487,6 @@ test_that("reference pipeline inherits k2prime from ancillary SRTM analysis", {
   config <- jsonlite::fromJSON(primary_config_path)
   config$Models$Model1$type <- "MRTM2"
   config$Models$Model1$k2prime_source <- "ancillary_model1_median"
-  config$Models$Model1$k2prime <- 0.1  # fallback value
   config$Models$Model1$use_weights <- TRUE
   jsonlite::write_json(config, primary_config_path,
                        pretty = TRUE, auto_unbox = TRUE)
@@ -509,6 +508,14 @@ test_that("reference pipeline inherits k2prime from ancillary SRTM analysis", {
   report_path <- file.path(primary_dir, "reports", "model1_report.html")
   expect_true(file.exists(report_path),
               info = "MRTM2 model report should be generated with inherited k2prime")
+
+  # The value used is the ancillary analysis's own, from its real kinpar filenames
+  pet_ids <- purrr::map_chr(ancillary_kinpar_files,
+                            ~extract_pet_id_from_kinpar_filename(basename(.x)))
+  inherited <- read_ancillary_k2prime(ancillary_dir, model_num = 1, aggregation = "median",
+                                      pet_ids = pet_ids)
+  expect_setequal(inherited$pet, pet_ids)
+  expect_false(any(stringr::str_detect(pet_ids, "_model-")))
 
   # Verify the report mentions ancillary k2prime source
   report_content <- readLines(report_path)

@@ -103,9 +103,9 @@ test_that("scan_ancillary_contents finds model kinpar files", {
 
   # Create mock model kinpar files
   writeLines("region\tBPnd\tk2prime\nFrontal\t0.5\t0.1",
-             file.path(pet_dir, "sub-01_model_MRTM1_desc-model1_kinpar.tsv"))
+             file.path(pet_dir, "sub-01_model-MRTM1_desc-model1_kinpar.tsv"))
   writeLines("region\tBPnd\tk2prime\nFrontal\t0.5\t0.12",
-             file.path(pet_dir, "sub-01_model_MRTM2_desc-model2_kinpar.tsv"))
+             file.path(pet_dir, "sub-01_model-MRTM2_desc-model2_kinpar.tsv"))
 
   result <- scan_ancillary_contents(ancillary_dir)
   expect_equal(length(result$model1_kinpar), 1)
@@ -230,7 +230,7 @@ test_that("read_ancillary_k2prime reads and aggregates k2prime", {
     k2prime = c(0.10, 0.12, 0.08)
   )
   readr::write_tsv(kinpar_data,
-                   file.path(pet_dir, "sub-01_model_MRTM1_desc-model1_kinpar.tsv"))
+                   file.path(pet_dir, "sub-01_model-MRTM1_desc-model1_kinpar.tsv"))
 
   # Test mean aggregation
   result_mean <- read_ancillary_k2prime(ancillary_dir, model_num = 1, aggregation = "mean")
@@ -296,8 +296,56 @@ test_that("extract_pet_id_from_kinpar_filename works correctly", {
     "sub-01_ses-02_trc-WAY"
   )
   expect_equal(
-    extract_pet_id_from_kinpar_filename("sub-01_model_MRTM1_desc-model1_kinpar.tsv"),
+    extract_pet_id_from_kinpar_filename("sub-01_model-MRTM1_desc-model1_kinpar.tsv"),
     "sub-01"
+  )
+  expect_equal(
+    extract_pet_id_from_kinpar_filename("sub-101_ses-01_model-nestedSRTM_desc-model1_kinpar.tsv"),
+    "sub-101_ses-01"
+  )
+  expect_equal(
+    extract_pet_id_from_kinpar_filename("sub-01_ses-02_model-nested2TCM_desc-delayfit_kinpar.tsv"),
+    "sub-01_ses-02"
+  )
+})
+
+test_that("read_ancillary_k2prime matches PET IDs from real kinpar filenames", {
+  ancillary_dir <- withr::local_tempdir()
+  readr::write_tsv(
+    tibble::tibble(region = c("A", "B"), k2prime = c(0.11, 0.125)),
+    file.path(ancillary_dir, "sub-101_ses-01_model-nestedSRTM_desc-model1_kinpar.tsv")
+  )
+
+  result <- read_ancillary_k2prime(ancillary_dir, model_num = 1, aggregation = "median",
+                                   pet_ids = "sub-101_ses-01")
+
+  expect_equal(result$pet, "sub-101_ses-01")
+  expect_equal(result$k2prime, stats::median(c(0.11, 0.125)))
+})
+
+test_that("read_ancillary_k2prime errors rather than substituting a k2prime", {
+  ancillary_dir <- withr::local_tempdir()
+
+  expect_error(
+    read_ancillary_k2prime(ancillary_dir, model_num = 1, aggregation = "median",
+                           pet_ids = "sub-01"),
+    "No Model 1 kinpar files"
+  )
+
+  readr::write_tsv(
+    tibble::tibble(region = "A", k2prime = 0.12),
+    file.path(ancillary_dir, "sub-01_model-SRTM_desc-model1_kinpar.tsv")
+  )
+  readr::write_tsv(
+    tibble::tibble(region = "A", k2prime = NA_real_),
+    file.path(ancillary_dir, "sub-02_model-SRTM_desc-model1_kinpar.tsv")
+  )
+
+  # Missing altogether, and present with no usable value
+  expect_error(
+    read_ancillary_k2prime(ancillary_dir, model_num = 1, aggregation = "median",
+                           pet_ids = c("sub-01", "sub-02", "sub-03")),
+    "No k2prime value for these measurements.*sub-02, sub-03"
   )
 })
 

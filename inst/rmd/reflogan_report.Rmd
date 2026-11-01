@@ -372,22 +372,19 @@ str_glue("## Loading k2prime from Ancillary Analysis
 ancillary_path <- params$ancillary_path
 
 if (is.null(ancillary_path) || !dir.exists(ancillary_path)) {
-  cat("WARNING: Ancillary path not available. Using k2prime = 0.1 as fallback.\n")
-  k2prime_data <- tac_data %>%
-    select(any_of(c("sub", "ses", "trc", "rec", "task", "run", "pet"))) %>%
-    distinct() %>%
-    mutate(k2prime = 0.1)
-} else {
-  parsed <- parse_ancillary_k2prime_source(model_config$k2prime_source)
-  k2prime_data <- read_ancillary_k2prime(
-    ancillary_path = ancillary_path,
-    model_num = parsed$model_num,
-    aggregation = parsed$aggregation,
-    pet_ids = unique(tac_data$pet)
-  )
-  cat(str_glue("Loaded k2prime from ancillary Model {parsed$model_num} ({parsed$aggregation}):\n"))
-  print(k2prime_data)
+  stop("The model takes its k2prime from an ancillary analysis, but the ancillary ",
+       "folder is not available: ", ancillary_path %||% "none was provided")
 }
+
+parsed <- parse_ancillary_k2prime_source(model_config$k2prime_source)
+k2prime_data <- read_ancillary_k2prime(
+  ancillary_path = ancillary_path,
+  model_num = parsed$model_num,
+  aggregation = parsed$aggregation,
+  pet_ids = unique(tac_data$pet)
+)
+cat(str_glue("Loaded k2prime from ancillary Model {parsed$model_num} ({parsed$aggregation}):\n"))
+print(k2prime_data)
 ```
 
 
