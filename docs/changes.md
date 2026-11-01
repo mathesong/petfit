@@ -9,6 +9,8 @@ For the full, detailed changelog, see [NEWS.md](https://github.com/mathesong/pet
 - **Missing TAC values:** a region with no voxels is left out of the averages, frames missing in every region are skipped, and a region missing values in only some frames is left out of the average for that measurement with a warning. BIDS `n/a` values are read as missing, along with `NA` and blank cells
 - New weighting method 10: `frame_dur * tac_uncor` (courtesy of Jeih-San Liow)
 - Fixed: weights below the minimum weight were not rescaled correctly. In a test dataset, weights changed by no more than 1 percent
+- Fixed: custom formulas for target weights always failed with `non-numeric argument to binary operator`
+- Fixed: separate reference TAC weights were scaled across all measurements rather than per measurement. This affects fitted reference TACs with their own weighting method
 - `petfit-docker` now refuses an empty `output_dir`, and one named for a different petfit output folder than `--petfit-output-foldername`
 - petfit now requires kinfitr >= 0.9.7
 

@@ -414,7 +414,9 @@ Calculating weights for the reference region fitting using method: **{config$Ref
 ```
 
 ```{r load-weight-files, eval=calculate_ref_weights, echo=calculate_ref_weights}
-# Load existing weight files created by weights_report.Rmd
+# Load existing weight files created by weights_report.Rmd. Weights describe the
+# general radioactivity profile, so the TAC in these files is used by design,
+# rather than the reference region's own TAC.
 weight_files <- list.files(analysis_folder,
                           pattern = "*_desc-weights_weights.tsv",
                           recursive = TRUE,
@@ -431,6 +433,15 @@ ref_weights_tacdata <- tibble(
   mutate(weight_data = map(filename, ~read_tsv(.x, show_col_types = FALSE))) %>%
   unnest(weight_data) %>%
   select(pet, frame_start, frame_end, frame_dur, frame_mid, TAC)
+
+if (anyNA(ref_weights_tacdata$TAC) &&
+    weights_method_uses_tac(config$ReferenceTAC$weights_method,
+                            config$ReferenceTAC$weights_formula)) {
+  stop("The radioactivity profile used for weighting is missing in some frames, ",
+       "from: ", paste(unique(ref_weights_tacdata$pet[is.na(ref_weights_tacdata$TAC)]),
+                       collapse = ", "),
+       ". The reference weights cannot be calculated with a method which uses it.")
+}
 ```
 
 ```{r ref-weights-radioisotope, eval=calculate_ref_weights, echo=calculate_ref_weights}
@@ -478,6 +489,7 @@ ref_weights_output <- apply_weight_formula(ref_weights_data, config$ReferenceTAC
 minweight <- as.numeric(config$ReferenceTAC$weights_minweight %||% 0.25)
 
 ref_weights_final <- ref_weights_output %>%
+  group_by(pet) %>%
   mutate(
     ref_weights = {
 
@@ -504,6 +516,7 @@ ref_weights_final <- ref_weights_output %>%
       calcweights
     }
   ) %>%
+  ungroup() %>%
   select(-calcweights)
 ```
 
@@ -519,13 +532,15 @@ if (as.numeric(config$ReferenceTAC$weights_method) == 0) {
 
   # Using pre-defined weighting methods
   ref_weights_output <- ref_weights_tacdata %>%
+    group_by(pet) %>%
     mutate(ref_weights = weights_create(t_start = frame_start/60,
                                     t_end = frame_end/60,
                                     TAC,
                                     radioisotope = radioisotope_for_uncorrection,
                                     method = as.numeric(config$ReferenceTAC$weights_method),
                                     minweight = as.numeric(config$ReferenceTAC$weights_minweight %||% 0.25),
-                                    radionuclide_halflife = radionuclide_halflife))
+                                    radionuclide_halflife = radionuclide_halflife)) %>%
+    ungroup()
 
 }
 

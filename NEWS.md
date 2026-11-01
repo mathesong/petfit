@@ -2,24 +2,24 @@
 
 ## Results to check
 
-* **Rerun any SRTM2, refLogan or MRTM2 model that takes k2prime from an ancillary
-  analysis.** Since a recent update, these models were using k2prime = 0.1 for 
+* **SRTM2, refLogan or MRTM2 models taking k2prime from an ancillary analysis.** 
+  Since a recent update, these models were using k2prime = 0.1 for 
   every measurement instead of the ancillary analysis's values, with only a 
   warning to show for it. They now use the right values. A measurement with no 
   k2prime in the ancillary analysis now stops with an error naming it, rather 
   than being fitted with 0.1.
 
 * **Interactive modelling now respects the petfit output folder.** The modelling
-  apps always used `derivatives/petfit`, so a run meant for another folder, such
-  as `petfit_PVC`, read the TACs from `petfit` and wrote its outputs there. If you
-  keep parallel petfit folders and modelled them interactively, check which TACs
-  those analyses used.
+  apps always used `derivatives/petfit`. There is also an option to change the 
+  petfit output folder (`--petfit-output-foldername`), so that petfit outputs can
+  be kept separated, such as a `petfit_PVC` folder.  This previously worked only
+  for automatic runs, but it now also works for interactive runs.
 
 ## Missing TAC values
 
-* **A region with no voxels no longer breaks its segmentation.** Such a region is
-  `n/a` in the TACs file and has a volume of 0, as when CATNIP's ventricle margin
-  removes the lateral ventricles. Combined regions containing it used to be lost,
+* **A region with no voxels no longer breaks its segmentation.** A region which is
+  `n/a` in the TACs file and has a volume of 0, as for a region which might be 
+  present, but in this case isn't, is fixed. Combined regions containing it used to be lost,
   and the segmentation mean TAC was missing altogether. The region is now simply
   left out of the average.
 
@@ -32,23 +32,28 @@
 * BIDS `n/a` values are now read as missing, along with `NA` and blank cells.
 
 * If a segmentation mean TAC is still missing in some frames, the weights report
-  stops with a message naming the measurements. Uniform weights do not use this
-  TAC, and are unaffected.
-
-* **A segmentation's mean now covers only the regions it has left.** If you weight
-  several variants of a segmentation from their own mean TACs, such as with and
-  without a ventricle margin, those means cover different regions. Use the same
-  segmentation for weighting across the variants you want to compare.
+  stops with a message naming the measurements. Weights which do not use this
+  TAC, such as uniform weights or a custom formula of `frame_dur` alone, are
+  unaffected.
 
 ## Weights
 
 * **New weighting method 10: `frame_dur * tac_uncor`** (courtesy of Jeih-San
-  Liow), for both target and reference TAC weights.
+  Liow), corresponding to noise-equivalent counts.
 
 * **Fixed: weights below the minimum weight were not rescaled correctly.** Weights
   should be rescaled between the minimum weight and 1. This affects both the
   numbered methods and custom formulas. In a test dataset, weights changed by no
   more than 1 percent.
+
+* **Fixed: custom formulas for target weights always failed**, with `non-numeric
+  argument to binary operator`. They now work.
+
+* **Fixed: separate reference TAC weights were scaled across all measurements.**
+  A measurement's weights depended on which others were in the analysis. They are
+  now scaled per measurement, as target weights are. This affects fitted reference
+  TACs (feng1tc or spline) with their own weighting method, not those using the
+  same weights as the target TACs.
 
 ## Docker wrapper
 

@@ -253,3 +253,24 @@ coerce_bounds_numeric <- function(x) {
     x
   }
 }
+
+#' Does a Weighting Method Use the TAC?
+#'
+#' @description Tells whether weights need radioactivity values, so that frames
+#'   with none only stop the methods that would be affected. Numbered methods 0
+#'   (uniform), 4, 5 and 7 are calculated from the frame durations alone. A
+#'   custom formula uses the TAC if it mentions `tac`, `tac_uncor` or
+#'   `corrections`, the last being calculated from the other two.
+#'
+#' @param method Weighting method: a number from 0 to 10, or `"custom"`.
+#' @param formula The custom formula. Used only when `method` is `"custom"`.
+#' @return `TRUE` if the method uses the TAC.
+#' @export
+weights_method_uses_tac <- function(method, formula = NULL) {
+  if (identical(as.character(method), "custom")) {
+    formula_variables <- all.vars(parse(text = formula %||% ""))
+    return(any(formula_variables %in% c("tac", "tac_uncor", "corrections")))
+  }
+
+  !as.character(method) %in% c("0", "4", "5", "7")
+}

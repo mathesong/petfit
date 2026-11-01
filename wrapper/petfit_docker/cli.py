@@ -220,8 +220,9 @@ def _derivatives_mount_from_output(output_dir: str, petfit_output_foldername: st
     if output_path.name.startswith("petfit"):
         raise SystemExit(
             f"output_dir ends in '{output_path.name}', but --petfit-output-foldername is "
-            f"'{petfit_output_foldername}'. Pass the derivatives folder as output_dir, or "
-            f"set --petfit-output-foldername {output_path.name}."
+            f"'{petfit_output_foldername}'. Pass the derivatives folder as output_dir, with "
+            f"--petfit-output-foldername set to the petfit folder to use. A derivatives folder "
+            f"cannot have a name starting with 'petfit'."
         )
     return output_dir
 

@@ -180,3 +180,16 @@ test_that("validate_min_regions_per_pet requires pet and region columns", {
   expect_error(validate_min_regions_per_pet(tibble::tibble(pet = "a")),
                "must contain")
 })
+
+test_that("weights_method_uses_tac separates methods by whether they need the TAC", {
+  expect_false(weights_method_uses_tac("0"))
+  expect_false(weights_method_uses_tac(7))
+  expect_true(weights_method_uses_tac("2"))
+  expect_true(weights_method_uses_tac("10"))
+
+  expect_false(weights_method_uses_tac("custom", "frame_dur"))
+  expect_false(weights_method_uses_tac("custom", "sqrt(frame_dur)"))
+  expect_true(weights_method_uses_tac("custom", "frame_dur * tac_uncor"))
+  expect_true(weights_method_uses_tac("custom", "frame_dur / tac"))
+  expect_true(weights_method_uses_tac("custom", "frame_dur * corrections^2"))
+})

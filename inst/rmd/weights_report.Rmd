@@ -288,13 +288,14 @@ if( missing_frames > 0 ) {
   kable(missing_frames_table)
 }
 
-# Uniform weights do not use the TAC. Every other method would otherwise fail
-# obscurely inside the weights calculation, or give a measurement NA weights.
-if (missing_frames > 0 && as.character(config$Weights$method) != "0") {
+# A method using the TAC would otherwise fail obscurely inside the weights
+# calculation, or give these frames meaningless weights. Methods which do not
+# use it, such as a formula of frame_dur alone, need no TAC.
+if (missing_frames > 0 && weights_method_uses_tac(config$Weights$method, config$Weights$formula)) {
   stop("The segmentation mean TAC for '", selected_segmentation, "' is missing in ",
        missing_frames, " frames, from: ",
        paste(unique(missing_frames_table$pet), collapse = ", "),
-       ". Weights cannot be calculated from it. Check the warnings from the ",
+       ". Weights cannot be calculated from it with this method. Check the warnings from the ",
        "region definition step, which say why the mean could not be computed.")
 }
 ```
@@ -380,7 +381,7 @@ str_glue("Now we check for outlier and minweight issues")
 minweight <- config$Weights$minweight
 
 # Apply minweight correction
-weights_final <- weights_output %>%
+weights_output <- weights_output %>%
   group_by(pet) %>%
   mutate(
     weights = {
