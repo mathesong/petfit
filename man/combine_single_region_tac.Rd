@@ -29,7 +29,8 @@ Single tibble with combined TAC and total volume
 }
 \description{
 Core function for volume-weighted averaging of constituent
-regions. Constituent regions with no voxels are left out quietly; those
+regions. Frames missing in every region of \code{tacs_data} are removed first.
+Constituent regions with no voxels are then left out quietly; those
 with voxels but missing TAC values are left out with a warning. The volume
 fractions are computed from the regions actually used, so they sum to 1.
 }

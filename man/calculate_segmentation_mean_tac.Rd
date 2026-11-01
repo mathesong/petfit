@@ -25,7 +25,8 @@ Tibble with segmentation mean TAC for each time frame
 }
 \description{
 Calculate volume-weighted mean TAC across all regions in the
-segmentation. Regions with no voxels are left out quietly; those with
+segmentation. Frames missing in every region are removed first. Regions
+with no voxels are then left out quietly; those with
 voxels but missing TAC values are left out with a warning. The volume
 fractions are computed from the regions actually used, so they sum to 1.
 }

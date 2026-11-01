@@ -1,38 +1,72 @@
-# petfit 0.2.3
+# petfit 0.2.4
+
+## Results to check
+
+* **Rerun any SRTM2, refLogan or MRTM2 model that takes k2prime from an ancillary
+  analysis.** Since a recent update, these models were using k2prime = 0.1 for 
+  every measurement instead of the ancillary analysis's values, with only a 
+  warning to show for it. They now use the right values. A measurement with no 
+  k2prime in the ancillary analysis now stops with an error naming it, rather 
+  than being fitted with 0.1.
+
+* **Interactive modelling now respects the petfit output folder.** The modelling
+  apps always used `derivatives/petfit`, so a run meant for another folder, such
+  as `petfit_PVC`, read the TACs from `petfit` and wrote its outputs there. If you
+  keep parallel petfit folders and modelled them interactively, check which TACs
+  those analyses used.
+
+## Missing TAC values
+
+* **A region with no voxels no longer breaks its segmentation.** Such a region is
+  `n/a` in the TACs file and has a volume of 0, as when CATNIP's ventricle margin
+  removes the lateral ventricles. Combined regions containing it used to be lost,
+  and the segmentation mean TAC was missing altogether. The region is now simply
+  left out of the average.
+
+* **Frames missing in every region are skipped.** Before, one such frame lost the
+  combined regions for that measurement.
+
+* **A region missing values in only some frames is left out of the average for
+  that measurement**, with a warning naming it.
+
+* BIDS `n/a` values are now read as missing, along with `NA` and blank cells.
+
+* If a segmentation mean TAC is still missing in some frames, the weights report
+  stops with a message naming the measurements. Uniform weights do not use this
+  TAC, and are unaffected.
+
+* **A segmentation's mean now covers only the regions it has left.** If you weight
+  several variants of a segmentation from their own mean TACs, such as with and
+  without a ventricle margin, those means cover different regions. Use the same
+  segmentation for weighting across the variants you want to compare.
 
 ## Weights
 
-* **Fixed: custom weighting formulas were not properly rescaled between the minimum
-  weight and 1.** The weights and reference TAC reports' custom-formula path
-  carried a copy of the operator-precedence slip fixed in kinfitr 0.9.7's
-  `weights_create()`, which subtracted `min / (1 - min)` from every weight
-  instead of computing `(weight - min) / (1 - min)`. The numbered methods call
-  `weights_create()` itself, so they are corrected by kinfitr 0.9.7. In a test
-  dataset, this led to no more than a 1 percent change in weights.
+* **New weighting method 10: `frame_dur * tac_uncor`** (courtesy of Jeih-San
+  Liow), for both target and reference TAC weights.
 
-* **Fixed: a segmentation with a region emptied of voxels lost its combined
-  regions and its segmentation mean TAC.** Such a region is written as `n/a`
-  in the TACs file with a volume of 0 in the morph file. For example, CATNIP's
-  ventricle margin removes the lateral ventricles. petfit read the `n/a`
-  column as text, and the volume-weighted averaging failed. Any combined region
-  containing the emptied region was then dropped with a warning, and
-  `seg_meanTAC` became `NA` throughout, so external-TAC weights could not be
-  calculated. BIDS `n/a` values are now read as missing. Regions with no
-  voxels are left out quietly. Regions with voxels but missing TAC values are
-  left out with a warning. The volume fractions are computed from the regions
-  actually used, so they sum to 1.
+* **Fixed: weights below the minimum weight were not rescaled correctly.** Weights
+  should be rescaled between the minimum weight and 1. This affects both the
+  numbered methods and custom formulas. In a test dataset, weights changed by no
+  more than 1 percent.
 
-  This means a segmentation mean is now computed from the regions that remain.
-  When weighting several variants of a segmentation from their own mean TACs,
-  for example with and without a ventricle margin, their means are made up of
-  different regions. Choose one segmentation for weighting and keep it the
-  same across the variants being compared.
+## Docker wrapper
 
-* A segmentation mean TAC which is missing in some frames now stops the
-  weights report with a message naming the measurements affected. Before, the
-  report failed with an obscure error inside the weights calculation, or gave
-  the measurement `NA` weights. Uniform weights do not use the TAC, and are
-  unaffected.
+* **`petfit-docker` now refuses two `output_dir` mistakes** that sent results to
+  the wrong place:
+    * an empty path, such as from an unset shell variable, which used the current
+      folder
+    * a folder named for a different petfit output folder, such as
+      `derivatives/petfit` with `--petfit-output-foldername petfit_PVC`
+
+  `derivatives`, and the folder matching `--petfit-output-foldername`, work as
+  before.
+
+## Requirements
+
+* petfit now requires **kinfitr >= 0.9.7**.
+
+# petfit 0.2.3
 
 ## Merging the runs of a single injection
 
@@ -76,36 +110,7 @@
 * **The default upper bound on BPnd is now 25**, up from 5 in the reference
   tissue app and 15 in the report and interactive-sandbox fallbacks.
 
-* **New weighting method 10: `frame_dur * tac_uncor`** (courtesy of Jeih-San
-  Liow), for both the target and reference TAC weights. It is calculated by
-  kinfitr's `weights_create()`.
-
-* petfit now requires **kinfitr >= 0.9.7**.
-
 ## Fixes
-
-* **The Docker wrapper now rejects two `output_dir` mistakes** which sent a run
-  to the wrong place without an error: an empty string, such as from an unset
-  shell variable, which resolved to the working directory, and a folder whose
-  name starts with `petfit` but differs from `--petfit-output-foldername`, which
-  was mounted as the derivatives root.
-
-* **Fixed: the interactive modelling apps ignored `petfit_output_foldername`**
-  and always read from and wrote to `derivatives/petfit`, so a run meant for
-  another folder, such as `petfit_PVC`, silently used the wrong combined TACs.
-  `modelling_plasma_app()` and `modelling_ref_app()` now take the argument, and
-  `petfit_interactive()` and the container pass it on.
-
-* **Fixed: k2prime inherited from an ancillary analysis was 0.1 for every
-  measurement.** The PET ID was read from the kinpar filename by removing
-  `_model_`, but those files are named `_model-<type>_`, so no measurement ever
-  matched, and each fell back to k2prime = 0.1 with only a warning. Results from
-  SRTM2, refLogan and MRTM2 models using an `ancillary_model*` k2prime source
-  were affected, and should be rerun.
-
-* **A measurement with no k2prime in the ancillary analysis is now an error.**
-  This also applies when the ancillary folder is unavailable. Before, these
-  measurements were fitted with k2prime = 0.1.
 
 * **A pipeline folder holding TACs but no morph files no longer breaks the whole
   derivatives folder.** It failed with `object 'seg' not found`, leaving the

@@ -1,3 +1,28 @@
+#' Drop Frames Missing in Every Region
+#'
+#' @description A frame with no value in any region was not measured, which says
+#'   nothing about the regions themselves. These frames are removed before each
+#'   region is checked, so that a region is only judged on the frames which the
+#'   other regions do have. When every frame is missing, the data are returned
+#'   unchanged, for the region checks to report.
+#'
+#' @param tacs_data TACs tibble in wide format (regions as columns).
+#' @return `tacs_data` without the frames missing in every region.
+#' @noRd
+drop_frames_missing_in_all_regions <- function(tacs_data) {
+  region_columns <- setdiff(colnames(tacs_data),
+                            c("frame_start", "frame_end", "frame_dur", "frame_mid"))
+
+  if (length(region_columns) == 0) {
+    return(tacs_data)
+  }
+
+  measured <- dplyr::filter(tacs_data,
+                            dplyr::if_any(dplyr::all_of(region_columns), ~ !is.na(.x)))
+
+  if (nrow(measured) == 0) tacs_data else measured
+}
+
 #' Volume-Weighted Mean of Region TACs
 #'
 #' @description Decides which regions take part first, and only then computes
@@ -76,7 +101,8 @@ volume_weighted_tac <- function(tacs_data, region_volumes, label) {
 #' Combine Single Region TAC using Volume-Weighted Averaging
 #'
 #' @description Core function for volume-weighted averaging of constituent
-#'   regions. Constituent regions with no voxels are left out quietly; those
+#'   regions. Frames missing in every region of `tacs_data` are removed first.
+#'   Constituent regions with no voxels are then left out quietly; those
 #'   with voxels but missing TAC values are left out with a warning. The volume
 #'   fractions are computed from the regions actually used, so they sum to 1.
 #'
@@ -96,6 +122,8 @@ combine_single_region_tac <- function(tacs_data, morph_data, constituent_regions
     warning(paste("TACs data is empty or NULL for", region_name, "- excluding from output"))
     return(tibble::tibble())
   }
+
+  tacs_data <- drop_frames_missing_in_all_regions(tacs_data)
 
   if (length(constituent_regions) == 0) {
     warning(paste("No constituent regions provided for", region_name, "- excluding from output"))
@@ -821,7 +849,8 @@ reconstruct_pet_column <- function(data, varying_attrs) {
 #' Calculate Segmentation Mean TAC
 #'
 #' @description Calculate volume-weighted mean TAC across all regions in the
-#'   segmentation. Regions with no voxels are left out quietly; those with
+#'   segmentation. Frames missing in every region are removed first. Regions
+#'   with no voxels are then left out quietly; those with
 #'   voxels but missing TAC values are left out with a warning. The volume
 #'   fractions are computed from the regions actually used, so they sum to 1.
 #'
@@ -861,6 +890,8 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
   if (is.null(tacs_data) || is.null(morph_data)) {
     return(tibble::tibble())
   }
+
+  tacs_data <- drop_frames_missing_in_all_regions(tacs_data)
 
   # Get all unique constituent regions from this segmentation
   all_constituent_regions <- unique(regions_for_files$ConstituentRegion)

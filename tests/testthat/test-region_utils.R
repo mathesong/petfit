@@ -366,3 +366,61 @@ test_that("without a morph file, regions missing from the TACs are still reporte
   )
   expect_equal(combined$TAC, emptied_tacs$A)
 })
+
+test_that("frames missing in every region are skipped, without counting against any region", {
+  dir <- file.path(tempdir(), "petfit_missing_frame")
+  tacs <- tibble::tibble(
+    frame_start = c(0, 60, 120),
+    frame_end = c(60, 120, 240),
+    A = c(10, NA, 30),
+    B = c(40, NA, 60),
+    Ventricle = NA_real_
+  )
+  files <- write_emptied_region_files(
+    dir, tacs,
+    tibble::tibble(name = c("A", "B", "Ventricle"), `volume-mm3` = c(1, 3, 0))
+  )
+
+  expect_no_warning(
+    combined <- combine_regions_from_files(dir, files[["tacs"]], files[["morph"]],
+                                           emptied_regions)
+  )
+  expect_equal(combined$frame_start, c(0, 120))
+  expect_equal(combined$TAC, c(32.5, 52.5))
+
+  expect_no_warning(
+    seg_mean <- calculate_segmentation_mean_tac(dir, files[["tacs"]], files[["morph"]],
+                                                emptied_regions)
+  )
+  expect_equal(seg_mean$frame_start, c(0, 120))
+  expect_equal(seg_mean$seg_meanTAC, c(32.5, 52.5))
+})
+
+test_that("a skipped frame leaves a region missing another frame to be left out", {
+  tacs <- tibble::tibble(
+    frame_start = c(0, 60, 120),
+    frame_end = c(60, 120, 240),
+    A = c(10, NA, 30),
+    B = c(NA, NA, 60)
+  )
+  morph <- tibble::tibble(name = c("A", "B"), `volume-mm3` = c(1, 3))
+
+  expect_warning(
+    combined <- combine_single_region_tac(tacs, morph, c("A", "B"), "Whole"),
+    "voxels but missing or non-numeric TAC values: B"
+  )
+  expect_equal(combined$TAC, c(10, 30))
+})
+
+test_that("data missing in every frame are still excluded with a warning", {
+  tacs <- tibble::tibble(frame_start = c(0, 60), frame_end = c(60, 120),
+                         A = NA_real_, B = NA_real_)
+  morph <- tibble::tibble(name = c("A", "B"), `volume-mm3` = c(1, 3))
+
+  warnings <- testthat::capture_warnings(
+    combined <- combine_single_region_tac(tacs, morph, c("A", "B"), "Whole")
+  )
+
+  expect_true(any(stringr::str_detect(warnings, "no region has both voxels and a usable TAC")))
+  expect_equal(nrow(combined), 0)
+})
