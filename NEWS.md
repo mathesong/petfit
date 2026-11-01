@@ -84,6 +84,12 @@
 
 ## Fixes
 
+* **The Docker wrapper now rejects two `output_dir` mistakes** which sent a run
+  to the wrong place without an error: an empty string, such as from an unset
+  shell variable, which resolved to the working directory, and a folder whose
+  name starts with `petfit` but differs from `--petfit-output-foldername`, which
+  was mounted as the derivatives root.
+
 * **Fixed: the interactive modelling apps ignored `petfit_output_foldername`**
   and always read from and wrote to `derivatives/petfit`, so a run meant for
   another folder, such as `petfit_PVC`, silently used the wrong combined TACs.
