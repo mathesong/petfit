@@ -69,8 +69,8 @@ This function provides a unified interface to launch petfit interactive applicat
 Parameter usage:
 \itemize{
 \item regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file, merge_runs
-\item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
-\item modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
+\item modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, petfit_output_foldername, analysis_foldername, config_file, ancillary_analysis_folder
+\item modelling_ref: Uses bids_dir, derivatives_dir, petfit_output_foldername, analysis_foldername, config_file, ancillary_analysis_folder
 }
 }
 \examples{

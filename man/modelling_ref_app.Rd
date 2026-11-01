@@ -12,7 +12,8 @@ modelling_ref_app(
   config_file = NULL,
   cores = 1L,
   save_logs = FALSE,
-  ancillary_analysis_folder = NULL
+  ancillary_analysis_folder = NULL,
+  petfit_output_foldername = "petfit"
 )
 }
 \arguments{
@@ -37,6 +38,10 @@ default) fits sequentially.}
 
 \item{ancillary_analysis_folder}{Optional path to a second analysis folder
 whose results are offered alongside this one's, for comparison.}
+
+\item{petfit_output_foldername}{Character string name for the petfit output
+folder within derivatives, which holds the combined TACs and the analysis
+folders (default: "petfit")}
 }
 \description{
 Launch the petfit modelling configuration interface for setting up reference tissue kinetic models

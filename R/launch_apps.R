@@ -34,8 +34,8 @@
 #'
 #' Parameter usage:
 #' - regiondef: Uses bids_dir, derivatives_dir, petfit_output_foldername, regions_file, merge_runs
-#' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, analysis_foldername, config_file, ancillary_analysis_folder
-#' - modelling_ref: Uses bids_dir, derivatives_dir, analysis_foldername, config_file, ancillary_analysis_folder
+#' - modelling_plasma: Uses bids_dir, derivatives_dir, blood_dir, petfit_output_foldername, analysis_foldername, config_file, ancillary_analysis_folder
+#' - modelling_ref: Uses bids_dir, derivatives_dir, petfit_output_foldername, analysis_foldername, config_file, ancillary_analysis_folder
 #'
 #' @examples
 #' \dontrun{
@@ -96,8 +96,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
   if (!is.null(blood_dir)) {
     cat("  Blood directory:", blood_dir, "\n")
   }
+  cat("  petfit output folder:", petfit_output_foldername, "\n")
   if (app == "regiondef") {
-    cat("  petfit output folder:", petfit_output_foldername, "\n")
     cat("  Merge runs:", if (isTRUE(merge_runs)) "yes" else "no", "\n")
     if (!is.null(regions_file)) {
       cat("  Regions file:", regions_file, "\n")
@@ -134,7 +134,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
         config_file = config_file,
         cores = cores,
         save_logs = save_logs,
-        ancillary_analysis_folder = ancillary_analysis_folder
+        ancillary_analysis_folder = ancillary_analysis_folder,
+        petfit_output_foldername = petfit_output_foldername
       )
     },
     modelling_ref = {
@@ -146,7 +147,8 @@ petfit_interactive <- function(app = c("regiondef", "modelling_plasma", "modelli
         config_file = config_file,
         cores = cores,
         save_logs = save_logs,
-        ancillary_analysis_folder = ancillary_analysis_folder
+        ancillary_analysis_folder = ancillary_analysis_folder,
+        petfit_output_foldername = petfit_output_foldername
       )
     }
   )

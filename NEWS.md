@@ -84,6 +84,12 @@
 
 ## Fixes
 
+* **Fixed: the interactive modelling apps ignored `petfit_output_foldername`**
+  and always read from and wrote to `derivatives/petfit`, so a run meant for
+  another folder, such as `petfit_PVC`, silently used the wrong combined TACs.
+  `modelling_plasma_app()` and `modelling_ref_app()` now take the argument, and
+  `petfit_interactive()` and the container pass it on.
+
 * **Fixed: k2prime inherited from an ancillary analysis was 0.1 for every
   measurement.** The PET ID was read from the kinpar filename by removing
   `_model_`, but those files are named `_model-<type>_`, so no measurement ever
