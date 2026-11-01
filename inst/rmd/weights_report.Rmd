@@ -287,6 +287,16 @@ if( missing_frames > 0 ) {
   
   kable(missing_frames_table)
 }
+
+# Uniform weights do not use the TAC. Every other method would otherwise fail
+# obscurely inside the weights calculation, or give a measurement NA weights.
+if (missing_frames > 0 && as.character(config$Weights$method) != "0") {
+  stop("The segmentation mean TAC for '", selected_segmentation, "' is missing in ",
+       missing_frames, " frames, from: ",
+       paste(unique(missing_frames_table$pet), collapse = ", "),
+       ". Weights cannot be calculated from it. Check the warnings from the ",
+       "region definition step, which say why the mean could not be computed.")
+}
 ```
 
 

@@ -757,7 +757,7 @@ tacfitted_preds <- fit_again_with_newdelay %>%
     frame_mid = seq(min(.x$tacs$Time), max(.x$tacs$Time), length.out=100 ),
     TAC = predict(.x$fit, newdata=list(t_tac = frame_mid))))) %>% 
   select(pet, output_stem, region, preds) %>% 
-  unnest() %>% 
+  unnest(preds) %>% 
   group_by(pet, output_stem) %>% 
   nest(.key="preds")
 
@@ -775,7 +775,7 @@ pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input,
            tacs_refits$pet, tacs_refits$ymax), 
            ~print(ggplot(..1, aes(x=frame_mid, y=TAC)) +
                     geom_line(data=..3, aes(x=Time, y=AIF),
-                              colour="red", region=NULL) +
+                              colour="red") +
                     geom_point(aes(colour=region)) + 
                     geom_line(data=..2, aes(colour=region, group=region)) +
                     labs(title=..4,
@@ -820,7 +820,7 @@ tacfitted_preds <- fit_again_with_newdelay %>%
     frame_mid = seq(min(.x$tacs$Time), max(.x$tacs$Time), length.out=100 ),
     TAC = predict(.x$fit, newdata=list(t_tac = frame_mid))))) %>% 
   select(pet, output_stem, region, preds) %>% 
-  unnest() %>% 
+  unnest(preds) %>% 
   group_by(pet, output_stem) %>% 
   nest(.key="preds")
 
@@ -838,7 +838,7 @@ pwalk(list(tacs_refits$tacs, tacs_refits$preds, tacs_refits$input,
            tacs_refits$pet, tacs_refits$ymax), 
            ~print(ggplot(..1, aes(x=frame_mid, y=TAC)) +
                     geom_line(data=..3, aes(x=Time, y=AIF),
-                              colour="red", region=NULL) +
+                              colour="red") +
                     geom_point(aes(colour=region)) + 
                     geom_line(data=..2, aes(colour=region, group=region)) +
                     labs(title=..4,

@@ -423,6 +423,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                        "7. frame_dur" = "7",
                                                        "8. frame_dur^2 / tac_uncor" = "8",
                                                        "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2" = "9",
+                                                       "10. frame_dur * tac_uncor" = "10",
                                                        "Custom formula" = "custom"),
                                              selected = "2",
                                              width = "100%")
@@ -545,6 +546,7 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
                                                        "7. frame_dur" = "7",
                                                        "8. frame_dur^2 / tac_uncor" = "8",
                                                        "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2" = "9",
+                                                       "10. frame_dur * tac_uncor" = "10",
                                                        "Custom formula" = "custom"),
                                              selected = "same_as_target",
                                              width = "100%")
@@ -1863,7 +1865,8 @@ modelling_ref_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir
         "6" = "frame_dur / tac",
         "7" = "frame_dur",
         "8" = "frame_dur^2 / tac_uncor",
-        "9" = "(frame_dur^2 / (frame_dur * tac)) * corrections^2"
+        "9" = "(frame_dur^2 / (frame_dur * tac)) * corrections^2",
+        "10" = "frame_dur * tac_uncor"
       )
       
       # Determine formula to store

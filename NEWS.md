@@ -4,11 +4,35 @@
 
 * **Fixed: custom weighting formulas were not properly rescaled between the minimum
   weight and 1.** The weights and reference TAC reports' custom-formula path
-  carried a copy of the operator-precedence slip fixed in kinfitr 0.9.6's
+  carried a copy of the operator-precedence slip fixed in kinfitr 0.9.7's
   `weights_create()`, which subtracted `min / (1 - min)` from every weight
   instead of computing `(weight - min) / (1 - min)`. The numbered methods call
-  `weights_create()` itself, so they are corrected by kinfitr 0.9.6. In a test
+  `weights_create()` itself, so they are corrected by kinfitr 0.9.7. In a test
   dataset, this led to no more than a 1 percent change in weights.
+
+* **Fixed: a segmentation with a region emptied of voxels lost its combined
+  regions and its segmentation mean TAC.** Such a region is written as `n/a`
+  in the TACs file with a volume of 0 in the morph file. For example, CATNIP's
+  ventricle margin removes the lateral ventricles. petfit read the `n/a`
+  column as text, and the volume-weighted averaging failed. Any combined region
+  containing the emptied region was then dropped with a warning, and
+  `seg_meanTAC` became `NA` throughout, so external-TAC weights could not be
+  calculated. BIDS `n/a` values are now read as missing. Regions with no
+  voxels are left out quietly. Regions with voxels but missing TAC values are
+  left out with a warning. The volume fractions are computed from the regions
+  actually used, so they sum to 1.
+
+  This means a segmentation mean is now computed from the regions that remain.
+  When weighting several variants of a segmentation from their own mean TACs,
+  for example with and without a ventricle margin, their means are made up of
+  different regions. Choose one segmentation for weighting and keep it the
+  same across the variants being compared.
+
+* A segmentation mean TAC which is missing in some frames now stops the
+  weights report with a message naming the measurements affected. Before, the
+  report failed with an obscure error inside the weights calculation, or gave
+  the measurement `NA` weights. Uniform weights do not use the TAC, and are
+  unaffected.
 
 ## Merging the runs of a single injection
 
@@ -51,6 +75,12 @@
 
 * **The default upper bound on BPnd is now 25**, up from 5 in the reference
   tissue app and 15 in the report and interactive-sandbox fallbacks.
+
+* **New weighting method 10: `frame_dur * tac_uncor`** (courtesy of Jeih-San
+  Liow), for both the target and reference TAC weights. It is calculated by
+  kinfitr's `weights_create()`.
+
+* petfit now requires **kinfitr >= 0.9.7**.
 
 ## Fixes
 

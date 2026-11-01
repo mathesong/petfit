@@ -245,6 +245,7 @@ if (!is.null(config$ReferenceTAC)) {
     "7" = "7. frame_dur",
     "8" = "8. frame_dur^2 / tac_uncor",
     "9" = "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2",
+    "10" = "10. frame_dur * tac_uncor",
     "custom" = "Custom formula",
     "Unknown method"
   )
