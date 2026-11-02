@@ -33,6 +33,10 @@ class PathAction(argparse.Action):
         if values is None:
             setattr(namespace, self.dest, None)
             return
+        # Path("") is the working directory, which would then be mounted read-write
+        if values == "" or (isinstance(values, list) and "" in values):
+            name = option_string or self.dest
+            parser.error(f"{name} is an empty string: is a shell variable unset?")
         if isinstance(values, list):
             setattr(namespace, self.dest, [str(Path(value).expanduser()) for value in values])
         else:
@@ -204,11 +208,22 @@ def _derivatives_mount_from_output(output_dir: str, petfit_output_foldername: st
     ``petfit_output_foldername`` internally. If the wrapper user passes the final
     PETFit output directory, such as ``derivatives/petfit``, mount its parent so
     the container does not look for ``petfit/petfit``.
+
+    A final folder with a different petfit name cannot be told apart from a
+    derivatives root by mapping alone: it would be mounted as the root, hiding
+    the other pipelines' outputs and nesting this run inside it. So it is refused.
     """
 
     output_path = Path(output_dir)
     if output_path.name == petfit_output_foldername:
         return str(output_path.parent)
+    if output_path.name.startswith("petfit"):
+        raise SystemExit(
+            f"output_dir ends in '{output_path.name}', but --petfit-output-foldername is "
+            f"'{petfit_output_foldername}'. Pass the derivatives folder as output_dir, with "
+            f"--petfit-output-foldername set to the petfit folder to use. A derivatives folder "
+            f"cannot have a name starting with 'petfit'."
+        )
     return output_dir
 
 
@@ -246,12 +261,15 @@ def build_docker_command(opts: argparse.Namespace) -> List[str]:
         raise SystemExit("--step is only valid for modelling_plasma and modelling_ref")
 
     bids_dir = _absolute_path(opts.bids_dir) if opts.bids_dir else None
-    output_dir = _absolute_path(opts.output_dir, create=not opts.shell) if opts.output_dir else None
+    # Map first: a refused output_dir should not be left behind as an empty folder
+    output_dir = _absolute_path(opts.output_dir) if opts.output_dir else None
     derivatives_dir = (
         _derivatives_mount_from_output(output_dir, opts.petfit_output_foldername)
         if output_dir
         else None
     )
+    if output_dir:
+        _absolute_path(output_dir, create=not opts.shell)
     blood_dir = _absolute_path(opts.blood_dir) if opts.blood_dir else None
     work_dir = _absolute_path(opts.work_dir, create=True) if opts.work_dir else None
 

@@ -2,7 +2,19 @@
 
 For the full, detailed changelog, see [NEWS.md](https://github.com/mathesong/petfit/blob/main/NEWS.md) in the repository.
 
-## 0.2.3 (current)
+## 0.2.4 (current)
+
+- **SRTM2, refLogan or MRTM2 model taking k2prime from an ancillary analysis.** Since a recent update, these models were using k2prime = 0.1 for every measurement instead of the ancillary analysis's values. A measurement with no ancillary k2prime is now an error
+- Fixed: the interactive modelling apps ignored the petfit output folder and always used `derivatives/petfit`
+- **Missing TAC values:** a region with no voxels is left out of the averages, frames missing in every region are skipped, and a region missing values in only some frames is left out of the average for that measurement with a warning. BIDS `n/a` values are read as missing, along with `NA` and blank cells
+- New weighting method 10: `frame_dur * tac_uncor` (courtesy of Jeih-San Liow)
+- Fixed: weights below the minimum weight were not rescaled correctly. In a test dataset, weights changed by no more than 1 percent
+- Fixed: custom formulas for target weights always failed with `non-numeric argument to binary operator`
+- Fixed: separate reference TAC weights were scaled across all measurements rather than per measurement. This affects fitted reference TACs with their own weighting method
+- `petfit-docker` now refuses an empty `output_dir`, and one named for a different petfit output folder than `--petfit-output-foldername`
+- petfit now requires kinfitr >= 0.9.7
+
+## 0.2.3
 
 - **Runs of a single injection are merged by default.** Where a measurement was acquired as two scanning occasions from one injection (`run-01` and `run-02`, or `run-early` and `run-late`), its runs are now pooled into one measurement and fitted together, and the `run` entity is dropped from the outputs. Untick **Merge runs of the same measurement** in the region definition app, or pass `--no-merge-runs` / `--no_merge_runs` / `merge_runs = FALSE`, for datasets where each run is its own injection. Blood data is pooled to match when it comes from the raw BIDS `_blood.tsv` files; already-processed input functions must already be merged, and the reports say so rather than pairing a merged measurement with one run's blood curve. Runs are placed on one clock by their `TimeZero` difference, matching `bloodstream`'s rule; without a usable `TimeZero` (a derivatives-only run) the times are taken as already shared, and overlapping frames are an error either way. See [Merging runs](usage/region-definition.md#merging-runs)
 - The default upper bound on BPnd is now 25, up from 5 in the reference tissue app and 15 in the report and sandbox fallbacks

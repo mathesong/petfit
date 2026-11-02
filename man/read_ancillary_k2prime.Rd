@@ -20,5 +20,7 @@ A tibble with pet and k2prime columns
 }
 \description{
 Read kinpar files from the ancillary folder and compute
-aggregated k2prime values (mean or median per PET measurement).
+aggregated k2prime values (mean or median per PET measurement). A measurement
+requested in \code{pet_ids} with no k2prime value is an error: fitting it with a
+substitute value would look like a successful inheritance.
 }

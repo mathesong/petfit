@@ -162,3 +162,20 @@ pet_label <- function(keys) {
     if (length(kept) == 0) paste(p, collapse = "_") else paste(kept, collapse = "_")
   }, character(1))
 }
+
+#' Read a BIDS tabular file
+#'
+#' @description BIDS writes missing values as `n/a`, which readr's defaults
+#'   (`""` and `"NA"`) do not recognise. Left to the defaults, a column that is
+#'   missing throughout -- a region emptied of voxels, say -- is read as
+#'   character, and arithmetic on it fails. Use this for TSVs that other tools
+#'   write: TACs, morph files and `participants.tsv`. Files petfit writes itself
+#'   use `NA`, which the defaults already handle.
+#'
+#' @param path Path to the TSV file.
+#' @param ... Passed on to [readr::read_tsv()].
+#' @return A tibble.
+#' @noRd
+read_bids_tsv <- function(path, ...) {
+  readr::read_tsv(path, na = c("", "NA", "n/a"), show_col_types = FALSE, ...)
+}

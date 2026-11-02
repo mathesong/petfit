@@ -191,7 +191,9 @@ read_ancillary_delay <- function(ancillary_path, pet_ids = NULL) {
 #' Read Ancillary k2prime Data
 #'
 #' @description Read kinpar files from the ancillary folder and compute
-#' aggregated k2prime values (mean or median per PET measurement).
+#' aggregated k2prime values (mean or median per PET measurement). A measurement
+#' requested in `pet_ids` with no k2prime value is an error: fitting it with a
+#' substitute value would look like a successful inheritance.
 #'
 #' @param ancillary_path Full path to the ancillary analysis folder
 #' @param model_num Model number (1, 2, or 3) to read from
@@ -206,6 +208,10 @@ read_ancillary_k2prime <- function(ancillary_path, model_num, aggregation, pet_i
                               recursive = TRUE, full.names = TRUE)
 
   if (length(kinpar_files) == 0) {
+    if (!is.null(pet_ids)) {
+      stop("No Model ", model_num, " kinpar files found in ancillary folder: ",
+           ancillary_path, call. = FALSE)
+    }
     warning("No Model ", model_num, " kinpar files found in ancillary folder: ", ancillary_path)
     return(tibble::tibble(pet = character(0), k2prime = numeric(0)))
   }
@@ -237,12 +243,12 @@ read_ancillary_k2prime <- function(ancillary_path, model_num, aggregation, pet_i
 
   # Filter to requested PET IDs if specified
   if (!is.null(pet_ids)) {
-    missing_pets <- setdiff(pet_ids, k2prime_data$pet)
+    missing_pets <- setdiff(pet_ids, k2prime_data$pet[is.finite(k2prime_data$k2prime)])
     if (length(missing_pets) > 0) {
-      warning("PET IDs not found in ancillary k2prime data (will use k2prime=0.1): ",
-              paste(missing_pets, collapse = ", "))
-      missing_df <- tibble::tibble(pet = missing_pets, k2prime = 0.1)
-      k2prime_data <- dplyr::bind_rows(k2prime_data, missing_df)
+      stop("No k2prime value for these measurements in Model ", model_num,
+           " of the ancillary analysis (", ancillary_path, "): ",
+           paste(missing_pets, collapse = ", "),
+           ". Check that the ancillary analysis has fitted them.", call. = FALSE)
     }
     k2prime_data <- dplyr::filter(k2prime_data, .data$pet %in% pet_ids)
   }
@@ -374,15 +380,15 @@ copy_ancillary_delay_files <- function(ancillary_path, output_dir) {
 #' Extract PET ID from Kinpar Filename
 #'
 #' @description Extract the PET measurement identifier from a kinpar filename.
-#' The PET ID is the portion before any _model_ or _desc- prefix.
+#' The PET ID is the portion before any _model- or _desc- entity.
 #'
 #' @param filename Basename of a kinpar file
 #' @return Character string PET ID
 extract_pet_id_from_kinpar_filename <- function(filename) {
   # Remove file extension
   stem <- sub("\\.(tsv|json)$", "", filename)
-  # Remove everything from _model_ or _desc- onwards
-  pet_id <- sub("_model_.*$", "", stem)
+  # Remove everything from _model- or _desc- onwards
+  pet_id <- sub("_model-.*$", "", stem)
   pet_id <- sub("_desc-.*$", "", pet_id)
   return(pet_id)
 }

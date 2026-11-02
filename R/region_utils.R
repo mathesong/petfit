@@ -1,20 +1,129 @@
+#' Drop Frames Missing in Every Region
+#'
+#' @description A frame with no value in any region was not measured, which says
+#'   nothing about the regions themselves. These frames are removed before each
+#'   region is checked, so that a region is only judged on the frames which the
+#'   other regions do have. When every frame is missing, the data are returned
+#'   unchanged, for the region checks to report.
+#'
+#' @param tacs_data TACs tibble in wide format (regions as columns).
+#' @return `tacs_data` without the frames missing in every region.
+#' @noRd
+drop_frames_missing_in_all_regions <- function(tacs_data) {
+  region_columns <- setdiff(colnames(tacs_data),
+                            c("frame_start", "frame_end", "frame_dur", "frame_mid"))
+
+  if (length(region_columns) == 0) {
+    return(tacs_data)
+  }
+
+  measured <- dplyr::filter(tacs_data,
+                            dplyr::if_any(dplyr::all_of(region_columns), ~ !is.na(.x)))
+
+  if (nrow(measured) == 0) tacs_data else measured
+}
+
+#' Volume-Weighted Mean of Region TACs
+#'
+#' @description Decides which regions take part first, and only then computes
+#'   their volume fractions, so the fractions always sum to 1. Dropping a region
+#'   after the fractions had been computed would leave them summing to less than
+#'   1, and bias the mean low.
+#'
+#'   A region takes part when it has voxels and a TAC with a value in every
+#'   frame:
+#'
+#'   - A region with no voxels (volume 0) would contribute nothing, and is
+#'     dropped quietly. Its TAC is usually `n/a`, as there was nothing to
+#'     average.
+#'   - A region with voxels but missing or non-numeric TAC values, or with no
+#'     recorded volume, is dropped with a warning: that is real tissue missing
+#'     from the mean.
+#'
+#' @param tacs_data TACs tibble in wide format (regions as columns).
+#' @param region_volumes Tibble with `name` and `volume-mm3` columns, one row
+#'   per candidate region, each of which is a column of `tacs_data`.
+#' @param label What the mean is of, to say where a problem was found.
+#' @return A list with the weighted `tac` and the `total_volume` of the regions
+#'   used, or `NULL`, with a warning, when no region is usable.
+#' @noRd
+volume_weighted_tac <- function(tacs_data, region_volumes, label) {
+
+  # A repeated name would be counted twice in the total volume
+  repeated <- unique(region_volumes$name[duplicated(region_volumes$name)])
+  if (length(repeated) > 0) {
+    warning(paste0(label, ": the morph file lists ", paste(repeated, collapse = ", "),
+                   " more than once - using the first entry"))
+    region_volumes <- dplyr::distinct(region_volumes, name, .keep_all = TRUE)
+  }
+
+  volumes <- suppressWarnings(as.numeric(region_volumes$`volume-mm3`))
+  tac_complete <- purrr::map_lgl(region_volumes$name, function(region) {
+    is.numeric(tacs_data[[region]]) && !anyNA(tacs_data[[region]])
+  })
+
+  has_voxels <- !is.na(volumes) & volumes > 0
+  no_volume <- is.na(volumes)
+  unusable_tac <- has_voxels & !tac_complete
+
+  if (any(no_volume)) {
+    warning(paste0(label, ": excluding regions with no volume in the morph file: ",
+                   paste(region_volumes$name[no_volume], collapse = ", ")))
+  }
+
+  if (any(unusable_tac)) {
+    warning(paste0(label, ": excluding regions which have voxels but missing or ",
+                   "non-numeric TAC values: ",
+                   paste0(region_volumes$name[unusable_tac],
+                          " (", signif(volumes[unusable_tac], 4), " mm3)",
+                          collapse = ", "),
+                   ". This tissue is left out of the volume-weighted mean."))
+  }
+
+  used <- has_voxels & tac_complete
+
+  if (!any(used)) {
+    warning(paste0(label, ": no region has both voxels and a usable TAC",
+                   " - excluding from output"))
+    return(NULL)
+  }
+
+  used_volumes <- volumes[used]
+  fractions <- used_volumes / sum(used_volumes)
+
+  tac <- purrr::map2(region_volumes$name[used], fractions,
+                     function(region, fraction) tacs_data[[region]] * fraction) %>%
+    purrr::reduce(`+`)
+
+  list(tac = tac, total_volume = sum(used_volumes))
+}
+
 #' Combine Single Region TAC using Volume-Weighted Averaging
 #'
-#' @description Core function for volume-weighted averaging of constituent regions
+#' @description Core function for volume-weighted averaging of constituent
+#'   regions. Frames missing in every region of `tacs_data` are removed first.
+#'   Constituent regions with no voxels are then left out quietly; those
+#'   with voxels but missing TAC values are left out with a warning. The volume
+#'   fractions are computed from the regions actually used, so they sum to 1.
 #'
 #' @param tacs_data TACs tibble in wide format (regions as columns)
 #' @param morph_data Morph tibble with volume data (can be NULL for volume=1 fallback)
 #' @param constituent_regions Vector of region names to combine
 #' @param region_name Name for the combined region
+#' @param tacs_file Name of the TACs file the data came from, used only to say
+#'   where a problem was found (optional)
 #' @return Single tibble with combined TAC and total volume
 #' @export
-combine_single_region_tac <- function(tacs_data, morph_data, constituent_regions, region_name) {
+combine_single_region_tac <- function(tacs_data, morph_data, constituent_regions, region_name,
+                                      tacs_file = NULL) {
 
   # Validate inputs with graceful handling
   if (is.null(tacs_data) || nrow(tacs_data) == 0) {
     warning(paste("TACs data is empty or NULL for", region_name, "- excluding from output"))
     return(tibble::tibble())
   }
+
+  tacs_data <- drop_frames_missing_in_all_regions(tacs_data)
 
   if (length(constituent_regions) == 0) {
     warning(paste("No constituent regions provided for", region_name, "- excluding from output"))
@@ -53,55 +162,36 @@ combine_single_region_tac <- function(tacs_data, morph_data, constituent_regions
       return(tibble::tibble())
     }
 
-    if (length(available_regions) < length(constituent_regions)) {
-      missing_regions <- setdiff(constituent_regions, available_regions)
-      # GRACEFUL: Warning instead of error
-      warning(paste("Some constituent regions not found for", region_name, ":",
-                    paste(missing_regions, collapse = ", "),
-                    "- using available regions only"))
-    }
-
     # Filter morph data for available regions
     region_volumes <- morph_data %>%
       dplyr::filter(name %in% available_regions) %>%
       dplyr::select(name, `volume-mm3`)
   }
 
-  # Calculate total volume
-  total_volume <- sum(region_volumes$`volume-mm3`)
-  
-  if (total_volume == 0) {
-    # GRACEFUL: Return empty tibble instead of stopping
-    warning(paste("Total volume is zero for", region_name, 
-                  "- excluding from output"))
+  if (length(available_regions) < length(constituent_regions)) {
+    missing_regions <- setdiff(constituent_regions, available_regions)
+    # GRACEFUL: Warning instead of error
+    warning(paste("Some constituent regions not found for", region_name, ":",
+                  paste(missing_regions, collapse = ", "),
+                  "- using available regions only"))
+  }
+
+  label <- if (is.null(tacs_file)) region_name else paste0(region_name, " (", basename(tacs_file), ")")
+  weighted <- volume_weighted_tac(tacs_data, region_volumes, label)
+
+  if (is.null(weighted)) {
     return(tibble::tibble())
   }
-  
-  # Calculate volume fractions
-  region_volumes <- region_volumes %>%
-    dplyr::mutate(volume_fraction = `volume-mm3` / total_volume)
-  
-  # Apply volume weighting to TACs data
-  time_cols <- c("frame_start", "frame_end")
-  
+
   # Initialize result with time columns
+  time_cols <- c("frame_start", "frame_end")
   combined_tac <- tacs_data %>%
     dplyr::select(dplyr::all_of(time_cols))
-  
-  # Calculate volume-weighted TAC for each time frame
-  weighted_tac_values <- rep(0, nrow(tacs_data))
-  
-  for (region in available_regions) {
-    volume_frac <- region_volumes$volume_fraction[region_volumes$name == region]
-    # Note: readr::read_tsv preserves hyphens in column names, no conversion needed
-    region_tac <- tacs_data[[region]]
-    weighted_tac_values <- weighted_tac_values + (region_tac * volume_frac)
-  }
-  
+
   # Add combined results
   combined_tac$name <- region_name
-  combined_tac$TAC <- weighted_tac_values
-  combined_tac$`volume-mm3` <- total_volume
+  combined_tac$TAC <- weighted$tac
+  combined_tac$`volume-mm3` <- weighted$total_volume
   
   # Calculate frame duration and midpoint
   combined_tac$frame_dur <- combined_tac$frame_end - combined_tac$frame_start
@@ -249,7 +339,7 @@ combine_regions_from_files <- function(derivatives_folder, tacs_relative_path,
   
   # Read data files with graceful error handling
   tacs_data <- tryCatch({
-    readr::read_tsv(tacs_full_path, show_col_types = FALSE)
+    read_bids_tsv(tacs_full_path)
   }, error = function(e) {
     warning(paste("Error reading TACs file:", e$message, "- skipping"))
     return(NULL)
@@ -260,7 +350,7 @@ combine_regions_from_files <- function(derivatives_folder, tacs_relative_path,
   }
   
   morph_data <- tryCatch({
-    readr::read_tsv(morph_full_path, show_col_types = FALSE)
+    read_bids_tsv(morph_full_path)
   }, error = function(e) {
     warning(paste("Error reading morph file:", e$message, "- skipping"))
     return(NULL)
@@ -284,7 +374,8 @@ combine_regions_from_files <- function(derivatives_folder, tacs_relative_path,
     constituent_regions <- region_groups$ConstituentRegions[[i]]
     
     tryCatch({
-      combine_single_region_tac(tacs_data, morph_data, constituent_regions, region_name)
+      combine_single_region_tac(tacs_data, morph_data, constituent_regions, region_name,
+                                tacs_file = tacs_relative_path)
     }, error = function(e) {
       warning(paste("Failed to combine region", region_name, ":", e$message))
       return(tibble::tibble())
@@ -691,7 +782,7 @@ get_region_volumes_from_morph <- function(morph_path) {
 
   # Read and return morph data
   tryCatch({
-    readr::read_tsv(morph_path, show_col_types = FALSE)
+    read_bids_tsv(morph_path)
   }, error = function(e) {
     warning(paste("Error reading morph file:", e$message, ". Using volume=1 for all regions."))
     return(NULL)
@@ -757,7 +848,11 @@ reconstruct_pet_column <- function(data, varying_attrs) {
 
 #' Calculate Segmentation Mean TAC
 #'
-#' @description Calculate volume-weighted mean TAC across all regions in the segmentation
+#' @description Calculate volume-weighted mean TAC across all regions in the
+#'   segmentation. Frames missing in every region are removed first. Regions
+#'   with no voxels are then left out quietly; those with
+#'   voxels but missing TAC values are left out with a warning. The volume
+#'   fractions are computed from the regions actually used, so they sum to 1.
 #'
 #' @param derivatives_folder Base path to derivatives folder
 #' @param tacs_relative_path Relative path to TACs file from derivatives folder
@@ -779,69 +874,62 @@ calculate_segmentation_mean_tac <- function(derivatives_folder, tacs_relative_pa
   
   # Read data files
   tacs_data <- tryCatch({
-    readr::read_tsv(tacs_full_path, show_col_types = FALSE)
+    read_bids_tsv(tacs_full_path)
   }, error = function(e) {
     warning(paste("Error reading TACs file for segmentation mean:", e$message))
     return(NULL)
   })
-  
+
   morph_data <- tryCatch({
-    readr::read_tsv(morph_full_path, show_col_types = FALSE)
+    read_bids_tsv(morph_full_path)
   }, error = function(e) {
     warning(paste("Error reading morph file for segmentation mean:", e$message))
     return(NULL)
   })
-  
+
   if (is.null(tacs_data) || is.null(morph_data)) {
     return(tibble::tibble())
   }
-  
+
+  tacs_data <- drop_frames_missing_in_all_regions(tacs_data)
+
   # Get all unique constituent regions from this segmentation
   all_constituent_regions <- unique(regions_for_files$ConstituentRegion)
-  
-  # Check which regions are available in both datasets
+
+  # Check which regions are available in both datasets. Regions missing from
+  # either are not warned about here: every one of them is a constituent of a
+  # combined region from the same files, and combine_single_region_tac() has
+  # already said so.
   available_in_tacs <- all_constituent_regions[all_constituent_regions %in% colnames(tacs_data)]
   available_in_morph <- all_constituent_regions[all_constituent_regions %in% morph_data$name]
   available_regions <- intersect(available_in_tacs, available_in_morph)
-  
+
   if (length(available_regions) == 0) {
     warning("No regions available for segmentation mean TAC calculation")
     return(tibble::tibble())
   }
-  
+
   # Filter morph data for available regions
   region_volumes <- morph_data %>%
     dplyr::filter(name %in% available_regions) %>%
     dplyr::select(name, `volume-mm3`)
-  
-  # Calculate total volume
-  total_volume <- sum(region_volumes$`volume-mm3`)
-  
-  if (total_volume == 0) {
-    warning("Total volume is zero for segmentation mean TAC calculation")
+
+  weighted <- volume_weighted_tac(
+    tacs_data, region_volumes,
+    paste0("Segmentation mean TAC (", basename(tacs_relative_path), ")")
+  )
+
+  if (is.null(weighted)) {
     return(tibble::tibble())
   }
-  
-  # Calculate volume fractions
-  region_volumes <- region_volumes %>%
-    dplyr::mutate(volume_fraction = `volume-mm3` / total_volume)
-  
+
   # Initialize result with time columns
   time_cols <- c("frame_start", "frame_end")
   segmentation_mean <- tacs_data %>%
     dplyr::select(dplyr::all_of(time_cols))
-  
-  # Calculate volume-weighted mean TAC for each time frame
-  weighted_tac_values <- rep(0, nrow(tacs_data))
-  
-  for (region in available_regions) {
-    volume_frac <- region_volumes$volume_fraction[region_volumes$name == region]
-    region_tac <- tacs_data[[region]]
-    weighted_tac_values <- weighted_tac_values + (region_tac * volume_frac)
-  }
-  
+
   # Add calculated segmentation mean TAC
-  segmentation_mean$seg_meanTAC <- weighted_tac_values
+  segmentation_mean$seg_meanTAC <- weighted$tac
   
   # Calculate frame duration and midpoint for consistency
   segmentation_mean$frame_dur <- segmentation_mean$frame_end - segmentation_mean$frame_start
@@ -1488,7 +1576,7 @@ load_participant_data <- function(bids_dir) {
   
   # Load participants.tsv
   participants_data <- tryCatch({
-    readr::read_tsv(participants_tsv, show_col_types = FALSE)
+    read_bids_tsv(participants_tsv)
   }, error = function(e) {
     warning(paste("Error reading participants.tsv:", e$message))
     return(NULL)

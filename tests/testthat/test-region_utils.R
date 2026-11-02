@@ -268,3 +268,159 @@ test_that("petfit_error_detail handles a plain error with no cause", {
 
   expect_equal(petfit_error_detail(plain), "just this")
 })
+
+# A segmentation where one region has been emptied of voxels, as BIDS writes it:
+# its TAC is "n/a" throughout and its morph row survives with volume 0.
+write_emptied_region_files <- function(dir, tacs, morph) {
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  readr::write_tsv(tacs, file.path(dir, "sub-01_seg-test_tacs.tsv"), na = "n/a")
+  readr::write_tsv(morph, file.path(dir, "sub-01_seg-test_morph.tsv"), na = "n/a")
+  c(tacs = "sub-01_seg-test_tacs.tsv", morph = "sub-01_seg-test_morph.tsv")
+}
+
+emptied_tacs <- tibble::tibble(
+  frame_start = c(0, 60, 120),
+  frame_end = c(60, 120, 240),
+  A = c(10, 20, 30),
+  B = c(40, 50, 60),
+  Ventricle = NA_real_
+)
+
+emptied_regions <- tibble::tibble(
+  RegionName = "Whole",
+  ConstituentRegion = c("A", "B", "Ventricle")
+)
+
+test_that("read_bids_tsv reads BIDS n/a as missing", {
+  dir <- file.path(tempdir(), "petfit_read_bids_tsv")
+  files <- write_emptied_region_files(dir, emptied_tacs,
+                                      tibble::tibble(name = "A", `volume-mm3` = 1))
+
+  tacs <- read_bids_tsv(file.path(dir, files[["tacs"]]))
+
+  expect_false(is.character(tacs$Ventricle))
+  expect_true(all(is.na(tacs$Ventricle)))
+})
+
+test_that("a region with no voxels is left out quietly, and the rest still sum to 1", {
+  dir <- file.path(tempdir(), "petfit_emptied_region")
+  files <- write_emptied_region_files(
+    dir, emptied_tacs,
+    tibble::tibble(name = c("A", "B", "Ventricle"), `volume-mm3` = c(1, 3, 0))
+  )
+  expected <- 0.25 * emptied_tacs$A + 0.75 * emptied_tacs$B
+
+  expect_no_warning(
+    seg_mean <- calculate_segmentation_mean_tac(dir, files[["tacs"]], files[["morph"]],
+                                                emptied_regions)
+  )
+  expect_equal(seg_mean$seg_meanTAC, expected)
+
+  expect_no_warning(
+    combined <- combine_regions_from_files(dir, files[["tacs"]], files[["morph"]],
+                                           emptied_regions)
+  )
+  expect_equal(combined$TAC, expected)
+  expect_equal(combined$`volume-mm3`, rep(4, 3))
+})
+
+test_that("a region with voxels but no TAC is left out with a warning", {
+  tacs <- dplyr::mutate(emptied_tacs, B = c(40, NA, 60))
+  morph <- tibble::tibble(name = c("A", "B", "Ventricle"), `volume-mm3` = c(1, 3, 0))
+
+  expect_warning(
+    combined <- combine_single_region_tac(tacs, morph, c("A", "B", "Ventricle"), "Whole",
+                                          tacs_file = "sub-01_seg-test_tacs.tsv"),
+    "Whole \\(sub-01_seg-test_tacs.tsv\\).*voxels but missing or non-numeric TAC values: B \\(3 mm3\\)"
+  )
+  # The fractions come from the regions used, so the mean is not biased low
+  expect_equal(combined$TAC, emptied_tacs$A)
+  expect_equal(combined$`volume-mm3`, rep(1, 3))
+})
+
+test_that("a region repeated in the morph file is counted once", {
+  morph <- tibble::tibble(name = c("A", "B", "B"), `volume-mm3` = c(1, 3, 3))
+
+  expect_warning(
+    combined <- combine_single_region_tac(emptied_tacs, morph, c("A", "B"), "Whole"),
+    "lists B more than once"
+  )
+  expect_equal(combined$TAC, 0.25 * emptied_tacs$A + 0.75 * emptied_tacs$B)
+  expect_equal(combined$`volume-mm3`, rep(4, 3))
+})
+
+test_that("a combined region with no usable constituent is excluded with a warning", {
+  morph <- tibble::tibble(name = c("A", "Ventricle"), `volume-mm3` = c(0, 0))
+
+  expect_warning(
+    combined <- combine_single_region_tac(emptied_tacs, morph, c("A", "Ventricle"), "Whole"),
+    "no region has both voxels and a usable TAC"
+  )
+  expect_equal(nrow(combined), 0)
+})
+
+test_that("without a morph file, regions missing from the TACs are still reported", {
+  expect_warning(
+    combined <- combine_single_region_tac(emptied_tacs, NULL, c("A", "Missing"), "Whole"),
+    "Some constituent regions not found for Whole : Missing"
+  )
+  expect_equal(combined$TAC, emptied_tacs$A)
+})
+
+test_that("frames missing in every region are skipped, without counting against any region", {
+  dir <- file.path(tempdir(), "petfit_missing_frame")
+  tacs <- tibble::tibble(
+    frame_start = c(0, 60, 120),
+    frame_end = c(60, 120, 240),
+    A = c(10, NA, 30),
+    B = c(40, NA, 60),
+    Ventricle = NA_real_
+  )
+  files <- write_emptied_region_files(
+    dir, tacs,
+    tibble::tibble(name = c("A", "B", "Ventricle"), `volume-mm3` = c(1, 3, 0))
+  )
+
+  expect_no_warning(
+    combined <- combine_regions_from_files(dir, files[["tacs"]], files[["morph"]],
+                                           emptied_regions)
+  )
+  expect_equal(combined$frame_start, c(0, 120))
+  expect_equal(combined$TAC, c(32.5, 52.5))
+
+  expect_no_warning(
+    seg_mean <- calculate_segmentation_mean_tac(dir, files[["tacs"]], files[["morph"]],
+                                                emptied_regions)
+  )
+  expect_equal(seg_mean$frame_start, c(0, 120))
+  expect_equal(seg_mean$seg_meanTAC, c(32.5, 52.5))
+})
+
+test_that("a skipped frame leaves a region missing another frame to be left out", {
+  tacs <- tibble::tibble(
+    frame_start = c(0, 60, 120),
+    frame_end = c(60, 120, 240),
+    A = c(10, NA, 30),
+    B = c(NA, NA, 60)
+  )
+  morph <- tibble::tibble(name = c("A", "B"), `volume-mm3` = c(1, 3))
+
+  expect_warning(
+    combined <- combine_single_region_tac(tacs, morph, c("A", "B"), "Whole"),
+    "voxels but missing or non-numeric TAC values: B"
+  )
+  expect_equal(combined$TAC, c(10, 30))
+})
+
+test_that("data missing in every frame are still excluded with a warning", {
+  tacs <- tibble::tibble(frame_start = c(0, 60), frame_end = c(60, 120),
+                         A = NA_real_, B = NA_real_)
+  morph <- tibble::tibble(name = c("A", "B"), `volume-mm3` = c(1, 3))
+
+  warnings <- testthat::capture_warnings(
+    combined <- combine_single_region_tac(tacs, morph, c("A", "B"), "Whole")
+  )
+
+  expect_true(any(stringr::str_detect(warnings, "no region has both voxels and a usable TAC")))
+  expect_equal(nrow(combined), 0)
+})

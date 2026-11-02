@@ -8,7 +8,8 @@ combine_single_region_tac(
   tacs_data,
   morph_data,
   constituent_regions,
-  region_name
+  region_name,
+  tacs_file = NULL
 )
 }
 \arguments{
@@ -19,10 +20,17 @@ combine_single_region_tac(
 \item{constituent_regions}{Vector of region names to combine}
 
 \item{region_name}{Name for the combined region}
+
+\item{tacs_file}{Name of the TACs file the data came from, used only to say
+where a problem was found (optional)}
 }
 \value{
 Single tibble with combined TAC and total volume
 }
 \description{
-Core function for volume-weighted averaging of constituent regions
+Core function for volume-weighted averaging of constituent
+regions. Frames missing in every region of \code{tacs_data} are removed first.
+Constituent regions with no voxels are then left out quietly; those
+with voxels but missing TAC values are left out with a warning. The volume
+fractions are computed from the regions actually used, so they sum to 1.
 }

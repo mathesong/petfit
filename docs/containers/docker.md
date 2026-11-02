@@ -58,7 +58,10 @@ petfit-docker /path/to/your/bids /path/to/your/derivatives participant \
 The positional `output_dir` may be the derivatives root or the final PETFit
 output folder. For example, `/path/to/derivatives` and
 `/path/to/derivatives/petfit` both map to the container's derivatives root when
-using the default `--petfit-output-foldername petfit`.
+using the default `--petfit-output-foldername petfit`. The wrapper rejects an
+`output_dir` whose name starts with `petfit` but differs from
+`--petfit-output-foldername`, and an empty `output_dir`, such as from an unset
+shell variable.
 
 Launch plasma-input modelling:
 

@@ -16,8 +16,11 @@
 #'   `reports/logs/<step>_report.log` in addition to the console.
 #' @param ancillary_analysis_folder Optional path to a second analysis folder
 #'   whose results are offered alongside this one's, for comparison.
+#' @param petfit_output_foldername Character string name for the petfit output
+#'   folder within derivatives, which holds the combined TACs and the analysis
+#'   folders (default: "petfit")
 #' @export
-modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL) {
+modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_dir = NULL, analysis_foldername = "Primary_Analysis", config_file = NULL, cores = 1L, save_logs = FALSE, ancillary_analysis_folder = NULL, petfit_output_foldername = "petfit") {
   
   # Set derivatives directory logic
   if (is.null(derivatives_dir)) {
@@ -49,7 +52,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
   }
   
   # Set petfit directory (within derivatives)
-  petfit_dir <- file.path(derivatives_dir, "petfit")
+  petfit_dir <- file.path(derivatives_dir, petfit_output_foldername)
   
   if (!dir.exists(petfit_dir)) {
     dir.create(petfit_dir, recursive = TRUE)
@@ -195,10 +198,10 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
     cat("No combined TACs file found. Checking for petfit_regions.tsv...\n")
     
     # Look for petfit_regions.tsv file using read/write logic
-    # Always write to petfit_dir (derivatives/petfit)
+    # Always write to petfit_dir (derivatives/<petfit_output_foldername>)
     write_config_dir <- petfit_dir
     
-    # For reading: check derivatives/petfit first, then BIDS code directory
+    # For reading: check petfit_dir first, then BIDS code directory
     read_config_dirs <- c(petfit_dir)
     if (!is.null(bids_dir)) {
       read_config_dirs <- c(read_config_dirs, file.path(bids_dir, "code", "petfit"))
@@ -423,6 +426,7 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
                                                        "7. frame_dur" = "7",
                                                        "8. frame_dur^2 / tac_uncor" = "8",
                                                        "9. (frame_dur^2 / (frame_dur * tac)) * corrections^2" = "9",
+                                                       "10. frame_dur * tac_uncor" = "10",
                                                        "Custom formula" = "custom"),
                                              selected = "2",
                                              width = "100%")
@@ -1783,7 +1787,8 @@ modelling_plasma_app <- function(bids_dir = NULL, derivatives_dir = NULL, blood_
         "6" = "frame_dur / tac",
         "7" = "frame_dur",
         "8" = "frame_dur^2 / tac_uncor",
-        "9" = "(frame_dur^2 / (frame_dur * tac)) * corrections^2"
+        "9" = "(frame_dur^2 / (frame_dur * tac)) * corrections^2",
+        "10" = "frame_dur * tac_uncor"
       )
       
       # Determine formula to store

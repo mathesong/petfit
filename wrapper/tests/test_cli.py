@@ -24,6 +24,27 @@ def abs_path(path):
 
 
 class DockerCommandTests(unittest.TestCase):
+    def test_empty_positional_path_is_rejected(self):
+        with patch("sys.stderr", new=StringIO()) as stderr:
+            with self.assertRaises(SystemExit):
+                _parser().parse_args(["/data/bids", ""])
+
+        self.assertIn("empty string", stderr.getvalue())
+
+    def test_output_dir_for_a_different_petfit_folder_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            opts = _parser().parse_args([
+                str(Path(tmp) / "bids"),
+                str(Path(tmp) / "derivatives" / "petfit"),
+                "--petfit-output-foldername",
+                "petfit_PVC",
+            ])
+
+            with self.assertRaisesRegex(SystemExit, "ends in 'petfit'.*petfit_PVC"):
+                build_docker_command(opts)
+
+            self.assertFalse((Path(tmp) / "derivatives").exists())
+
     def test_no_arguments_parse_without_path_traceback(self):
         opts = _parser().parse_args([])
 

@@ -276,7 +276,8 @@ if (opt$mode == "interactive") {
       analysis_foldername = opt$analysis_foldername,
       config_file = opt$config_file,
       cores = opt$cores,
-      ancillary_analysis_folder = opt$ancillary_analysis_folder
+      ancillary_analysis_folder = opt$ancillary_analysis_folder,
+      petfit_output_foldername = opt$petfit_output_foldername
     )
   } else if (opt$func == "modelling_ref") {
     modelling_ref_app(
@@ -286,7 +287,8 @@ if (opt$mode == "interactive") {
       analysis_foldername = opt$analysis_foldername,
       config_file = opt$config_file,
       cores = opt$cores,
-      ancillary_analysis_folder = opt$ancillary_analysis_folder
+      ancillary_analysis_folder = opt$ancillary_analysis_folder,
+      petfit_output_foldername = opt$petfit_output_foldername
     )
   }
 

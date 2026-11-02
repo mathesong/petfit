@@ -17,3 +17,4 @@ tests/testthat/fixtures/integration/README\.md$
 ^wrapper$
 ^www$
 ^LICENSE\.md$
+^plan\.md$
