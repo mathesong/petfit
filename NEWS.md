@@ -3,7 +3,7 @@
 ## Results to check
 
 * **SRTM2, refLogan or MRTM2 models taking k2prime from an ancillary analysis.** 
-  Since a recent update, these models were using k2prime = 0.1 for 
+  Since a recent update, these models were defaulting to k2prime = 0.1 for 
   every measurement instead of the ancillary analysis's values, with only a 
   warning to show for it. They now use the right values. A measurement with no 
   k2prime in the ancillary analysis now stops with an error naming it, rather 
@@ -18,7 +18,7 @@
 ## Missing TAC values
 
 * **A region with no voxels no longer breaks its segmentation.** A region which is
-  `n/a` in the TACs file and has a volume of 0, as for a region which might be 
+  `n/a` in the TACs file and has a volume of 0, as for a region which might sometimes be 
   present, but in this case isn't, is fixed. Combined regions containing it used to be lost,
   and the segmentation mean TAC was missing altogether. The region is now simply
   left out of the average.
@@ -47,7 +47,7 @@
   more than 1 percent.
 
 * **Fixed: custom formulas for target weights always failed**, with `non-numeric
-  argument to binary operator`. They now work.
+  argument to binary operator`. They now work again.
 
 * **Fixed: separate reference TAC weights were scaled across all measurements.**
   A measurement's weights depended on which others were in the analysis. They are
