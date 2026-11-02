@@ -258,12 +258,45 @@ class DockerCommandTests(unittest.TestCase):
     def test_main_checks_docker_and_image_before_required_paths(self):
         with patch("petfit_docker.cli.check_docker") as docker_check:
             with patch("petfit_docker.cli.ensure_image_ready") as ensure_image:
-                with self.assertRaises(SystemExit) as caught:
-                    main([])
+                with patch("petfit_docker.cli.check_for_updates"):
+                    with self.assertRaises(SystemExit) as caught:
+                        main([])
 
         docker_check.assert_called_once()
         ensure_image.assert_called_once_with("mathesong/petfit:latest", platform="linux/amd64")
         self.assertIn("bids_dir", str(caught.exception))
+
+    def test_main_checks_for_updates_of_wrapper_and_default_image(self):
+        with patch("petfit_docker.cli.check_docker"):
+            with patch("petfit_docker.cli.ensure_image_ready"):
+                with patch("petfit_docker.cli.check_for_updates") as update_check:
+                    with self.assertRaises(SystemExit):
+                        main([])
+
+        update_check.assert_called_once_with(check_image=True, image="mathesong/petfit:latest")
+
+    def test_main_skips_image_update_check_for_other_images_and_patches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for argv in (["--image", "mathesong/petfit:v0.2.3"], ["--patch", tmp]):
+                with self.subTest(argv=argv):
+                    with patch("petfit_docker.cli.check_docker"):
+                        with patch("petfit_docker.cli.ensure_image_ready"):
+                            with patch("petfit_docker.cli.check_for_updates") as update_check:
+                                with self.assertRaises(SystemExit):
+                                    main(argv)
+
+                    self.assertFalse(update_check.call_args.kwargs["check_image"])
+
+    def test_main_no_update_check_and_dry_run_skip_update_check(self):
+        for argv in (["--no-update-check"], ["--dry-run"]):
+            with self.subTest(argv=argv):
+                with patch("petfit_docker.cli.check_docker"):
+                    with patch("petfit_docker.cli.ensure_image_ready"):
+                        with patch("petfit_docker.cli.check_for_updates") as update_check:
+                            with self.assertRaises(SystemExit):
+                                main(argv)
+
+                update_check.assert_not_called()
 
     def test_main_stops_on_docker_failure_before_image_check(self):
         with patch("petfit_docker.cli.check_docker", side_effect=SystemExit("docker failed")):
@@ -287,8 +320,9 @@ class DockerCommandTests(unittest.TestCase):
     def test_main_skip_image_check_still_checks_docker(self):
         with patch("petfit_docker.cli.check_docker") as docker_check:
             with patch("petfit_docker.cli.ensure_image_ready") as ensure_image:
-                with self.assertRaises(SystemExit) as caught:
-                    main(["--skip-image-check"])
+                with patch("petfit_docker.cli.check_for_updates"):
+                    with self.assertRaises(SystemExit) as caught:
+                        main(["--skip-image-check"])
 
         docker_check.assert_called_once()
         ensure_image.assert_not_called()

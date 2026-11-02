@@ -37,6 +37,24 @@ descriptions of each app and analysis folder:
 petfit-docker --help
 ```
 
+## Updates
+
+Neither pip nor Docker tells you when a newer version is out, so
+`petfit-docker` checks for you. When a newer wrapper or PETFit image is
+available, it prints how to update:
+
+```text
+A newer PETFit image is available (v0.2.6; you have v0.2.5). Update it with: docker pull mathesong/petfit:latest
+```
+
+It never updates anything itself. If you are part way through an analysis, you
+may want to finish it with the version you started with.
+
+The check asks PyPI and Docker Hub at most once a day, and stays silent when
+there is no network. The image is only checked when you use the default
+`mathesong/petfit:latest`, without `--patch`. To turn the check off, use
+`--no-update-check` or set `PETFIT_NO_UPDATE_CHECK=1`.
+
 ## Examples
 
 Launch the default region definition app:

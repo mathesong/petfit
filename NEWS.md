@@ -1,3 +1,12 @@
+# petfit 0.2.5
+
+* **`petfit-docker` tells you when an update is available.** Neither pip nor
+  Docker does, so users could keep running an old wrapper or image without
+  knowing. The wrapper now checks PyPI and Docker Hub at most once a day and,
+  when a newer wrapper or PETFit image is out, prints the command to update. It
+  never updates anything itself, and stays silent without a network. Turn it off
+  with `--no-update-check` or `PETFIT_NO_UPDATE_CHECK=1`.
+
 # petfit 0.2.4
 
 ## Results to check

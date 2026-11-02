@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from ._version import __version__
+from .update_check import DISABLE_ENV, check_for_updates
 
 DEFAULT_IMAGE = "mathesong/petfit:latest"
 DEFAULT_PLATFORM = "linux/amd64"
@@ -62,6 +63,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("analysis_level", nargs="?", choices=("participant",), default="participant")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("-i", "--image", default=DEFAULT_IMAGE, help="image name")
+    parser.add_argument(
+        "--no-update-check",
+        dest="update_check",
+        action="store_false",
+        default=True,
+        help=(
+            "do not check for newer versions of petfit-docker and the PETFit image. "
+            "The check asks PyPI and Docker Hub at most once a day, and only prints a "
+            f"message. Setting {DISABLE_ENV}=1 does the same"
+        ),
+    )
 
     wrapper = parser.add_argument_group(
         "Wrapper options",
@@ -438,6 +450,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         check_docker()
         if not opts.skip_image_check:
             ensure_image_ready(opts.image, platform=opts.platform)
+        if opts.update_check:
+            # A different image, or a patched petfit, is a deliberate choice
+            # which a newer default image says nothing about
+            check_for_updates(
+                check_image=opts.image == DEFAULT_IMAGE and not opts.patch,
+                image=opts.image,
+            )
 
     command = build_docker_command(opts)
     print("RUNNING: " + shlex.join(command))
