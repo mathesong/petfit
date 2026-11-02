@@ -4,7 +4,7 @@ For the full, detailed changelog, see [NEWS.md](https://github.com/mathesong/pet
 
 ## 0.2.4 (current)
 
-- **Rerun any SRTM2, refLogan or MRTM2 model that takes k2prime from an ancillary analysis.** These models were using k2prime = 0.1 for every measurement instead of the ancillary analysis's values. A measurement with no ancillary k2prime is now an error
+- **SRTM2, refLogan or MRTM2 model taking k2prime from an ancillary analysis.** Since a recent update, these models were using k2prime = 0.1 for every measurement instead of the ancillary analysis's values. A measurement with no ancillary k2prime is now an error
 - Fixed: the interactive modelling apps ignored the petfit output folder and always used `derivatives/petfit`
 - **Missing TAC values:** a region with no voxels is left out of the averages, frames missing in every region are skipped, and a region missing values in only some frames is left out of the average for that measurement with a warning. BIDS `n/a` values are read as missing, along with `NA` and blank cells
 - New weighting method 10: `frame_dur * tac_uncor` (courtesy of Jeih-San Liow)
