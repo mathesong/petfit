@@ -36,6 +36,11 @@ of each app, the execution modes, and the analysis folder:
 petfit-docker --help
 ```
 
+The wrapper tells you when a newer `petfit-docker` or PETFit image is available,
+and how to update. It never updates anything itself. It checks at most once a
+day, stays silent without a network, and can be turned off with
+`--no-update-check` or `PETFIT_NO_UPDATE_CHECK=1`.
+
 Launch the default region definition app:
 
 ```bash

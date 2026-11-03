@@ -15,5 +15,9 @@ detect_original_tac_units(derivatives_folder, tacs_relative_path)
 String with radioactivity units (e.g., "Bq", "kBq") or "Bq" as default
 }
 \description{
-Helper function to detect radioactivity units from TACs JSON sidecar files
+Helper function to detect radioactivity units from TACs JSON
+sidecar files. The units are taken from a \code{radioactivity} column entry
+(\code{{"radioactivity": {"Units": "kBq/mL"}}}) if there is one, and otherwise
+from the top-level \code{Units} field that PETPrep writes, as in the raw
+\verb{_pet.json} (\code{{"Units": "Bq/mL"}}).
 }

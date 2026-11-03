@@ -1,6 +1,20 @@
-# petfit 0.2.4
+# petfit 0.2.5
 
-## Results to check
+* **`petfit-docker` tells you when an update is available.** Neither pip nor
+  Docker does, so users could keep running an old wrapper or image without
+  knowing. The wrapper now checks PyPI and Docker Hub at most once a day and,
+  when a newer wrapper or PETFit image is out, prints the command to update. It
+  never updates anything itself, and stays silent without a network. Turn it off
+  with `--no-update-check` or `PETFIT_NO_UPDATE_CHECK=1`.
+
+* **TAC units are now read from the top-level `Units` field.** PETPrep records TAC
+  units as `"Units": "Bq/mL"` at the top level of the `_tacs.json` sidecar,
+  as in the raw `_pet.json`, but petfit only looked for a `radioactivity` column
+  entry and otherwise assumed Bq. TACs in kBq/mL that recorded their units
+  only at the top level were therefore treated as Bq/mL, a factor of 1000 out.
+  A `radioactivity` column entry still takes precedence if both are present.
+
+# petfit 0.2.4
 
 * **SRTM2, refLogan or MRTM2 models taking k2prime from an ancillary analysis.** 
   Since a recent update, these models were defaulting to k2prime = 0.1 for 

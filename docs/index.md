@@ -3,7 +3,7 @@
 PETFit is a [BIDS App](https://bids-apps.neuroimaging.io/) for fitting kinetic models to PET time activity curve (TAC) data. It takes preprocessed PET data in [BIDS](https://bids-specification.readthedocs.io/) format and runs a configurable kinetic modelling pipeline, producing parameter estimates and detailed HTML reports for quality control.
 
 ```{note}
-PETFit is currently in active development (v0.2.4). If you encounter any bugs, please report them on the [GitHub issues page](https://github.com/mathesong/petfit/issues) — they are extremely valuable for making this pipeline robust.
+PETFit is currently in active development (v0.2.5). If you encounter any bugs, please report them on the [GitHub issues page](https://github.com/mathesong/petfit/issues) — they are extremely valuable for making this pipeline robust.
 ```
 
 ## How it works

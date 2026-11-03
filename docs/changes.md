@@ -2,7 +2,11 @@
 
 For the full, detailed changelog, see [NEWS.md](https://github.com/mathesong/petfit/blob/main/NEWS.md) in the repository.
 
-## 0.2.4 (current)
+## 0.2.5 (current)
+
+- `petfit-docker` now tells you when a newer wrapper or PETFit image is available, and how to update. It checks at most once a day, never updates anything itself, and can be turned off with `--no-update-check` or `PETFIT_NO_UPDATE_CHECK=1`
+
+## 0.2.4
 
 - **SRTM2, refLogan or MRTM2 model taking k2prime from an ancillary analysis.** Since a recent update, these models were using k2prime = 0.1 for every measurement instead of the ancillary analysis's values. A measurement with no ancillary k2prime is now an error
 - Fixed: the interactive modelling apps ignored the petfit output folder and always used `derivatives/petfit`
