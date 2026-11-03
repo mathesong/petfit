@@ -1953,33 +1953,42 @@ extract_pet_metadata <- function(bids_dir, sub, ses = NA, trc = NA, rec = NA, ta
 
 #' Detect TAC Radioactivity Units from Original TACs JSON Sidecar
 #'
-#' @description Helper function to detect radioactivity units from TACs JSON sidecar files
+#' @description Helper function to detect radioactivity units from TACs JSON
+#'   sidecar files. The units are taken from a `radioactivity` column entry
+#'   (`{"radioactivity": {"Units": "kBq/mL"}}`) if there is one, and otherwise
+#'   from the top-level `Units` field that PETPrep writes, as in the raw
+#'   `_pet.json` (`{"Units": "Bq/mL"}`).
 #'
 #' @param derivatives_folder Base derivatives folder
-#' @param tacs_relative_path Relative path to TACs file  
+#' @param tacs_relative_path Relative path to TACs file
 #' @return String with radioactivity units (e.g., "Bq", "kBq") or "Bq" as default
 detect_original_tac_units <- function(derivatives_folder, tacs_relative_path) {
   # Convert TSV filename to JSON filename for TAC sidecar file
   json_relative_path <- stringr::str_replace(tacs_relative_path, "\\.tsv$", ".json")
   json_full_path <- file.path(derivatives_folder, json_relative_path)
-  
+
+  json_data <- NULL
   if (file.exists(json_full_path)) {
-    # Try to read the TAC JSON sidecar file
-    tryCatch({
-      json_data <- jsonlite::fromJSON(json_full_path)
-      # Look for radioactivity column units (e.g., "Bq/mL", "kBq/mL")
-      if ("radioactivity" %in% names(json_data) && "Units" %in% names(json_data$radioactivity)) {
-        # Extract just the radioactivity part before the "/" using kinfitr function
-        full_units <- json_data$radioactivity$Units
-        rad_units <- kinfitr::get_units_radioactivity(full_units)$rad
-        return(rad_units)
-      }
-    }, error = function(e) {
-      # If JSON reading fails, return default
-      return("Bq")
-    })
+    json_data <- tryCatch(
+      jsonlite::fromJSON(json_full_path, simplifyVector = FALSE),
+      error = function(e) NULL
+    )
   }
-  
+
+  # Column-level units first, then the top-level Units field
+  full_units <- NULL
+  if (is.list(json_data$radioactivity)) {
+    full_units <- json_data$radioactivity$Units
+  }
+  if (is.null(full_units)) {
+    full_units <- json_data$Units
+  }
+
+  if (is.character(full_units) && length(full_units) == 1 && nzchar(full_units)) {
+    # Extract just the radioactivity part before the "/" using kinfitr function
+    return(kinfitr::get_units_radioactivity(full_units)$rad)
+  }
+
   # Default: assume Bq if no JSON metadata found
   return("Bq")
 }

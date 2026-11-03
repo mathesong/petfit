@@ -230,3 +230,28 @@ test_that("an analysis already in kBq is left alone", {
     c(2, 4)
   )
 })
+
+test_that("detect_original_tac_units reads column-level and top-level Units", {
+  deriv <- withr::local_tempdir()
+  write_sidecar <- function(name, x) {
+    jsonlite::write_json(x, file.path(deriv, paste0(name, "_tacs.json")),
+                         auto_unbox = TRUE)
+    paste0(name, "_tacs.tsv")
+  }
+
+  # PETPrep records the units at the top level, as in the raw _pet.json.
+  petprep <- write_sidecar("petprep", list(Units = "Bq/mL"))
+  expect_equal(detect_original_tac_units(deriv, petprep), "Bq")
+  toplevel_kbq <- write_sidecar("toplevel_kbq", list(Units = "kBq/mL"))
+  expect_equal(detect_original_tac_units(deriv, toplevel_kbq), "kBq")
+
+  # A radioactivity column entry wins over the top-level field.
+  both <- write_sidecar("both", list(Units = "Bq/mL",
+                                     radioactivity = list(Units = "kBq/mL")))
+  expect_equal(detect_original_tac_units(deriv, both), "kBq")
+
+  # Nothing recorded, or no sidecar at all: assume Bq.
+  none <- write_sidecar("none", list(Description = "no units here"))
+  expect_equal(detect_original_tac_units(deriv, none), "Bq")
+  expect_equal(detect_original_tac_units(deriv, "missing_tacs.tsv"), "Bq")
+})

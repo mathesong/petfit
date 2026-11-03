@@ -7,9 +7,14 @@
   never updates anything itself, and stays silent without a network. Turn it off
   with `--no-update-check` or `PETFIT_NO_UPDATE_CHECK=1`.
 
-# petfit 0.2.4
+* **TAC units are now read from the top-level `Units` field.** PETPrep records TAC
+  units as `"Units": "Bq/mL"` at the top level of the `_tacs.json` sidecar,
+  as in the raw `_pet.json`, but petfit only looked for a `radioactivity` column
+  entry and otherwise assumed Bq. TACs in kBq/mL that recorded their units
+  only at the top level were therefore treated as Bq/mL, a factor of 1000 out.
+  A `radioactivity` column entry still takes precedence if both are present.
 
-## Results to check
+# petfit 0.2.4
 
 * **SRTM2, refLogan or MRTM2 models taking k2prime from an ancillary analysis.** 
   Since a recent update, these models were defaulting to k2prime = 0.1 for 
